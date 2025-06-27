@@ -243,7 +243,27 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                                 <Badge variant="outline" className="text-xs">
                                   {skill.level}
                                 </Badge>
-                                <div className={`w-2 h-2 bg-${categoryData.color}-500 rounded-full`}></div>
+                                {(() => {
+                                  const levelNum = parseSkillLevel(skill.level)
+                                  if (levelNum === 0) return null
+                                  const maxDots = 5
+                                  const dotsToShow = Math.min(levelNum, maxDots)
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <div className="flex gap-1">
+                                        {Array.from({ length: dotsToShow }, (_, i) => (
+                                          <div
+                                            key={i}
+                                            className={`w-2 h-2 rounded-full bg-${categoryData.color}-500`}
+                                          />
+                                        ))}
+                                        {levelNum > maxDots && (
+                                          <span className="text-xs text-gray-500 ml-1">+{levelNum - maxDots}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
                               </div>
                               <p className="text-sm mb-3">{skill.description || "No description available"}</p>
                               <Button
