@@ -45,6 +45,8 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
   const [roleSkills, setRoleSkills] = useState<Skill[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoadingSkills, setIsLoadingSkills] = useState(false)
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
+  const [isSkillDetailOpen, setIsSkillDetailOpen] = useState(false)
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -213,7 +215,19 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                                   <div className={`w-2 h-2 bg-${categoryData.color}-500 rounded-full`}></div>
                                 )}
                               </div>
-                              <p className="text-sm">{skill.description}</p>
+                              <p className="text-sm mb-3">{skill.description}</p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedSkill(skill)
+                                  setIsSkillDetailOpen(true)
+                                }}
+                                className="text-xs"
+                              >
+                                Show Details
+                              </Button>
                             </div>
                           ))}
                         </div>
@@ -226,6 +240,81 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                     <div className="text-gray-500 text-sm">This role currently has no skills defined.</div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Skill Detail Modal */}
+      <Dialog open={isSkillDetailOpen} onOpenChange={setIsSkillDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>{selectedSkill?.name}</span>
+              {selectedSkill && (
+                <Badge variant="outline" className="text-xs">
+                  {selectedSkill.level}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedSkill && (
+            <div className="space-y-4">
+              {/* Skill Category */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-1">Category</h4>
+                <Badge variant="secondary" className={`${getColorClasses(selectedSkill.category_color)} border`}>
+                  {selectedSkill.category_name}
+                </Badge>
+              </div>
+
+              {/* Skill Level */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-1">Level</h4>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{selectedSkill.level}</Badge>
+                  {selectedSkill.level !== "N/A" && (
+                    <div className="flex gap-1">
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const levelNum = Number.parseInt(selectedSkill.level.replace("L", "")) || 0
+                        return (
+                          <div
+                            key={i}
+                            className={`w-2 h-2 rounded-full ${
+                              i < levelNum ? `bg-${selectedSkill.category_color}-500` : "bg-gray-200"
+                            }`}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Full Description */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Full Description</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{selectedSkill.description}</p>
+                </div>
+              </div>
+
+              {/* Role Context */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-1">Role Context</h4>
+                <p className="text-sm text-gray-600">
+                  This skill is part of the <strong>{selectedRole?.name}</strong> ({selectedRole?.code}) role
+                  requirements.
+                </p>
+              </div>
+
+              {/* Close Button */}
+              <div className="flex justify-end pt-4">
+                <Button variant="outline" onClick={() => setIsSkillDetailOpen(false)}>
+                  Close
+                </Button>
               </div>
             </div>
           )}
