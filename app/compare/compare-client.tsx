@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Eye, ArrowLeftRight } from "lucide-react"
+import { Eye, ArrowLeftRight, Download, FileText } from "lucide-react"
 
 interface Role {
   id: number
@@ -167,6 +167,163 @@ export function CompareClient({ roles, getRoleSkills, isDemoMode }: Props) {
     setSelectedRole2(temp)
   }
 
+  const exportToPDF = async () => {
+    if (!selectedRole1 || !selectedRole2 || !role1 || !role2) return
+
+    try {
+      // Dynamic import to avoid SSR issues
+      const jsPDF = (await import("jspdf")).default
+
+      const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.width
+      const margin = 20
+      let yPosition = margin
+
+      // Helper function to add text with word wrapping
+      const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize = 10) => {
+        doc.setFontSize(fontSize)
+        const lines = doc.splitTextToSize(text, maxWidth)
+        doc.text(lines, x, y)
+        return y + lines.length * fontSize * 0.4
+      }
+
+      // Header
+      doc.setFontSize(20)
+      doc.setFont(undefined, "bold")
+      doc.text("Role Comparison Report", margin, yPosition)
+      yPosition += 15
+
+      doc.setFontSize(12)
+      doc.setFont(undefined, "normal")
+      doc.text(`Generated on ${new Date().toLocaleDateString()}`, margin, yPosition)
+      yPosition += 20
+
+      // Role Headers
+      doc.setFontSize(16)
+      doc.setFont(undefined, "bold")
+      doc.text(`${role1.name} (${role1.code}) vs ${role2.name} (${role2.code})`, margin, yPosition)
+      yPosition += 15
+
+      // Role Details
+      doc.setFontSize(10)
+      doc.setFont(undefined, "normal")
+
+      const role1Details = `${role1.department_name} • Level ${role1.level} • ${formatSalary(role1)} • ${role1.location_type || "Hybrid"}`
+      const role2Details = `${role2.department_name} • Level ${role2.level} • ${formatSalary(role2)} • ${role2.location_type || "Hybrid"}`
+
+      yPosition = addWrappedText(`Role 1: ${role1Details}`, margin, yPosition, pageWidth - 2 * margin)
+      yPosition = addWrappedText(`Role 2: ${role2Details}`, margin, yPosition + 5, pageWidth - 2 * margin)
+      yPosition += 15
+
+      // Skills by Category
+      for (const categoryName of allCategories) {
+        // Check if we need a new page
+        if (yPosition > 250) {
+          doc.addPage()
+          yPosition = margin
+        }
+
+        const role1Category = role1SkillsByCategory[categoryName]
+        const role2Category = role2SkillsByCategory[categoryName]
+
+        // Category Header
+        doc.setFontSize(14)
+        doc.setFont(undefined, "bold")
+        doc.text(categoryName, margin, yPosition)
+        yPosition += 10
+
+        // Create two columns for skills
+        const columnWidth = (pageWidth - 3 * margin) / 2
+        const leftColumnX = margin
+        const rightColumnX = margin + columnWidth + margin
+
+        let leftColumnY = yPosition
+        let rightColumnY = yPosition
+
+        // Role 1 Skills (Left Column)
+        doc.setFontSize(12)
+        doc.setFont(undefined, "bold")
+        doc.text(role1.name, leftColumnX, leftColumnY)
+        leftColumnY += 8
+
+        if (role1Category?.skills.length) {
+          doc.setFontSize(9)
+          doc.setFont(undefined, "normal")
+          for (const skill of role1Category.skills) {
+            if (leftColumnY > 270) {
+              doc.addPage()
+              leftColumnY = margin
+            }
+
+            doc.setFont(undefined, "bold")
+            doc.text(`• ${skill.skill_name} (${skill.level})`, leftColumnX, leftColumnY)
+            leftColumnY += 5
+
+            doc.setFont(undefined, "normal")
+            leftColumnY = addWrappedText(
+              skill.demonstration_description,
+              leftColumnX + 5,
+              leftColumnY,
+              columnWidth - 5,
+              8,
+            )
+            leftColumnY += 3
+          }
+        } else {
+          doc.setFontSize(9)
+          doc.setFont(undefined, "italic")
+          doc.text("No skills in this category", leftColumnX, leftColumnY)
+          leftColumnY += 8
+        }
+
+        // Role 2 Skills (Right Column)
+        doc.setFontSize(12)
+        doc.setFont(undefined, "bold")
+        doc.text(role2.name, rightColumnX, rightColumnY)
+        rightColumnY += 8
+
+        if (role2Category?.skills.length) {
+          doc.setFontSize(9)
+          doc.setFont(undefined, "normal")
+          for (const skill of role2Category.skills) {
+            if (rightColumnY > 270) {
+              doc.addPage()
+              rightColumnY = margin
+            }
+
+            doc.setFont(undefined, "bold")
+            doc.text(`• ${skill.skill_name} (${skill.level})`, rightColumnX, rightColumnY)
+            rightColumnY += 5
+
+            doc.setFont(undefined, "normal")
+            rightColumnY = addWrappedText(
+              skill.demonstration_description,
+              rightColumnX + 5,
+              rightColumnY,
+              columnWidth - 5,
+              8,
+            )
+            rightColumnY += 3
+          }
+        } else {
+          doc.setFontSize(9)
+          doc.setFont(undefined, "italic")
+          doc.text("No skills in this category", rightColumnX, rightColumnY)
+          rightColumnY += 8
+        }
+
+        yPosition = Math.max(leftColumnY, rightColumnY) + 10
+      }
+
+      // Save the PDF
+      const fileName = `role-comparison-${role1.code}-vs-${role2.code}-${new Date().toISOString().split("T")[0]}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      alert("Error generating PDF. Please try again.")
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Database Status Banner */}
@@ -211,7 +368,7 @@ export function CompareClient({ roles, getRoleSkills, isDemoMode }: Props) {
           </Select>
         </div>
 
-        <div className="flex items-end justify-center">
+        <div className="flex items-end justify-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -220,6 +377,15 @@ export function CompareClient({ roles, getRoleSkills, isDemoMode }: Props) {
             className="mb-2 bg-transparent"
           >
             <ArrowLeftRight className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToPDF}
+            disabled={!selectedRole1 || !selectedRole2 || isLoading}
+            className="mb-2 bg-transparent"
+          >
+            <Download className="w-4 h-4" />
           </Button>
         </div>
 
@@ -246,6 +412,18 @@ export function CompareClient({ roles, getRoleSkills, isDemoMode }: Props) {
       {/* Comparison Results */}
       {selectedRole1 && selectedRole2 && (
         <>
+          {/* Export Button */}
+          <div className="flex justify-end mb-6">
+            <Button
+              onClick={exportToPDF}
+              disabled={isLoading}
+              className="bg-brand-600 hover:bg-brand-700 flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Export to PDF
+            </Button>
+          </div>
+
           {/* Role Headers */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {[role1, role2].map((role, index) => (
