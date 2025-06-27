@@ -26,10 +26,10 @@ interface Role {
 
 interface Skill {
   id: number
-  name: string
+  skill_name: string
   level: string
-  description: string
-  full_description: string
+  demonstration_description: string
+  skill_description: string
   category_name: string
   category_color: string
 }
@@ -239,7 +239,7 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                               className={`p-4 rounded-lg border ${getColorClasses(categoryData.color)}`}
                             >
                               <div className="flex items-center gap-3 mb-2">
-                                <span className="font-medium">{skill.name}</span>
+                                <span className="font-medium">{skill.skill_name}</span>
                                 <Badge variant="outline" className="text-xs">
                                   {skill.level}
                                 </Badge>
@@ -265,7 +265,9 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                                   )
                                 })()}
                               </div>
-                              <p className="text-sm mb-3">{skill.description || "No description available"}</p>
+                              <p className="text-sm mb-3">
+                                {skill.demonstration_description || "No demonstration description available"}
+                              </p>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -301,7 +303,7 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span>{selectedSkill?.name || "Skill Details"}</span>
+              <span>{selectedSkill?.skill_name || "Skill Details"}</span>
               {selectedSkill && (
                 <Badge variant="outline" className="text-xs">
                   {selectedSkill.level}
@@ -334,7 +336,7 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Demonstration Description</h4>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-gray-800 text-sm leading-relaxed">
-                    {selectedSkill.description || "No demonstration description available"}
+                    {selectedSkill.demonstration_description || "No demonstration description available"}
                   </p>
                 </div>
               </div>
@@ -344,7 +346,9 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Skill Description</h4>
                 <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
                   <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                    {selectedSkill.full_description || selectedSkill.description || "No skill description available"}
+                    {selectedSkill.skill_description ||
+                      selectedSkill.demonstration_description ||
+                      "No skill description available"}
                   </p>
                 </div>
               </div>

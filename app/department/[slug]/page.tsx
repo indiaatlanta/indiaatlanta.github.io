@@ -38,7 +38,7 @@ async function getDepartmentData(slug: string) {
 
     const department = departments[0]
 
-    // Get ALL roles for this department, but only show those with skills
+    // Get ALL roles for this department, but only show those with skill demonstrations
     const roles = await sql`
     SELECT 
       jr.id,
@@ -48,12 +48,12 @@ async function getDepartmentData(slug: string) {
       jr.salary_min,
       jr.salary_max,
       jr.location_type,
-      COUNT(s.id) as skill_count
+      COUNT(sd.id) as skill_count
     FROM job_roles jr
-    LEFT JOIN skills s ON jr.id = s.job_role_id
+    LEFT JOIN skill_demonstrations sd ON jr.id = sd.job_role_id
     WHERE jr.department_id = ${department.id}
     GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type
-    HAVING COUNT(s.id) > 0
+    HAVING COUNT(sd.id) > 0
     ORDER BY jr.level, jr.name
   `
 
@@ -70,20 +70,20 @@ async function getRoleSkills(roleId: number) {
     return [
       {
         id: 1,
-        name: "Security",
+        skill_name: "Security",
         level: "L1",
-        description: "Understands the importance of security.",
-        full_description:
+        demonstration_description: "Understands the importance of security.",
+        skill_description:
           "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices. This includes awareness of authentication, authorization, data encryption, and when to escalate security concerns.",
         category_name: "Technical Skills",
         category_color: "blue",
       },
       {
         id: 2,
-        name: "Work Breakdown",
+        skill_name: "Work Breakdown",
         level: "L1",
-        description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
-        full_description:
+        demonstration_description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
+        skill_description:
           "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L1 level, engineers should understand the value of small, independent work items for faster feedback cycles, reduced risk, and better estimation. This includes understanding how proper work breakdown enables continuous deployment and incremental delivery of business value.",
         category_name: "Delivery",
         category_color: "green",
@@ -92,25 +92,49 @@ async function getRoleSkills(roleId: number) {
   }
 
   try {
+    // Use the new skill demonstrations structure
     const skills = await sql`
     SELECT 
-      s.id,
-      s.name,
-      s.level,
-      s.description,
-      s.full_description,
+      sd.id,
+      sm.name as skill_name,
+      sd.level,
+      sd.demonstration_description,
+      sm.description as skill_description,
       sc.name as category_name,
-      sc.color as category_color
-    FROM skills s
-    JOIN skill_categories sc ON s.category_id = sc.id
-    WHERE s.job_role_id = ${roleId}
-    ORDER BY sc.sort_order, s.sort_order, s.name
+      sc.color as category_color,
+      sd.sort_order
+    FROM skill_demonstrations sd
+    JOIN skills_master sm ON sd.skill_master_id = sm.id
+    JOIN skill_categories sc ON sm.category_id = sc.id
+    WHERE sd.job_role_id = ${roleId}
+    ORDER BY sc.sort_order, sm.sort_order, sd.sort_order, sm.name
   `
 
     return skills
   } catch (error) {
     console.error("Error fetching role skills:", error)
-    return []
+    // Fallback to old structure if new tables don't exist yet
+    try {
+      const fallbackSkills = await sql`
+      SELECT 
+        s.id,
+        s.name as skill_name,
+        s.level,
+        s.description as demonstration_description,
+        s.full_description as skill_description,
+        sc.name as category_name,
+        sc.color as category_color,
+        s.sort_order
+      FROM skills s
+      JOIN skill_categories sc ON s.category_id = sc.id
+      WHERE s.job_role_id = ${roleId}
+      ORDER BY sc.sort_order, s.sort_order, s.name
+    `
+      return fallbackSkills
+    } catch (fallbackError) {
+      console.error("Error with fallback query:", fallbackError)
+      return []
+    }
   }
 }
 
