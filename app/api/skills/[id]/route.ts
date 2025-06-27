@@ -28,6 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         name = ${skillData.name},
         level = ${skillData.level},
         description = ${skillData.description},
+        full_description = ${skillData.fullDescription},
         sort_order = ${skillData.sortOrder || 0},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${skillId}

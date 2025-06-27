@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
     // Insert skills one by one (in production, you might want to use a transaction)
     for (const skillData of skills) {
       const result = await sql`
-        INSERT INTO skills (job_role_id, category_id, name, level, description, sort_order)
-        VALUES (${skillData.jobRoleId}, ${skillData.categoryId}, ${skillData.name}, ${skillData.level}, ${skillData.description}, ${skillData.sortOrder || 0})
+        INSERT INTO skills (job_role_id, category_id, name, level, description, full_description, sort_order)
+        VALUES (${skillData.jobRoleId}, ${skillData.categoryId}, ${skillData.name}, ${skillData.level}, ${skillData.description}, ${skillData.fullDescription}, ${skillData.sortOrder || 0})
         RETURNING *
       `
 

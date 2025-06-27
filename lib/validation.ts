@@ -11,6 +11,7 @@ export const skillSchema = z.object({
     errorMap: () => ({ message: "Invalid skill level" }),
   }),
   description: z.string().min(1, "Description is required").max(2000, "Description too long"),
+  fullDescription: z.string().min(1, "Full description is required").max(10000, "Full description too long"),
   categoryId: z.number().int().positive("Invalid category"),
   jobRoleId: z.number().int().positive("Invalid job role"),
   sortOrder: z.number().int().min(0).optional(),

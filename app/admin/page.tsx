@@ -18,6 +18,7 @@ interface Skill {
   name: string
   level: string
   description: string
+  full_description: string
   category_id: number
   category_name: string
   category_color: string
@@ -54,6 +55,8 @@ const mockSkills: Skill[] = [
     name: "Security",
     level: "L1",
     description: "Understands the importance of security.",
+    full_description:
+      "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices.",
     category_id: 1,
     category_name: "Technical Skills",
     category_color: "blue",
@@ -65,6 +68,8 @@ const mockSkills: Skill[] = [
     name: "Work Breakdown",
     level: "L1",
     description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
+    full_description:
+      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L1 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
     category_id: 2,
     category_name: "Delivery",
     category_color: "green",
@@ -104,6 +109,7 @@ export default function AdminPage() {
     name: "",
     level: "L1",
     description: "",
+    fullDescription: "",
     category_id: 1,
     sort_order: 0,
   })
@@ -175,7 +181,7 @@ export default function AdminPage() {
       setSuccess("Skill saved successfully (Demo Mode)")
       setEditingSkill(null)
       setIsAddingSkill(false)
-      setNewSkill({ name: "", level: "L1", description: "", category_id: 1, sort_order: 0 })
+      setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
       return
     }
 
@@ -209,7 +215,7 @@ export default function AdminPage() {
         setSuccess(editingSkill ? "Skill updated successfully" : "Skill created successfully")
         setEditingSkill(null)
         setIsAddingSkill(false)
-        setNewSkill({ name: "", level: "L1", description: "", category_id: 1, sort_order: 0 })
+        setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
         loadSkills()
         loadAuditLogs()
       } else {
@@ -257,7 +263,7 @@ export default function AdminPage() {
       const mockData =
         format === "json"
           ? JSON.stringify(mockSkills, null, 2)
-          : "name,level,description\nSecurity,L1,Understands the importance of security."
+          : "name,level,description,full_description\nSecurity,L1,Understands the importance of security.,Security is a fundamental aspect..."
       const blob = new Blob([mockData], { type: format === "json" ? "application/json" : "text/csv" })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -320,9 +326,10 @@ export default function AdminPage() {
               name: values[4]?.replace(/"/g, ""),
               level: values[5]?.replace(/"/g, ""),
               description: values[6]?.replace(/"/g, ""),
+              fullDescription: values[7]?.replace(/"/g, "") || values[6]?.replace(/"/g, ""),
               categoryId: skillCategories.find((c) => c.name === values[3]?.replace(/"/g, ""))?.id || 1,
               jobRoleId: selectedJobRoleId,
-              sortOrder: Number.parseInt(values[7]) || 0,
+              sortOrder: Number.parseInt(values[8]) || 0,
             }
           })
           .filter((skill) => skill.name)
@@ -637,7 +644,7 @@ export default function AdminPage() {
 
         {/* Add/Edit Skill Dialogs */}
         <Dialog open={isAddingSkill} onOpenChange={setIsAddingSkill}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Skill</DialogTitle>
             </DialogHeader>
@@ -686,12 +693,21 @@ export default function AdminPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Summary Description</label>
                 <Textarea
                   value={newSkill.description}
                   onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
-                  placeholder="Enter skill description"
-                  rows={3}
+                  placeholder="Enter brief skill summary (shown in skill list)"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                <Textarea
+                  value={newSkill.fullDescription}
+                  onChange={(e) => setNewSkill({ ...newSkill, fullDescription: e.target.value })}
+                  placeholder="Enter detailed skill description (shown in skill details)"
+                  rows={6}
                 />
               </div>
               <div className="flex gap-2 justify-end">
@@ -711,7 +727,7 @@ export default function AdminPage() {
         </Dialog>
 
         <Dialog open={!!editingSkill} onOpenChange={() => setEditingSkill(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Skill</DialogTitle>
             </DialogHeader>
@@ -765,11 +781,19 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Summary Description</label>
                   <Textarea
                     value={editingSkill.description}
                     onChange={(e) => setEditingSkill({ ...editingSkill, description: e.target.value })}
-                    rows={3}
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                  <Textarea
+                    value={editingSkill.full_description}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, full_description: e.target.value })}
+                    rows={6}
                   />
                 </div>
                 <div className="flex gap-2 justify-end">

@@ -29,6 +29,7 @@ interface Skill {
   name: string
   level: string
   description: string
+  full_description: string
   category_name: string
   category_color: string
 }
@@ -305,12 +306,22 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                 </div>
               </div>
 
+              {/* Summary Description */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Summary</h4>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-gray-800 text-sm leading-relaxed">
+                    {selectedSkill.description || "No summary available"}
+                  </p>
+                </div>
+              </div>
+
               {/* Full Description */}
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Full Description</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
                   <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                    {selectedSkill.description || "No description available"}
+                    {selectedSkill.full_description || selectedSkill.description || "No description available"}
                   </p>
                 </div>
               </div>

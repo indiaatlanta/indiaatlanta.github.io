@@ -71,6 +71,8 @@ async function getRoleSkills(roleId: number) {
         name: "Security",
         level: "L1",
         description: "Understands the importance of security.",
+        full_description:
+          "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices. This includes awareness of authentication, authorization, data encryption, and when to escalate security concerns.",
         category_name: "Technical Skills",
         category_color: "blue",
       },
@@ -79,6 +81,8 @@ async function getRoleSkills(roleId: number) {
         name: "Work Breakdown",
         level: "L1",
         description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
+        full_description:
+          "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L1 level, engineers should understand the value of small, independent work items for faster feedback cycles, reduced risk, and better estimation. This includes understanding how proper work breakdown enables continuous deployment and incremental delivery of business value.",
         category_name: "Delivery",
         category_color: "green",
       },
@@ -92,6 +96,7 @@ async function getRoleSkills(roleId: number) {
         s.name,
         s.level,
         s.description,
+        s.full_description,
         sc.name as category_name,
         sc.color as category_color
       FROM skills s
