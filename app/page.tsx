@@ -130,7 +130,7 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-amber-900 px-4 py-3">
+      <div className="bg-brand-800 px-4 py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default async function Home() {
           </div>
           <Link
             href="https://careers.henryscheinone.co.uk/"
-            className="text-amber-700 hover:text-amber-800 flex items-center gap-1 text-sm"
+            className="text-brand-600 hover:text-brand-700 flex items-center gap-1 text-sm"
           >
             https://careers.henryscheinone.co.uk/
             <ExternalLink className="w-3 h-3" />
@@ -185,7 +185,7 @@ export default async function Home() {
 
             return (
               <Link key={dept.id} href={`/department/${dept.slug}`}>
-                <div className="bg-amber-900 text-white rounded-lg overflow-hidden hover:bg-amber-800 transition-colors cursor-pointer">
+                <div className="bg-brand-800 text-white rounded-lg overflow-hidden hover:bg-brand-700 transition-colors cursor-pointer">
                   {/* Header */}
                   <div className="p-4 pb-3">
                     <h2 className="text-lg font-semibold mb-3 text-white">{dept.name}</h2>
@@ -193,7 +193,7 @@ export default async function Home() {
                     {/* Icons */}
                     <div className="flex gap-3 mb-4">
                       {icons.map((icon, iconIndex) => (
-                        <span key={iconIndex} className="text-amber-200 text-lg">
+                        <span key={iconIndex} className="text-brand-200 text-lg">
                           {icon}
                         </span>
                       ))}

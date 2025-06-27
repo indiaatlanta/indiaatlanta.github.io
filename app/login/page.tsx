@@ -104,13 +104,13 @@ export default function LoginPage() {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-brand-600 hover:bg-brand-700" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
             <div className="mt-4 text-center">
-              <Link href="/" className="text-amber-700 hover:text-amber-800 text-sm">
+              <Link href="/" className="text-brand-600 hover:text-brand-700 text-sm">
                 ← Back to Career Matrix
               </Link>
             </div>

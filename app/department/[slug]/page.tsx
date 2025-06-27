@@ -134,7 +134,7 @@ export default async function DepartmentPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-amber-900 px-4 py-3">
+      <div className="bg-brand-800 px-4 py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -151,7 +151,7 @@ export default async function DepartmentPage({ params }: PageProps) {
             {isAdmin && (
               <Link
                 href="/admin"
-                className="ml-auto bg-amber-100 text-amber-900 px-3 py-1 rounded-md text-sm font-medium hover:bg-amber-200 transition-colors flex items-center gap-2"
+                className="ml-auto bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
               >
                 <Settings className="w-4 h-4" />
                 Admin Panel

@@ -391,7 +391,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-amber-900 px-4 py-3">
+      <div className="bg-brand-800 px-4 py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -410,10 +410,10 @@ export default function AdminPage() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+              <Badge variant="secondary" className="bg-brand-100 text-brand-800">
                 Admin
               </Badge>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-amber-800">
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700">
                 <LogOut className="w-4 h-4 mr-2" />
                 {isDemoMode ? "Exit Demo" : "Logout"}
               </Button>
@@ -496,7 +496,7 @@ export default function AdminPage() {
               <>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-gray-900">Skills Management</h2>
-                  <Button onClick={() => setIsAddingSkill(true)} className="bg-amber-600 hover:bg-amber-700">
+                  <Button onClick={() => setIsAddingSkill(true)} className="bg-brand-600 hover:bg-brand-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Skill
                   </Button>
@@ -731,7 +731,7 @@ export default function AdminPage() {
                 </Button>
                 <Button
                   onClick={() => handleSaveSkill(newSkill)}
-                  className="bg-amber-600 hover:bg-amber-700"
+                  className="bg-brand-600 hover:bg-brand-700"
                   disabled={isLoading}
                 >
                   {isLoading ? "Adding..." : "Add Skill"}
@@ -819,7 +819,7 @@ export default function AdminPage() {
                   </Button>
                   <Button
                     onClick={() => handleSaveSkill(editingSkill)}
-                    className="bg-amber-600 hover:bg-amber-700"
+                    className="bg-brand-600 hover:bg-brand-700"
                     disabled={isLoading}
                   >
                     <Save className="w-4 h-4 mr-2" />
