@@ -693,16 +693,16 @@ export default function AdminPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Summary Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
                 <Textarea
                   value={newSkill.description}
                   onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
-                  placeholder="Enter brief skill summary (shown in skill list)"
+                  placeholder="Enter brief demonstration description (shown in skill list)"
                   rows={2}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
                 <Textarea
                   value={newSkill.fullDescription}
                   onChange={(e) => setNewSkill({ ...newSkill, fullDescription: e.target.value })}
@@ -781,7 +781,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Summary Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
                   <Textarea
                     value={editingSkill.description}
                     onChange={(e) => setEditingSkill({ ...editingSkill, description: e.target.value })}
@@ -789,7 +789,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
                   <Textarea
                     value={editingSkill.full_description}
                     onChange={(e) => setEditingSkill({ ...editingSkill, full_description: e.target.value })}
