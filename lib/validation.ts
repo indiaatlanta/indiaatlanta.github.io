@@ -7,8 +7,8 @@ export const loginSchema = z.object({
 
 export const skillSchema = z.object({
   name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
-  level: z.enum(["L1", "L2", "L3", "L4", "L5", "N/A"], {
-    errorMap: () => ({ message: "Invalid skill level" }),
+  level: z.enum(["L1", "L2", "L3", "L4", "L5"], {
+    errorMap: () => ({ message: "Skill level is required and must be L1-L5" }),
   }),
   description: z.string().min(1, "Description is required").max(2000, "Description too long"),
   fullDescription: z.string().min(1, "Full description is required").max(10000, "Full description too long"),

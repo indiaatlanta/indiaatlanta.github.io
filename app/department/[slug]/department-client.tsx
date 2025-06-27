@@ -84,13 +84,13 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
   }
 
   const parseSkillLevel = (level: string | null | undefined): number => {
-    if (!level || level === "N/A") return 0
+    if (!level) return 0
     const match = level.match(/L(\d+)/)
     return match ? Number.parseInt(match[1], 10) : 0
   }
 
   const getSkillLevelDots = (skill: Skill) => {
-    if (!skill.level || skill.level === "N/A") {
+    if (!skill.level) {
       return null
     }
 
@@ -236,11 +236,9 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                               <div className="flex items-center gap-3 mb-2">
                                 <span className="font-medium">{skill.name}</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {skill.level || "N/A"}
+                                  {skill.level}
                                 </Badge>
-                                {skill.level && skill.level !== "N/A" && (
-                                  <div className={`w-2 h-2 bg-${categoryData.color}-500 rounded-full`}></div>
-                                )}
+                                <div className={`w-2 h-2 bg-${categoryData.color}-500 rounded-full`}></div>
                               </div>
                               <p className="text-sm mb-3">{skill.description || "No description available"}</p>
                               <Button
@@ -281,7 +279,7 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
               <span>{selectedSkill?.name || "Skill Details"}</span>
               {selectedSkill && (
                 <Badge variant="outline" className="text-xs">
-                  {selectedSkill.level || "N/A"}
+                  {selectedSkill.level}
                 </Badge>
               )}
             </DialogTitle>
@@ -301,7 +299,7 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-1">Level</h4>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{selectedSkill.level || "N/A"}</Badge>
+                  <Badge variant="outline">{selectedSkill.level}</Badge>
                   {getSkillLevelDots(selectedSkill)}
                 </div>
               </div>

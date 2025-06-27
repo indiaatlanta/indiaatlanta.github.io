@@ -46,7 +46,7 @@ const skillCategories = [
   { id: 5, name: "Strategic Impact", color: "orange" },
 ]
 
-const skillLevels = ["L1", "L2", "L3", "L4", "L5", "N/A"]
+const skillLevels = ["L1", "L2", "L3", "L4", "L5"]
 
 // Mock data for demo mode
 const mockSkills: Skill[] = [
@@ -66,10 +66,10 @@ const mockSkills: Skill[] = [
   {
     id: 2,
     name: "Work Breakdown",
-    level: "L1",
+    level: "L2",
     description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
     full_description:
-      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L1 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
+      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L2 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
     category_id: 2,
     category_name: "Delivery",
     category_color: "green",
@@ -324,7 +324,7 @@ export default function AdminPage() {
             const values = line.split(",")
             return {
               name: values[4]?.replace(/"/g, ""),
-              level: values[5]?.replace(/"/g, ""),
+              level: values[5]?.replace(/"/g, "") || "L1", // Default to L1 if no level specified
               description: values[6]?.replace(/"/g, ""),
               fullDescription: values[7]?.replace(/"/g, "") || values[6]?.replace(/"/g, ""),
               categoryId: skillCategories.find((c) => c.name === values[3]?.replace(/"/g, ""))?.id || 1,
@@ -659,10 +659,12 @@ export default function AdminPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Level <span className="text-red-500">*</span>
+                  </label>
                   <Select value={newSkill.level} onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select level" />
                     </SelectTrigger>
                     <SelectContent>
                       {skillLevels.map((level) => (
@@ -742,7 +744,9 @@ export default function AdminPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Level <span className="text-red-500">*</span>
+                    </label>
                     <Select
                       value={editingSkill.level}
                       onValueChange={(value) => setEditingSkill({ ...editingSkill, level: value })}
