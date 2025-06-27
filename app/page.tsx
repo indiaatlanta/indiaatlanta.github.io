@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ExternalLink, Rocket, GitCompare } from "lucide-react"
+import { ExternalLink, Rocket, GitCompare, ClipboardCheck } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
@@ -143,6 +143,13 @@ export default async function Home() {
               >
                 <GitCompare className="w-4 h-4" />
                 Compare Roles
+              </Link>
+              <Link
+                href="/self-review"
+                className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                Self Review
               </Link>
               <AdminButton />
             </div>
