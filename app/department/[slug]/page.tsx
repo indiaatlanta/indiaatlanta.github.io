@@ -17,18 +17,19 @@ async function getDepartmentData(slug: string) {
       },
       roles: [
         { id: 1, name: "Junior Engineer", code: "E1", level: 1, skill_count: 25 },
-        // Remove roles without skills from mock data
+        { id: 2, name: "Software Engineer", code: "E2", level: 2, skill_count: 30 },
+        { id: 3, name: "Senior Engineer", code: "E3", level: 3, skill_count: 35 },
       ],
     }
   }
 
   try {
-    // Get department
+    // Get department (show all departments)
     const departments = await sql`
-      SELECT id, name, slug, description
-      FROM departments
-      WHERE slug = ${slug}
-    `
+    SELECT id, name, slug, description
+    FROM departments
+    WHERE slug = ${slug}
+  `
 
     if (departments.length === 0) {
       return null
@@ -36,24 +37,24 @@ async function getDepartmentData(slug: string) {
 
     const department = departments[0]
 
-    // Get roles for this department with skill counts - only show roles with skills
+    // Get ALL roles for this department, but only show those with skills
     const roles = await sql`
-      SELECT 
-        jr.id,
-        jr.name,
-        jr.code,
-        jr.level,
-        jr.salary_min,
-        jr.salary_max,
-        jr.location_type,
-        COUNT(s.id) as skill_count
-      FROM job_roles jr
-      INNER JOIN skills s ON jr.id = s.job_role_id
-      WHERE jr.department_id = ${department.id}
-      GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type
-      HAVING COUNT(s.id) > 0
-      ORDER BY jr.level, jr.name
-    `
+    SELECT 
+      jr.id,
+      jr.name,
+      jr.code,
+      jr.level,
+      jr.salary_min,
+      jr.salary_max,
+      jr.location_type,
+      COUNT(s.id) as skill_count
+    FROM job_roles jr
+    LEFT JOIN skills s ON jr.id = s.job_role_id
+    WHERE jr.department_id = ${department.id}
+    GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type
+    HAVING COUNT(s.id) > 0
+    ORDER BY jr.level, jr.name
+  `
 
     return { department, roles }
   } catch (error) {
@@ -91,19 +92,19 @@ async function getRoleSkills(roleId: number) {
 
   try {
     const skills = await sql`
-      SELECT 
-        s.id,
-        s.name,
-        s.level,
-        s.description,
-        s.full_description,
-        sc.name as category_name,
-        sc.color as category_color
-      FROM skills s
-      JOIN skill_categories sc ON s.category_id = sc.id
-      WHERE s.job_role_id = ${roleId}
-      ORDER BY sc.sort_order, s.sort_order, s.name
-    `
+    SELECT 
+      s.id,
+      s.name,
+      s.level,
+      s.description,
+      s.full_description,
+      sc.name as category_name,
+      sc.color as category_color
+    FROM skills s
+    JOIN skill_categories sc ON s.category_id = sc.id
+    WHERE s.job_role_id = ${roleId}
+    ORDER BY sc.sort_order, s.sort_order, s.name
+  `
 
     return skills
   } catch (error) {
