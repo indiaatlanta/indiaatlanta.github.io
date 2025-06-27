@@ -134,13 +134,7 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Image
-                src="/images/henry-schein-one-logo.png"
-                alt="Henry Schein One"
-                width={120}
-                height={32}
-                className="h-8 w-auto"
-              />
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-10" />
             </div>
             <AdminButton />
           </div>

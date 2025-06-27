@@ -51,13 +51,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Image
-              src="/images/henry-schein-one-logo.png"
-              alt="Henry Schein One"
-              width={200}
-              height={53}
-              className="h-12 w-auto"
-            />
+            <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={60} height={60} className="h-15 w-15" />
           </div>
           <h2 className="text-3xl font-bold text-gray-900">Admin Login</h2>
           <p className="mt-2 text-gray-600">Sign in to manage the career matrix</p>
