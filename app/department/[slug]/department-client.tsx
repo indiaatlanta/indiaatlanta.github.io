@@ -85,7 +85,8 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
 
   const parseSkillLevel = (level: string | null | undefined): number => {
     if (!level) return 0
-    const match = level.match(/L(\d+)/)
+    // Match any letter followed by a number (L1, L2, M1, M2, etc.)
+    const match = level.match(/[A-Z](\d+)/)
     return match ? Number.parseInt(match[1], 10) : 0
   }
 
@@ -97,14 +98,18 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
     const levelNum = parseSkillLevel(skill.level)
     if (levelNum === 0) return null
 
+    // Use a maximum of 5 dots for display, but show the actual level number
+    const maxDots = 5
+    const dotsToShow = Math.min(levelNum, maxDots)
+
     return (
-      <div className="flex gap-1">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div
-            key={i}
-            className={`w-2 h-2 rounded-full ${i < levelNum ? `bg-${skill.category_color}-500` : "bg-gray-200"}`}
-          />
-        ))}
+      <div className="flex items-center gap-1">
+        <div className="flex gap-1">
+          {Array.from({ length: dotsToShow }, (_, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full bg-${skill.category_color}-500`} />
+          ))}
+          {levelNum > maxDots && <span className="text-xs text-gray-500 ml-1">+{levelNum - maxDots}</span>}
+        </div>
       </div>
     )
   }

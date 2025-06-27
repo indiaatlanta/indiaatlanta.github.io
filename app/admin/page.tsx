@@ -46,7 +46,7 @@ const skillCategories = [
   { id: 5, name: "Strategic Impact", color: "orange" },
 ]
 
-const skillLevels = ["L1", "L2", "L3", "L4", "L5"]
+const skillLevels = ["L1", "L2", "L3", "L4", "L5", "M1", "M2", "M3", "M4", "M5"]
 
 // Mock data for demo mode
 const mockSkills: Skill[] = [
@@ -664,7 +664,7 @@ export default function AdminPage() {
                   </label>
                   <Select value={newSkill.level} onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select level" />
+                      <SelectValue placeholder="Select level (L1, L2, M1, etc.)" />
                     </SelectTrigger>
                     <SelectContent>
                       {skillLevels.map((level) => (
@@ -674,6 +674,14 @@ export default function AdminPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="mt-2">
+                  <Input
+                    placeholder="Or enter custom level (e.g., S1, P3, etc.)"
+                    value={newSkill.level.startsWith("L") || newSkill.level.startsWith("M") ? "" : newSkill.level}
+                    onChange={(e) => setNewSkill({ ...newSkill, level: e.target.value.toUpperCase() })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Format: Letter followed by number (L1, M2, S3, etc.)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>

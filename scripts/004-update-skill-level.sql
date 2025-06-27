@@ -1,10 +1,10 @@
--- Update skills table to make level a proper required field
+-- Update skills table to allow flexible level formats
 -- First, update any existing N/A values to L1 as a default
 UPDATE skills SET level = 'L1' WHERE level = 'N/A' OR level IS NULL;
 
--- Add a check constraint to ensure level is always one of the valid values (excluding N/A)
+-- Add a check constraint to ensure level follows the pattern (Letter + Number)
 ALTER TABLE skills DROP CONSTRAINT IF EXISTS skills_level_check;
-ALTER TABLE skills ADD CONSTRAINT skills_level_check CHECK (level IN ('L1', 'L2', 'L3', 'L4', 'L5'));
+ALTER TABLE skills ADD CONSTRAINT skills_level_check CHECK (level ~ '^[A-Z][0-9]+$');
 
 -- Make level column NOT NULL
 ALTER TABLE skills ALTER COLUMN level SET NOT NULL;
@@ -23,3 +23,12 @@ UPDATE skill_categories SET description =
     ELSE 'General skill category'
   END
 WHERE description IS NULL;
+
+-- Add some example skills with different level types for demonstration
+INSERT INTO skills (job_role_id, category_id, name, level, description, full_description, sort_order) 
+SELECT 1, 1, 'Advanced Security', 'L3', 'Implements advanced security measures', 'Advanced security implementation and threat analysis', 10
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Advanced Security');
+
+INSERT INTO skills (job_role_id, category_id, name, level, description, full_description, sort_order) 
+SELECT 1, 4, 'Team Leadership', 'M2', 'Leads small development teams', 'Manages and mentors junior developers, coordinates team activities', 20
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Team Leadership');
