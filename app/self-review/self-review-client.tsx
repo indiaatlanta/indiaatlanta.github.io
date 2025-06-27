@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FileText, Eye, Info } from "lucide-react"
+import { FileText, Eye, Info, MessageSquare } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Role {
   id: number
@@ -33,6 +34,7 @@ interface Skill {
 interface SkillRating {
   skillId: number
   rating: string
+  comment?: string
 }
 
 interface Props {
@@ -74,10 +76,11 @@ const ratingOptions = [
 export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
   const [selectedRole, setSelectedRole] = useState<number | null>(null)
   const [roleSkills, setRoleSkills] = useState<Skill[]>([])
-  const [skillRatings, setSkillRatings] = useState<Record<number, string>>({})
+  const [skillRatings, setSkillRatings] = useState<Record<number, { rating: string; comment: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isSkillDetailOpen, setIsSkillDetailOpen] = useState(false)
+  const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({})
 
   const role = roles.find((r) => r.id === selectedRole)
 
@@ -96,6 +99,7 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
       setRoleSkills(skills)
       // Reset ratings when changing roles
       setSkillRatings({})
+      setExpandedComments({})
     } catch (error) {
       console.error("Error loading skills for review:", error)
       setRoleSkills([])
@@ -107,7 +111,27 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
   const handleRatingChange = (skillId: number, rating: string) => {
     setSkillRatings((prev) => ({
       ...prev,
-      [skillId]: rating,
+      [skillId]: {
+        rating,
+        comment: prev[skillId]?.comment || "",
+      },
+    }))
+  }
+
+  const handleCommentChange = (skillId: number, comment: string) => {
+    setSkillRatings((prev) => ({
+      ...prev,
+      [skillId]: {
+        rating: prev[skillId]?.rating || "",
+        comment,
+      },
+    }))
+  }
+
+  const toggleCommentField = (skillId: number) => {
+    setExpandedComments((prev) => ({
+      ...prev,
+      [skillId]: !prev[skillId],
     }))
   }
 
@@ -178,12 +202,12 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
 
   const getCompletionStats = () => {
     const totalSkills = roleSkills.length
-    const ratedSkills = Object.keys(skillRatings).length
+    const ratedSkills = Object.values(skillRatings).filter((rating) => rating.rating).length
     const completionPercentage = totalSkills > 0 ? Math.round((ratedSkills / totalSkills) * 100) : 0
 
     const ratingCounts = ratingOptions.reduce(
       (acc, option) => {
-        acc[option.value] = Object.values(skillRatings).filter((rating) => rating === option.value).length
+        acc[option.value] = Object.values(skillRatings).filter((rating) => rating.rating === option.value).length
         return acc
       },
       {} as Record<string, number>,
@@ -290,7 +314,9 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
             yPosition = margin
           }
 
-          const rating = skillRatings[skill.id]
+          const skillRating = skillRatings[skill.id]
+          const rating = skillRating?.rating
+          const comment = skillRating?.comment
           const ratingOption = ratingOptions.find((opt) => opt.value === rating)
 
           doc.setFontSize(10)
@@ -306,6 +332,16 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
             doc.setFont(undefined, "italic")
             doc.text("Rating: Not rated", margin + 5, yPosition)
             yPosition += 4
+          }
+
+          if (comment && comment.trim()) {
+            doc.setFont(undefined, "bold")
+            doc.text("Comments:", margin + 5, yPosition)
+            yPosition += 3
+            doc.setFontSize(9)
+            doc.setFont(undefined, "normal")
+            yPosition = addWrappedText(comment, margin + 10, yPosition, pageWidth - 2 * margin - 10, 8)
+            yPosition += 3
           }
 
           doc.setFontSize(9)
@@ -481,7 +517,9 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
 
                   <div className="space-y-4">
                     {categoryData.skills.map((skill) => {
-                      const currentRating = skillRatings[skill.id]
+                      const currentRating = skillRatings[skill.id]?.rating
+                      const currentComment = skillRatings[skill.id]?.comment || ""
+                      const isCommentExpanded = expandedComments[skill.id]
                       return (
                         <div key={skill.id} className={`p-4 rounded-lg border ${getColorClasses(categoryData.color)}`}>
                           <div className="flex items-start justify-between mb-3">
@@ -508,25 +546,75 @@ export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
                             </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Rate your proficiency:
-                            </label>
-                            <Select
-                              value={currentRating || ""}
-                              onValueChange={(value) => handleRatingChange(skill.id, value)}
-                            >
-                              <SelectTrigger className="max-w-xs">
-                                <SelectValue placeholder="Select your rating" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ratingOptions.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Rate your proficiency:
+                                </label>
+                                <Select
+                                  value={currentRating || ""}
+                                  onValueChange={(value) => handleRatingChange(skill.id, value)}
+                                >
+                                  <SelectTrigger className="max-w-xs">
+                                    <SelectValue placeholder="Select your rating" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ratingOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleCommentField(skill.id)}
+                                className="mt-6 flex items-center gap-2"
+                              >
+                                <MessageSquare className="w-4 h-4" />+ Comments
+                              </Button>
+                            </div>
+
+                            {isCommentExpanded && (
+                              <div className="mt-3">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Comments (optional):
+                                </label>
+                                <Textarea
+                                  value={currentComment}
+                                  onChange={(e) => handleCommentChange(skill.id, e.target.value)}
+                                  placeholder="Add notes about your rating, specific examples, or areas for development..."
+                                  rows={3}
+                                  className="w-full"
+                                />
+                                {currentComment && (
+                                  <p className="text-xs text-gray-500 mt-1">{currentComment.length} characters</p>
+                                )}
+                              </div>
+                            )}
+
+                            {currentComment && !isCommentExpanded && (
+                              <div className="mt-2 p-2 bg-gray-50 rounded border-l-4 border-gray-300">
+                                <p className="text-sm text-gray-700 italic">
+                                  "
+                                  {currentComment.length > 100
+                                    ? currentComment.substring(0, 100) + "..."
+                                    : currentComment}
+                                  "
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleCommentField(skill.id)}
+                                  className="text-xs text-gray-500 p-0 h-auto mt-1"
+                                >
+                                  Click to edit comment
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )
