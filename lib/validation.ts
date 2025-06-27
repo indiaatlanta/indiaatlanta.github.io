@@ -15,6 +15,24 @@ export const skillSchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
 })
 
+export const skillMasterSchema = z.object({
+  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
+  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
+  categoryId: z.number().int().positive("Invalid category"),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+export const skillDemonstrationSchema = z.object({
+  skillMasterId: z.number().int().positive("Invalid skill"),
+  jobRoleId: z.number().int().positive("Invalid job role"),
+  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
+  demonstrationDescription: z
+    .string()
+    .min(1, "Demonstration description is required")
+    .max(2000, "Description too long"),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
 export const bulkSkillsSchema = z.object({
   skills: z.array(skillSchema).min(1, "At least one skill is required"),
 })
@@ -37,6 +55,8 @@ export const departmentSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type SkillInput = z.infer<typeof skillSchema>
+export type SkillMasterInput = z.infer<typeof skillMasterSchema>
+export type SkillDemonstrationInput = z.infer<typeof skillDemonstrationSchema>
 export type BulkSkillsInput = z.infer<typeof bulkSkillsSchema>
 export type JobRoleInput = z.infer<typeof jobRoleSchema>
 export type DepartmentInput = z.infer<typeof departmentSchema>
