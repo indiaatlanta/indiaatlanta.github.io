@@ -10,65 +10,10 @@ const mockDepartments = [
     name: "Engineering",
     slug: "engineering",
     description: "Software development and technical roles",
-    role_count: 3,
+    role_count: 1,
     skill_count: 45,
   },
-  {
-    id: 2,
-    name: "Design",
-    slug: "design",
-    description: "Product design and user experience roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 3,
-    name: "Customer Success",
-    slug: "customer-success",
-    description: "Customer support and success roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 4,
-    name: "Marketing/Growth",
-    slug: "marketing-growth",
-    description: "Marketing and growth roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 5,
-    name: "Operations",
-    slug: "operations",
-    description: "Operations and process roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 6,
-    name: "People",
-    slug: "people",
-    description: "Human resources and people operations",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 7,
-    name: "Finance",
-    slug: "finance",
-    description: "Finance and accounting roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 8,
-    name: "Product",
-    slug: "product",
-    description: "Product management roles",
-    role_count: 0,
-    skill_count: 0,
-  },
+  // Remove other departments from mock data since they don't have skills
 ]
 
 async function getDepartments() {
@@ -89,6 +34,7 @@ async function getDepartments() {
       LEFT JOIN job_roles jr ON d.id = jr.department_id
       LEFT JOIN skills s ON jr.id = s.job_role_id
       GROUP BY d.id, d.name, d.slug, d.description
+      HAVING COUNT(DISTINCT s.id) > 0
       ORDER BY d.name
     `
     return departments

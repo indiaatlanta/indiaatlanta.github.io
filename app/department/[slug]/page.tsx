@@ -17,8 +17,7 @@ async function getDepartmentData(slug: string) {
       },
       roles: [
         { id: 1, name: "Junior Engineer", code: "E1", level: 1, skill_count: 25 },
-        { id: 2, name: "Software Engineer", code: "E2", level: 2, skill_count: 30 },
-        { id: 3, name: "Senior Engineer", code: "E3", level: 3, skill_count: 35 },
+        // Remove roles without skills from mock data
       ],
     }
   }
@@ -37,7 +36,7 @@ async function getDepartmentData(slug: string) {
 
     const department = departments[0]
 
-    // Get roles for this department with skill counts
+    // Get roles for this department with skill counts - only show roles with skills
     const roles = await sql`
       SELECT 
         jr.id,
@@ -49,9 +48,10 @@ async function getDepartmentData(slug: string) {
         jr.location_type,
         COUNT(s.id) as skill_count
       FROM job_roles jr
-      LEFT JOIN skills s ON jr.id = s.job_role_id
+      INNER JOIN skills s ON jr.id = s.job_role_id
       WHERE jr.department_id = ${department.id}
       GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type
+      HAVING COUNT(s.id) > 0
       ORDER BY jr.level, jr.name
     `
 
