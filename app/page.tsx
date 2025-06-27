@@ -1,99 +1,129 @@
-"use client"
-
 import Link from "next/link"
-import { ExternalLink, Rocket, Settings } from "lucide-react"
+import { ExternalLink, Rocket } from "lucide-react"
+import { AdminButton } from "@/components/admin-button"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
-const departments = [
+// Fallback mock data for when database is not configured
+const mockDepartments = [
   {
+    id: 1,
     name: "Engineering",
-    positions: 5,
-    teamSkills: 12,
-    icons: ["📊", "🔗", "🔧", "📋", "📈"],
-    emoji: "",
+    slug: "engineering",
+    description: "Software development and technical roles",
+    role_count: 3,
+    skill_count: 45,
   },
   {
-    name: "Customer Success",
-    positions: 5,
-    teamSkills: 7,
-    icons: ["💎", "☕", "📋", "⭐", "👥"],
-    emoji: "💙",
-  },
-  {
-    name: "Support",
-    positions: 5,
-    teamSkills: 14,
-    icons: ["🔍", "🧠", "📊", "❌", "🔍"],
-    emoji: "📊",
-  },
-  {
+    id: 2,
     name: "Design",
-    positions: 24,
-    teamSkills: 12,
-    icons: ["🎨", "✨", "📱", "📋", "⚙️"],
-    emoji: "🎨",
+    slug: "design",
+    description: "Product design and user experience roles",
+    role_count: 0,
+    skill_count: 0,
   },
   {
-    name: "Engineering",
-    positions: 9,
-    teamSkills: 21,
-    icons: ["💻", "🔧", "📋", "⚙️", "🏠"],
-    emoji: "👨‍💻",
+    id: 3,
+    name: "Customer Success",
+    slug: "customer-success",
+    description: "Customer support and success roles",
+    role_count: 0,
+    skill_count: 0,
   },
   {
-    name: "Finance",
-    positions: 5,
-    teamSkills: 8,
-    icons: ["💰", "⚙️", "📊", "💳", "💰"],
-    emoji: "💰",
-  },
-  {
+    id: 4,
     name: "Marketing/Growth",
-    positions: 35,
-    teamSkills: 97,
-    icons: ["📧", "⭐", "📧", "🔄", "📈"],
-    emoji: "🚀",
+    slug: "marketing-growth",
+    description: "Marketing and growth roles",
+    role_count: 0,
+    skill_count: 0,
   },
   {
+    id: 5,
     name: "Operations",
-    positions: 10,
-    teamSkills: 15,
-    icons: ["🔧", "🏭", "📋", "📊", "⚙️"],
-    emoji: "⚙️",
+    slug: "operations",
+    description: "Operations and process roles",
+    role_count: 0,
+    skill_count: 0,
   },
   {
+    id: 6,
     name: "People",
-    positions: 15,
-    teamSkills: 50,
-    icons: ["👥", "📋", "⚙️", "📊", "💙"],
-    emoji: "👥",
+    slug: "people",
+    description: "Human resources and people operations",
+    role_count: 0,
+    skill_count: 0,
   },
   {
+    id: 7,
+    name: "Finance",
+    slug: "finance",
+    description: "Finance and accounting roles",
+    role_count: 0,
+    skill_count: 0,
+  },
+  {
+    id: 8,
     name: "Product",
-    positions: 0,
-    teamSkills: 0,
-    icons: ["📋", "🔗", "📊", "📈", "📋"],
-    emoji: "⚠️",
-  },
-  {
-    name: "Product Analytics",
-    positions: 0,
-    teamSkills: 0,
-    icons: ["⚙️", "🔧", "🔧", "❌", "📋"],
-    emoji: "📊",
-  },
-  {
-    name: "Strategic Finance",
-    positions: 0,
-    teamSkills: 0,
-    icons: ["⚙️", "⚖️", "📊", "📋", "⚙️"],
-    emoji: "🧠",
+    slug: "product",
+    description: "Product management roles",
+    role_count: 0,
+    skill_count: 0,
   },
 ]
 
-export default function Home() {
-  // For demo purposes, show admin button in development mode
-  const isDemoMode = process.env.NODE_ENV === "development"
-  const showAdminButton = isDemoMode
+async function getDepartments() {
+  if (!isDatabaseConfigured() || !sql) {
+    return mockDepartments
+  }
+
+  try {
+    const departments = await sql`
+      SELECT 
+        d.id,
+        d.name,
+        d.slug,
+        d.description,
+        COUNT(DISTINCT jr.id) as role_count,
+        COUNT(DISTINCT s.id) as skill_count
+      FROM departments d
+      LEFT JOIN job_roles jr ON d.id = jr.department_id
+      LEFT JOIN skills s ON jr.id = s.job_role_id
+      GROUP BY d.id, d.name, d.slug, d.description
+      ORDER BY d.name
+    `
+    return departments
+  } catch (error) {
+    console.error("Error fetching departments:", error)
+    return mockDepartments
+  }
+}
+
+// Department icons mapping
+const departmentIcons: Record<string, string[]> = {
+  engineering: ["💻", "🔧", "📋", "⚙️", "🏠"],
+  design: ["🎨", "✨", "📱", "📋", "⚙️"],
+  "customer-success": ["💎", "☕", "📋", "⭐", "👥"],
+  "marketing-growth": ["📧", "⭐", "📧", "🔄", "📈"],
+  operations: ["🔧", "🏭", "📋", "📊", "⚙️"],
+  people: ["👥", "📋", "⚙️", "📊", "💙"],
+  finance: ["💰", "⚙️", "📊", "💳", "💰"],
+  product: ["📋", "🔗", "📊", "📈", "📋"],
+}
+
+// Department emojis mapping
+const departmentEmojis: Record<string, string> = {
+  engineering: "👨‍💻",
+  design: "🎨",
+  "customer-success": "💙",
+  "marketing-growth": "🚀",
+  operations: "⚙️",
+  people: "👥",
+  finance: "💰",
+  product: "📋",
+}
+
+export default async function Home() {
+  const departments = await getDepartments()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -106,16 +136,7 @@ export default function Home() {
                 <span className="text-amber-900 font-bold text-xs">HS1</span>
               </div>
             </div>
-            {/* Admin Button - show in demo mode */}
-            {showAdminButton && (
-              <Link
-                href="/admin"
-                className="bg-amber-100 text-amber-900 px-3 py-1 rounded-md text-sm font-medium hover:bg-amber-200 transition-colors flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Admin Panel (Demo)
-              </Link>
-            )}
+            <AdminButton />
           </div>
         </div>
       </div>
@@ -125,7 +146,7 @@ export default function Home() {
         {/* Title Section */}
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">{"Henry Schein One Career Development"}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Henry Schein One Career Development</h1>
             <Rocket className="w-6 h-6 text-gray-600" />
           </div>
           <Link
@@ -138,7 +159,7 @@ export default function Home() {
         </div>
 
         {/* Database Status Banner */}
-        {!process.env.DATABASE_URL && (
+        {!isDatabaseConfigured() && (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -152,52 +173,49 @@ export default function Home() {
 
         {/* Department Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {departments.map((dept, index) => (
-            <Link key={index} href={`/department/${dept.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>
-              <div className="bg-amber-900 text-white rounded-lg overflow-hidden hover:bg-amber-800 transition-colors cursor-pointer">
-                {/* Header */}
-                <div className="p-4 pb-3">
-                  <input
-                    type="text"
-                    value={dept.name}
-                    onChange={(e) => {
-                      // Handle the change - you'll need to add state management
-                      console.log("Department name changed to:", e.target.value)
-                    }}
-                    className="text-lg font-semibold mb-3 bg-transparent border-none text-white placeholder-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-200 rounded px-1"
-                    placeholder="Department name"
-                  />
+          {departments.map((dept) => {
+            const icons = departmentIcons[dept.slug] || ["📋", "🔗", "📊", "📈", "⚙️"]
+            const emoji = departmentEmojis[dept.slug] || "📋"
 
-                  {/* Icons */}
-                  <div className="flex gap-3 mb-4">
-                    {dept.icons.map((icon, iconIndex) => (
-                      <span key={iconIndex} className="text-amber-200 text-lg">
-                        {icon}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+            return (
+              <Link key={dept.id} href={`/department/${dept.slug}`}>
+                <div className="bg-amber-900 text-white rounded-lg overflow-hidden hover:bg-amber-800 transition-colors cursor-pointer">
+                  {/* Header */}
+                  <div className="p-4 pb-3">
+                    <h2 className="text-lg font-semibold mb-3 text-white">{dept.name}</h2>
 
-                {/* Footer */}
-                <div className="bg-white text-gray-700 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{dept.name}</span>
-                      {dept.emoji && <span className="text-lg">{dept.emoji}</span>}
+                    {/* Icons */}
+                    <div className="flex gap-3 mb-4">
+                      {icons.map((icon, iconIndex) => (
+                        <span key={iconIndex} className="text-amber-200 text-lg">
+                          {icon}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                    <span>
-                      Positions <span className="font-medium">{dept.positions}</span>
-                    </span>
-                    <span>
-                      Team Skills <span className="font-medium">{dept.teamSkills}</span>
-                    </span>
+
+                  {/* Footer */}
+                  <div className="bg-white text-gray-700 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{dept.name}</span>
+                        <span className="text-lg">{emoji}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span>
+                        Positions <span className="font-medium">{dept.role_count}</span>
+                      </span>
+                      <span>
+                        Team Skills <span className="font-medium">{dept.skill_count}</span>
+                      </span>
+                    </div>
+                    {dept.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{dept.description}</p>}
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>
