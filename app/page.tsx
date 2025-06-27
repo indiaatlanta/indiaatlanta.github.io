@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ExternalLink, Rocket } from "lucide-react"
+import { ExternalLink, Rocket, GitCompare } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
@@ -136,7 +136,16 @@ export default async function Home() {
             <div className="flex items-center gap-3">
               <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
             </div>
-            <AdminButton />
+            <div className="flex items-center gap-3">
+              <Link
+                href="/compare"
+                className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+              >
+                <GitCompare className="w-4 h-4" />
+                Compare Roles
+              </Link>
+              <AdminButton />
+            </div>
           </div>
         </div>
       </div>
