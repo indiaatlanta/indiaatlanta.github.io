@@ -82,6 +82,32 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
     return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
   }
 
+  const parseSkillLevel = (level: string | null | undefined): number => {
+    if (!level || level === "N/A") return 0
+    const match = level.match(/L(\d+)/)
+    return match ? Number.parseInt(match[1], 10) : 0
+  }
+
+  const getSkillLevelDots = (skill: Skill) => {
+    if (!skill.level || skill.level === "N/A") {
+      return null
+    }
+
+    const levelNum = parseSkillLevel(skill.level)
+    if (levelNum === 0) return null
+
+    return (
+      <div className="flex gap-1">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div
+            key={i}
+            className={`w-2 h-2 rounded-full ${i < levelNum ? `bg-${skill.category_color}-500` : "bg-gray-200"}`}
+          />
+        ))}
+      </div>
+    )
+  }
+
   // Group skills by category
   const skillsByCategory = roleSkills.reduce(
     (acc, skill) => {
@@ -209,13 +235,13 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
                               <div className="flex items-center gap-3 mb-2">
                                 <span className="font-medium">{skill.name}</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {skill.level}
+                                  {skill.level || "N/A"}
                                 </Badge>
-                                {skill.level !== "N/A" && (
+                                {skill.level && skill.level !== "N/A" && (
                                   <div className={`w-2 h-2 bg-${categoryData.color}-500 rounded-full`}></div>
                                 )}
                               </div>
-                              <p className="text-sm mb-3">{skill.description}</p>
+                              <p className="text-sm mb-3">{skill.description || "No description available"}</p>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -251,10 +277,10 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span>{selectedSkill?.name}</span>
+              <span>{selectedSkill?.name || "Skill Details"}</span>
               {selectedSkill && (
                 <Badge variant="outline" className="text-xs">
-                  {selectedSkill.level}
+                  {selectedSkill.level || "N/A"}
                 </Badge>
               )}
             </DialogTitle>
@@ -274,22 +300,8 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-1">Level</h4>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{selectedSkill.level}</Badge>
-                  {selectedSkill.level !== "N/A" && (
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const levelNum = Number.parseInt(selectedSkill.level.replace("L", "")) || 0
-                        return (
-                          <div
-                            key={i}
-                            className={`w-2 h-2 rounded-full ${
-                              i < levelNum ? `bg-${selectedSkill.category_color}-500` : "bg-gray-200"
-                            }`}
-                          />
-                        )
-                      })}
-                    </div>
-                  )}
+                  <Badge variant="outline">{selectedSkill.level || "N/A"}</Badge>
+                  {getSkillLevelDots(selectedSkill)}
                 </div>
               </div>
 
@@ -297,7 +309,9 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Full Description</h4>
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{selectedSkill.description}</p>
+                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                    {selectedSkill.description || "No description available"}
+                  </p>
                 </div>
               </div>
 
@@ -305,8 +319,8 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-1">Role Context</h4>
                 <p className="text-sm text-gray-600">
-                  This skill is part of the <strong>{selectedRole?.name}</strong> ({selectedRole?.code}) role
-                  requirements.
+                  This skill is part of the <strong>{selectedRole?.name || "Unknown Role"}</strong> (
+                  {selectedRole?.code || "N/A"}) role requirements.
                 </p>
               </div>
 
