@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 
 interface Skill {
   id: number
@@ -394,9 +395,13 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                <span className="text-amber-900 font-bold text-xs">HS1</span>
-              </div>
+              <Image
+                src="/images/henry-schein-one-logo.png"
+                alt="Henry Schein One"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+              />
               <span className="text-white text-sm">Admin Panel</span>
               {isDemoMode && (
                 <Badge variant="secondary" className="bg-blue-100 text-blue-900">

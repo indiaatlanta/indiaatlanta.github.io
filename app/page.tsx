@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ExternalLink, Rocket } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import Image from "next/image"
 
 // Fallback mock data for when database is not configured
 const mockDepartments = [
@@ -133,9 +134,13 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-                <span className="text-amber-900 font-bold text-xs">HS1</span>
-              </div>
+              <Image
+                src="/images/henry-schein-one-logo.png"
+                alt="Henry Schein One"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+              />
             </div>
             <AdminButton />
           </div>

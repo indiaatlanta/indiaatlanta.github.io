@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -49,8 +50,14 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8 px-4">
         {/* Header */}
         <div className="text-center">
-          <div className="w-16 h-16 bg-amber-900 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-lg">HS1</span>
+          <div className="flex justify-center mb-4">
+            <Image
+              src="/images/henry-schein-one-logo.png"
+              alt="Henry Schein One"
+              width={200}
+              height={53}
+              className="h-12 w-auto"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900">Admin Login</h2>
           <p className="mt-2 text-gray-600">Sign in to manage the career matrix</p>

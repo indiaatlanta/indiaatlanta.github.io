@@ -4,6 +4,7 @@ import { ArrowLeft, Rocket, Settings } from "lucide-react"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { DepartmentClient } from "./department-client"
+import Image from "next/image"
 
 async function getDepartmentData(slug: string) {
   if (!isDatabaseConfigured() || !sql) {
@@ -137,9 +138,13 @@ export default async function DepartmentPage({ params }: PageProps) {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                <span className="text-amber-900 font-bold text-xs">HS1</span>
-              </div>
+              <Image
+                src="/images/henry-schein-one-logo.png"
+                alt="Henry Schein One"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+              />
               <Rocket className="w-4 h-4 text-white" />
               <span className="text-white text-sm">/ {department.name}</span>
             </div>
