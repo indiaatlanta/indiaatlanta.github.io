@@ -138,7 +138,7 @@ export default async function DepartmentPage({ params }: PageProps) {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-10" />
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
               <Rocket className="w-4 h-4 text-white" />
               <span className="text-white text-sm">/ {department.name}</span>
             </div>
