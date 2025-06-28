@@ -221,7 +221,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
 
   const { regularRoles, leadershipRoles } = organizeRoles(roles)
 
-  // Group matrix data by category
+  // Group matrix data by category and sort skills within each category
   const matrixByCategory = matrixData.reduce(
     (acc, skill) => {
       if (!acc[skill.category_name]) {
@@ -235,6 +235,18 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
     },
     {} as Record<string, { color: string; skills: MatrixSkill[] }>,
   )
+
+  // Sort skills within each category by skill_sort_order
+  Object.values(matrixByCategory).forEach((category) => {
+    category.skills.sort((a, b) => {
+      const aSort = a.skill_sort_order || 999
+      const bSort = b.skill_sort_order || 999
+      if (aSort !== bSort) {
+        return aSort - bSort
+      }
+      return a.skill_name.localeCompare(b.skill_name)
+    })
+  })
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
