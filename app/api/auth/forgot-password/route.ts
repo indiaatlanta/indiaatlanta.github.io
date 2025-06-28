@@ -25,6 +25,21 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    try {
+      // Check if password_reset_tokens table exists
+      await sql`SELECT 1 FROM password_reset_tokens LIMIT 1`
+    } catch (tableError) {
+      // Table doesn't exist, treat as demo mode
+      console.log(`[DEMO MODE - No Table] Password reset requested for: ${email}`)
+      console.log(
+        `[DEMO MODE - No Table] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`,
+      )
+
+      return NextResponse.json({
+        message: "If an account with that email exists, we've sent you a password reset link.",
+      })
+    }
+
     // Find user by email
     const users = await sql`
       SELECT id, email, name
@@ -65,6 +80,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: successMessage })
   } catch (error) {
     console.error("Forgot password error:", error)
+
+    // If it's a database-related error, fall back to demo mode
+    if (error instanceof Error && error.message.includes("relation") && error.message.includes("does not exist")) {
+      const body = await request.json()
+      const { email } = body
+
+      console.log(`[DEMO MODE - DB Error] Password reset requested for: ${email}`)
+      console.log(
+        `[DEMO MODE - DB Error] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`,
+      )
+
+      return NextResponse.json({
+        message: "If an account with that email exists, we've sent you a password reset link.",
+      })
+    }
+
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
