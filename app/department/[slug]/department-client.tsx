@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3, Eye } from "lucide-react"
+import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3, Eye, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 
 interface Department {
@@ -65,6 +66,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false)
   const [selectedMatrixSkill, setSelectedMatrixSkill] = useState<MatrixSkill | null>(null)
   const [isMatrixSkillDetailOpen, setIsMatrixSkillDetailOpen] = useState(false)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all")
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -251,6 +253,19 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
     return a.category_sort_order - b.category_sort_order
   })
 
+  // Get unique categories for filter
+  const availableCategories = Array.from(new Set(matrixData.map((skill) => skill.category_name))).sort((a, b) => {
+    const aSort = matrixData.find((skill) => skill.category_name === a)?.category_sort_order || 999
+    const bSort = matrixData.find((skill) => skill.category_name === b)?.category_sort_order || 999
+    return aSort - bSort
+  })
+
+  // Filter categories based on selection
+  const filteredCategories =
+    selectedCategoryFilter === "all"
+      ? sortedCategories
+      : sortedCategories.filter(([categoryName]) => categoryName === selectedCategoryFilter)
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Database Status Banner */}
@@ -386,77 +401,53 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               <div className="text-gray-500">Loading skills matrix...</div>
             </div>
           ) : matrixData.length > 0 ? (
-            <div className="space-y-8">
-              {sortedCategories.map(([categoryName, categoryData]) => (
-                <div key={categoryName}>
-                  <h3
-                    className={`text-lg font-semibold mb-4 border-b pb-2 text-${categoryData.color}-700 border-${categoryData.color}-200`}
+            <div className="space-y-6">
+              {/* Category Filter */}
+              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                <Filter className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Filter by Category:</span>
+                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                  <SelectTrigger className="w-64">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {availableCategories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCategoryFilter !== "all" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedCategoryFilter("all")}
+                    className="text-xs"
                   >
-                    {categoryName}
-                  </h3>
+                    Clear Filter
+                  </Button>
+                )}
+              </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-300 p-3 text-left font-medium text-gray-900 min-w-[200px]">
-                            Skill
-                          </th>
-                          {(() => {
-                            // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
-                            const sortedRoles = [...roles].sort((a, b) => {
-                              const aIsLeadership = a.code.startsWith("M")
-                              const bIsLeadership = b.code.startsWith("M")
+              {/* Skills Matrix */}
+              <div className="space-y-8">
+                {filteredCategories.map(([categoryName, categoryData]) => (
+                  <div key={categoryName}>
+                    <h3
+                      className={`text-lg font-semibold mb-4 border-b pb-2 text-${categoryData.color}-700 border-${categoryData.color}-200`}
+                    >
+                      {categoryName}
+                    </h3>
 
-                              // If one is leadership and one isn't, non-leadership comes first
-                              if (aIsLeadership !== bIsLeadership) {
-                                return aIsLeadership ? 1 : -1
-                              }
-
-                              // If both are same type, sort by level
-                              return a.level - b.level
-                            })
-
-                            return sortedRoles
-                          })().map((role) => (
-                            <th
-                              key={role.id}
-                              className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[300px]"
-                            >
-                              <div className="flex flex-col items-center gap-1">
-                                <Badge variant="outline" className="text-xs">
-                                  {role.code}
-                                </Badge>
-                                <span className="text-sm">{role.name}</span>
-                              </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse border border-gray-300">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="border border-gray-300 p-3 text-left font-medium text-gray-900 min-w-[200px]">
+                              Skill
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {categoryData.skills.map((skill) => (
-                          <tr key={skill.skill_name} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 p-3 font-medium text-gray-900">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
-                                    {skill.category_name}
-                                  </div>
-                                  <span>{skill.skill_name}</span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleMatrixSkillClick(skill)
-                                  }}
-                                  className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
-                                >
-                                  <Eye className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </td>
                             {(() => {
                               // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
                               const sortedRoles = [...roles].sort((a, b) => {
@@ -473,34 +464,90 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                               })
 
                               return sortedRoles
-                            })().map((role) => {
-                              const demonstration = skill.demonstrations[role.id]
-                              return (
-                                <td key={role.id} className="border border-gray-300 p-4 text-sm">
-                                  {demonstration ? (
-                                    <div className="space-y-2">
-                                      <div className="flex items-center justify-center">
-                                        <Badge variant="outline" className="text-xs">
-                                          {demonstration.level}
-                                        </Badge>
-                                      </div>
-                                      <div className="text-gray-700 text-xs leading-relaxed">
-                                        {demonstration.description}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="text-center text-gray-400 text-xs">—</div>
-                                  )}
-                                </td>
-                              )
-                            })}
+                            })().map((role) => (
+                              <th
+                                key={role.id}
+                                className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[300px]"
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {role.code}
+                                  </Badge>
+                                  <span className="text-sm">{role.name}</span>
+                                </div>
+                              </th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {categoryData.skills.map((skill) => (
+                            <tr key={skill.skill_name} className="hover:bg-gray-50">
+                              <td className="border border-gray-300 p-3 font-medium text-gray-900">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                                      {skill.category_name}
+                                    </div>
+                                    <span>{skill.skill_name}</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleMatrixSkillClick(skill)
+                                    }}
+                                    className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </td>
+                              {(() => {
+                                // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
+                                const sortedRoles = [...roles].sort((a, b) => {
+                                  const aIsLeadership = a.code.startsWith("M")
+                                  const bIsLeadership = b.code.startsWith("M")
+
+                                  // If one is leadership and one isn't, non-leadership comes first
+                                  if (aIsLeadership !== bIsLeadership) {
+                                    return aIsLeadership ? 1 : -1
+                                  }
+
+                                  // If both are same type, sort by level
+                                  return a.level - b.level
+                                })
+
+                                return sortedRoles
+                              })().map((role) => {
+                                const demonstration = skill.demonstrations[role.id]
+                                return (
+                                  <td key={role.id} className="border border-gray-300 p-4 text-sm">
+                                    {demonstration ? (
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-center">
+                                          <Badge variant="outline" className="text-xs">
+                                            {demonstration.level}
+                                          </Badge>
+                                        </div>
+                                        <div className="text-gray-700 text-xs leading-relaxed">
+                                          {demonstration.description}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center text-gray-400 text-xs">—</div>
+                                    )}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">
