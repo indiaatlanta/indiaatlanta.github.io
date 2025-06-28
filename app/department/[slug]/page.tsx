@@ -192,12 +192,31 @@ export default async function DepartmentPage({ params }: PageProps) {
       </div>
 
       {/* Pass data to client component */}
-      <DepartmentClient
-        department={department}
-        roles={roles}
-        getRoleSkills={getRoleSkills}
-        isDemoMode={!isDatabaseConfigured()}
-      />
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Update the department header section */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {department.name} <span className="text-gray-500">({roles.length})</span>
+          </h1>
+          {department.description && <p className="text-gray-600">{department.description}</p>}
+
+          {/* Role breakdown */}
+          {roles.length > 0 && (
+            <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
+              <span>Individual Contributors: {roles.filter((r) => !r.code.startsWith("M")).length}</span>
+              {roles.filter((r) => r.code.startsWith("M")).length > 0 && (
+                <span>Leadership: {roles.filter((r) => r.code.startsWith("M")).length}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <DepartmentClient
+          department={department}
+          roles={roles}
+          getRoleSkills={getRoleSkills}
+          isDemoMode={!isDatabaseConfigured()}
+        />
+      </div>
     </div>
   )
 }

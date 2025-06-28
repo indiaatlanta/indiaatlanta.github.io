@@ -129,6 +129,15 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
     {} as Record<string, { color: string; skills: Skill[] }>,
   )
 
+  const organizeRoles = (roles: Role[]) => {
+    const regularRoles = roles.filter((role) => !role.code.startsWith("M"))
+    const leadershipRoles = roles.filter((role) => role.code.startsWith("M"))
+
+    return { regularRoles, leadershipRoles }
+  }
+
+  const { regularRoles, leadershipRoles } = organizeRoles(roles)
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Database Status Banner */}
@@ -151,32 +160,80 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
         {department.description && <p className="text-gray-600">{department.description}</p>}
       </div>
 
-      {roles.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {roles.map((role) => (
-            <div
-              key={role.id}
-              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => handleRoleClick(role)}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="text-sm text-gray-500 mb-1">
-                    {role.code} • {role.skill_count} skills
+      {/* Regular Roles Section */}
+      {regularRoles.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Individual Contributor Roles</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {regularRoles.map((role) => (
+              <div
+                key={role.id}
+                className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleRoleClick(role)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">
+                      {role.code} • {role.skill_count} skills
+                    </div>
                   </div>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{role.name}</h3>
+                <div className="h-32 bg-gray-50 rounded border-2 border-dashed border-gray-200 flex items-center justify-center">
+                  <span className="text-gray-400 text-sm">Level {role.level}</span>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">{role.name}</h3>
-              <div className="h-32 bg-gray-50 rounded border-2 border-dashed border-gray-200 flex items-center justify-center">
-                <span className="text-gray-400 text-sm">Level {role.level}</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      ) : (
+      )}
+
+      {/* Leadership Roles Section */}
+      {leadershipRoles.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <span>Leadership</span>
+            <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+              Management Track
+            </Badge>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {leadershipRoles.map((role) => (
+              <div
+                key={role.id}
+                className="bg-white rounded-lg border border-indigo-200 p-6 hover:shadow-md transition-shadow cursor-pointer relative"
+                onClick={() => handleRoleClick(role)}
+              >
+                <div className="absolute top-2 right-2">
+                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 text-xs">
+                    Leadership
+                  </Badge>
+                </div>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">
+                      {role.code} • {role.skill_count} skills
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{role.name}</h3>
+                <div className="h-32 bg-indigo-50 rounded border-2 border-dashed border-indigo-200 flex items-center justify-center">
+                  <span className="text-indigo-600 text-sm">Level {role.level}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No Roles Message */}
+      {regularRoles.length === 0 && leadershipRoles.length === 0 && (
         <div className="text-center py-12">
           <div className="text-gray-400 text-lg mb-2">No positions available</div>
           <div className="text-gray-500 text-sm">This department currently has no defined roles.</div>
