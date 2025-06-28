@@ -80,91 +80,6 @@ async function getDepartmentData(slug: string) {
   }
 }
 
-async function getRoleSkills(roleId: number) {
-  if (!isDatabaseConfigured() || !sql) {
-    // Return mock skills for demo mode
-    return [
-      {
-        id: 1,
-        skill_name: "Security",
-        level: "L1",
-        demonstration_description: "Understands the importance of security.",
-        skill_description:
-          "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices. This includes awareness of authentication, authorization, data encryption, and when to escalate security concerns.",
-        category_name: "Technical Skills",
-        category_color: "blue",
-      },
-      {
-        id: 2,
-        skill_name: "Work Breakdown",
-        level: "L1",
-        demonstration_description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
-        skill_description:
-          "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L1 level, engineers should understand the value of small, independent work items for faster feedback cycles, reduced risk, and better estimation. This includes understanding how proper work breakdown enables continuous deployment and incremental delivery of business value.",
-        category_name: "Delivery",
-        category_color: "green",
-      },
-    ]
-  }
-
-  try {
-    // Use the new skill demonstrations structure
-    const skills = await sql`
-      SELECT 
-        sd.id,
-        sm.name as skill_name,
-        sd.level,
-        sd.demonstration_description,
-        sm.description as skill_description,
-        sc.name as category_name,
-        sc.color as category_color,
-        sd.sort_order
-      FROM skill_demonstrations sd
-      JOIN skills_master sm ON sd.skill_master_id = sm.id
-      JOIN skill_categories sc ON sm.category_id = sc.id
-      WHERE sd.job_role_id = ${roleId}
-      ORDER BY sc.sort_order, sm.sort_order, sd.sort_order, sm.name
-    `
-
-    return skills
-  } catch (error) {
-    console.error("Error fetching role skills:", error)
-    // Fallback to old structure if new tables don't exist yet
-    try {
-      const fallbackSkills = await sql`
-        SELECT 
-          s.id,
-          s.name as skill_name,
-          s.level,
-          s.description as demonstration_description,
-          s.full_description as skill_description,
-          sc.name as category_name,
-          sc.color as category_color,
-          s.sort_order
-        FROM skills s
-        JOIN skill_categories sc ON s.category_id = sc.id
-        WHERE s.job_role_id = ${roleId}
-        ORDER BY sc.sort_order, s.sort_order, s.name
-      `
-      return fallbackSkills
-    } catch (fallbackError) {
-      console.error("Error with fallback query:", fallbackError)
-      // Return mock data instead of empty array
-      return [
-        {
-          id: 1,
-          skill_name: "Security",
-          level: "L1",
-          demonstration_description: "Understands the importance of security.",
-          skill_description: "Security is a fundamental aspect of software engineering...",
-          category_name: "Technical Skills",
-          category_color: "blue",
-        },
-      ]
-    }
-  }
-}
-
 interface PageProps {
   params: {
     slug: string
@@ -234,31 +149,7 @@ export default async function DepartmentPage({ params }: PageProps) {
         </div>
 
         {/* Pass data to client component */}
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          {/* Update the department header section */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {department.name} <span className="text-gray-500">({roles.length})</span>
-            </h1>
-            {department.description && <p className="text-gray-600">{department.description}</p>}
-
-            {/* Role breakdown */}
-            {roles.length > 0 && (
-              <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
-                <span>Individual Contributors: {roles.filter((r) => !r.code.startsWith("M")).length}</span>
-                {roles.filter((r) => r.code.startsWith("M")).length > 0 && (
-                  <span>Leadership: {roles.filter((r) => r.code.startsWith("M")).length}</span>
-                )}
-              </div>
-            )}
-          </div>
-          <DepartmentClient
-            department={department}
-            roles={roles}
-            getRoleSkills={getRoleSkills}
-            isDemoMode={!isDatabaseConfigured()}
-          />
-        </div>
+        <DepartmentClient department={department} roles={roles} isDemoMode={!isDatabaseConfigured()} />
       </div>
     )
   } catch (error) {

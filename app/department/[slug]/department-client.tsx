@@ -37,11 +37,10 @@ interface Skill {
 interface Props {
   department: Department
   roles: Role[]
-  getRoleSkills: (roleId: number) => Promise<Skill[]>
   isDemoMode: boolean
 }
 
-export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode }: Props) {
+export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [roleSkills, setRoleSkills] = useState<Skill[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -55,7 +54,8 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
     setIsLoadingSkills(true)
 
     try {
-      const skills = await getRoleSkills(role.id)
+      const response = await fetch(`/api/role-skills?roleId=${role.id}`)
+      const skills = response.ok ? await response.json() : []
       setRoleSkills(skills)
     } catch (error) {
       console.error("Error loading skills:", error)
@@ -158,6 +158,14 @@ export function DepartmentClient({ department, roles, getRoleSkills, isDemoMode 
           {department.name} <span className="text-gray-500">({roles.length})</span>
         </h1>
         {department.description && <p className="text-gray-600">{department.description}</p>}
+
+        {/* Role breakdown */}
+        {roles.length > 0 && (
+          <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
+            <span>Individual Contributors: {regularRoles.length}</span>
+            {leadershipRoles.length > 0 && <span>Leadership: {leadershipRoles.length}</span>}
+          </div>
+        )}
       </div>
 
       {/* Regular Roles Section */}
