@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 import { verifyPassword, createSession } from "@/lib/auth"
 import { loginSchema } from "@/lib/validation"
 
@@ -7,6 +7,24 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
+
+    // Check if database is configured
+    if (!isDatabaseConfigured() || !sql) {
+      // In demo mode, allow login with demo credentials
+      if (email === "admin@henryscheinone.com" && password === "admin123") {
+        // Return success for demo mode
+        return NextResponse.json({
+          user: {
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          },
+        })
+      } else {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
+    }
 
     // Find user by email
     const users = await sql`

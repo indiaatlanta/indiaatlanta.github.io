@@ -27,7 +27,19 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function createSession(userId: number): Promise<string> {
   if (!isDatabaseConfigured() || !sql) {
-    throw new Error("Database not configured")
+    // In demo mode, just set a cookie without database storage
+    const sessionId = uuidv4()
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+    const cookieStore = cookies()
+    cookieStore.set("session", sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      expires: expiresAt,
+    })
+
+    return sessionId
   }
 
   const sessionId = uuidv4()
@@ -52,6 +64,30 @@ export async function createSession(userId: number): Promise<string> {
 export async function getSession(): Promise<{ user: User; session: Session } | null> {
   // Return null if database is not configured (preview mode)
   if (!isDatabaseConfigured() || !sql) {
+    // Check for demo session cookie
+    try {
+      const cookieStore = cookies()
+      const sessionId = cookieStore.get("session")?.value
+
+      if (sessionId) {
+        // Return mock admin session for demo mode
+        return {
+          user: {
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          },
+          session: {
+            id: sessionId,
+            userId: 1,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        }
+      }
+    } catch (error) {
+      console.error("Error checking demo session:", error)
+    }
     return null
   }
 
