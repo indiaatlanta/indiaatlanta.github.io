@@ -293,38 +293,35 @@ export function SelfReviewClient() {
       doc.setFillColor(30, 64, 175) // brand-800 color
       doc.rect(0, 0, pageWidth, 30, "F")
 
-      // Add logo
+      // Add logo with better quality handling
       try {
-        // Create a canvas to load and resize the logo
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
         const img = new Image()
         img.crossOrigin = "anonymous"
 
         await new Promise((resolve, reject) => {
           img.onload = () => {
-            // Calculate proper aspect ratio
-            const maxLogoHeight = 12 // Reduced from 18
-            const maxLogoWidth = 50 // Reduced from 80
+            // Use a much smaller, fixed size without scaling to maintain quality
+            const logoWidth = 40
+            const logoHeight = 10
 
-            // Calculate scaling factor to maintain aspect ratio
-            const scaleX = maxLogoWidth / img.width
-            const scaleY = maxLogoHeight / img.height
-            const scale = Math.min(scaleX, scaleY)
+            // Add the image directly at a small size to maintain crispness
+            const canvas = document.createElement("canvas")
+            const ctx = canvas.getContext("2d")
 
-            const logoWidth = img.width * scale
-            const logoHeight = img.height * scale
+            // Set canvas to 2x resolution for better quality
+            canvas.width = logoWidth * 2
+            canvas.height = logoHeight * 2
 
-            canvas.width = logoWidth
-            canvas.height = logoHeight
+            if (ctx) {
+              // Scale the context for high DPI
+              ctx.scale(2, 2)
+              // Draw the image at the target size
+              ctx.drawImage(img, 0, 0, logoWidth, logoHeight)
 
-            // Clear canvas and draw image with proper scaling
-            ctx?.clearRect(0, 0, logoWidth, logoHeight)
-            ctx?.drawImage(img, 0, 0, logoWidth, logoHeight)
-
-            // Convert to base64 and add to PDF
-            const logoData = canvas.toDataURL("image/png")
-            doc.addImage(logoData, "PNG", margin, 6, logoWidth, logoHeight)
+              // Convert to base64 and add to PDF
+              const logoData = canvas.toDataURL("image/png", 1.0)
+              doc.addImage(logoData, "PNG", margin, 9, logoWidth, logoHeight)
+            }
             resolve(true)
           }
           img.onerror = () => resolve(false) // Continue without logo if it fails
