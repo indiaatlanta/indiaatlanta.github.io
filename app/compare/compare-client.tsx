@@ -239,8 +239,8 @@ export function CompareClient() {
         await new Promise((resolve, reject) => {
           img.onload = () => {
             // Calculate proper aspect ratio
-            const maxLogoHeight = 18
-            const maxLogoWidth = 80
+            const maxLogoHeight = 12
+            const maxLogoWidth = 50
 
             // Calculate scaling factor to maintain aspect ratio
             const scaleX = maxLogoWidth / img.width
