@@ -34,6 +34,7 @@ interface Skill {
   category_name: string
   category_color: string
   skill_sort_order?: number
+  category_sort_order?: number
 }
 
 interface MatrixSkill {
@@ -42,6 +43,7 @@ interface MatrixSkill {
   category_color: string
   skill_description?: string
   skill_sort_order?: number
+  category_sort_order?: number
   demonstrations: Record<number, { level: string; description: string }>
 }
 
@@ -108,6 +110,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               category_color: skill.category_color,
               skill_description: skill.skill_description,
               skill_sort_order: skill.skill_sort_order,
+              category_sort_order: skill.category_sort_order,
               demonstrations: {},
             })
           }
@@ -120,17 +123,23 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
         })
       })
 
-      // Convert to array and sort by category and skill master sort order
+      // Convert to array and sort by category sort order, then skill sort order
       const sortedSkills = Array.from(skillsMap.values()).sort((a, b) => {
-        if (a.category_name !== b.category_name) {
-          return a.category_name.localeCompare(b.category_name)
+        // First sort by category sort order
+        const aCategorySort = a.category_sort_order || 999
+        const bCategorySort = b.category_sort_order || 999
+        if (aCategorySort !== bCategorySort) {
+          return aCategorySort - bCategorySort
         }
-        // Use skill_sort_order if available, otherwise fall back to skill name
-        const aSort = a.skill_sort_order || 999
-        const bSort = b.skill_sort_order || 999
-        if (aSort !== bSort) {
-          return aSort - bSort
+
+        // Then by skill sort order within the same category
+        const aSkillSort = a.skill_sort_order || 999
+        const bSkillSort = b.skill_sort_order || 999
+        if (aSkillSort !== bSkillSort) {
+          return aSkillSort - bSkillSort
         }
+
+        // Finally by skill name as fallback
         return a.skill_name.localeCompare(b.skill_name)
       })
 
@@ -221,31 +230,25 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
 
   const { regularRoles, leadershipRoles } = organizeRoles(roles)
 
-  // Group matrix data by category and sort skills within each category
+  // Group matrix data by category and preserve sort order
   const matrixByCategory = matrixData.reduce(
     (acc, skill) => {
       if (!acc[skill.category_name]) {
         acc[skill.category_name] = {
           color: skill.category_color,
           skills: [],
+          category_sort_order: skill.category_sort_order || 999,
         }
       }
       acc[skill.category_name].skills.push(skill)
       return acc
     },
-    {} as Record<string, { color: string; skills: MatrixSkill[] }>,
+    {} as Record<string, { color: string; skills: MatrixSkill[]; category_sort_order: number }>,
   )
 
-  // Sort skills within each category by skill_sort_order
-  Object.values(matrixByCategory).forEach((category) => {
-    category.skills.sort((a, b) => {
-      const aSort = a.skill_sort_order || 999
-      const bSort = b.skill_sort_order || 999
-      if (aSort !== bSort) {
-        return aSort - bSort
-      }
-      return a.skill_name.localeCompare(b.skill_name)
-    })
+  // Sort categories by their sort order and skills within categories are already sorted from the main sort
+  const sortedCategories = Object.entries(matrixByCategory).sort(([, a], [, b]) => {
+    return a.category_sort_order - b.category_sort_order
   })
 
   return (
@@ -384,7 +387,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
             </div>
           ) : matrixData.length > 0 ? (
             <div className="space-y-8">
-              {Object.entries(matrixByCategory).map(([categoryName, categoryData]) => (
+              {sortedCategories.map(([categoryName, categoryData]) => (
                 <div key={categoryName}>
                   <h3
                     className={`text-lg font-semibold mb-4 border-b pb-2 text-${categoryData.color}-700 border-${categoryData.color}-200`}

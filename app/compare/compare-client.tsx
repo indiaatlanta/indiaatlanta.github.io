@@ -1,147 +1,74 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import jsPDF from "jspdf"
-import "jspdf-autotable"
-import { useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import type React from "react"
+import { useState } from "react"
+import { jsPDF } from "jspdf"
+import autoTable from "jspdf-autotable"
 
-interface Product {
-  id: string
+interface DataItem {
   name: string
-  imageUrl: string
-  price: number
-  description: string
+  value1: string
+  value2: string
 }
 
-const CompareClient = () => {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const searchParams = useSearchParams()
-  const componentRef = useRef<HTMLDivElement>(null)
+interface CompareClientProps {
+  data1: DataItem[]
+  data2: DataItem[]
+  title1: string
+  title2: string
+}
 
-  useEffect(() => {
-    const productIds = searchParams.getAll("id")
+const CompareClient: React.FC<CompareClientProps> = ({ data1, data2, title1, title2 }) => {
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
 
-    const fetchProducts = async () => {
-      setLoading(true)
-      try {
-        const response = await fetch(`/api/products?ids=${productIds.join(",")}`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const data = await response.json()
-        setProducts(data)
-      } catch (error) {
-        console.error("Could not fetch products:", error)
-        setProducts([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (productIds.length > 0) {
-      fetchProducts()
-    } else {
-      setLoading(false)
-    }
-  }, [searchParams])
-
-  const generatePDF = async () => {
-    if (!componentRef.current) return
+  const generatePDF = () => {
+    setIsGeneratingPDF(true)
 
     const doc = new jsPDF()
 
-    // Add logo
-    const logoResponse = await fetch("/logo.png")
-    const logoBlob = await logoResponse.blob()
-    const logoDataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.readAsDataURL(logoBlob)
-    })
-    doc.addImage(logoDataUrl, "PNG", 14, 14, 64, 10)
+    // Add HS1 Logo
+    doc.addImage("/images/hs1-logo.png", "PNG", 10, 10, 20, 6)
 
-    // Set document information
-    doc.setProperties({
-      title: "Product Comparison",
-      subject: "Comparison of selected products",
-      author: "Your Company",
+    // Add Title
+    doc.setFontSize(18)
+    doc.text("Comparison Report", 105, 20, { align: "center" })
+
+    // Add Titles for Data Sets
+    doc.setFontSize(14)
+    doc.text(title1, 30, 35)
+    doc.text(title2, 130, 35)
+
+    // Prepare data for autoTable
+    const tableData = data1.map((item, index) => {
+      const correspondingItem2 = data2[index] || { name: "", value1: "" }
+      return [item.name, item.value1, correspondingItem2.value1]
     })
 
     // Define columns
-    const columns = [
-      { header: "Feature", dataKey: "feature" },
-      ...products.map((product) => ({ header: product.name, dataKey: product.id })),
-    ]
+    const columns = ["Metric", title1, title2]
 
-    // Define rows
-    const rows: { feature: string; [key: string]: any }[] = [
-      { feature: "Name", ...products.reduce((acc, product) => ({ ...acc, [product.id]: product.name }), {}) },
-      { feature: "Price", ...products.reduce((acc, product) => ({ ...acc, [product.id]: `$${product.price}` }), {}) },
-      {
-        feature: "Description",
-        ...products.reduce((acc, product) => ({ ...acc, [product.id]: product.description }), {}),
-      },
-    ]
-
-    // Add table to the document
-    ;(doc as any).autoTable({
-      head: columns,
-      body: rows,
-      startY: 35,
+    // Add autoTable
+    autoTable(doc, {
+      head: [columns],
+      body: tableData,
+      startY: 40,
     })
 
     // Save the PDF
-    doc.save("product_comparison.pdf")
-  }
-
-  if (loading) {
-    return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Product Comparison</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="border rounded-lg p-4">
-              <Skeleton className="h-40 w-full mb-2" />
-              <Skeleton className="h-6 w-3/4 mb-1" />
-              <Skeleton className="h-4 w-1/2 mb-2" />
-              <Skeleton className="h-4 w-full mb-1" />
-              <Skeleton className="h-4 w-full mb-1" />
-              <Skeleton className="h-4 w-1/4" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    doc.save("comparison_report.pdf")
+    setIsGeneratingPDF(false)
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Product Comparison</h1>
-
-      {products.length === 0 ? (
-        <p>No products selected for comparison.</p>
-      ) : (
-        <div ref={componentRef}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((product) => (
-              <div key={product.id} className="border rounded-lg p-4">
-                <img
-                  src={product.imageUrl || "/placeholder.svg"}
-                  alt={product.name}
-                  className="h-40 w-full object-cover mb-2 rounded-md"
-                />
-                <h2 className="text-lg font-semibold">{product.name}</h2>
-                <p className="text-gray-600">${product.price}</p>
-                <p className="text-sm mt-2">{product.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {products.length > 0 && <Button onClick={generatePDF}>Generate PDF</Button>}
+    <div>
+      <button
+        onClick={generatePDF}
+        disabled={isGeneratingPDF}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+      >
+        {isGeneratingPDF ? "Generating PDF..." : "Generate PDF"}
+      </button>
+      {/* You can add a table or other display components here if needed */}
     </div>
   )
 }

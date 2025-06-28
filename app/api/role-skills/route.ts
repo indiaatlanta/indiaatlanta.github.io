@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      // Return mock skills for demo mode
+      // Return mock skills for demo mode with proper sort orders
       const mockSkills = [
         {
           id: 1,
@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
           skill_description: "Security is a fundamental aspect of software engineering...",
           category_name: "Technical Skills",
           category_color: "blue",
+          skill_sort_order: 1,
+          category_sort_order: 1,
         },
         {
           id: 2,
@@ -30,6 +32,8 @@ export async function GET(request: NextRequest) {
           skill_description: "Work Breakdown is the practice of decomposing large, complex work items...",
           category_name: "Delivery",
           category_color: "green",
+          skill_sort_order: 1,
+          category_sort_order: 2,
         },
         {
           id: 3,
@@ -39,6 +43,8 @@ export async function GET(request: NextRequest) {
           skill_description: "Effective communication is essential for collaboration...",
           category_name: "Feedback, Communication & Collaboration",
           category_color: "purple",
+          skill_sort_order: 1,
+          category_sort_order: 3,
         },
         {
           id: 4,
@@ -49,6 +55,8 @@ export async function GET(request: NextRequest) {
             "JavaScript is a programming language that is one of the core technologies of the World Wide Web...",
           category_name: "Language and Technologies Familiarity",
           category_color: "orange",
+          skill_sort_order: 1,
+          category_sort_order: 4,
         },
         {
           id: 5,
@@ -59,6 +67,8 @@ export async function GET(request: NextRequest) {
             "React is a free and open-source front-end JavaScript library for building user interfaces...",
           category_name: "Language and Technologies Familiarity",
           category_color: "orange",
+          skill_sort_order: 2,
+          category_sort_order: 4,
         },
       ]
 
@@ -89,7 +99,8 @@ export async function GET(request: NextRequest) {
           sc.name as category_name,
           sc.color as category_color,
           djr.sort_order,
-          sm.sort_order as skill_sort_order
+          sm.sort_order as skill_sort_order,
+          sc.sort_order as category_sort_order
         FROM demonstration_templates dt
         JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
         JOIN skills_master sm ON dt.skill_master_id = sm.id
@@ -106,7 +117,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Use the current skill demonstrations structure with skills_master sort order
+      // Use the current skill demonstrations structure with proper sort orders
       const skills = await sql`
         SELECT 
           sd.id,
@@ -117,7 +128,8 @@ export async function GET(request: NextRequest) {
           sc.name as category_name,
           sc.color as category_color,
           sd.sort_order,
-          sm.sort_order as skill_sort_order
+          sm.sort_order as skill_sort_order,
+          sc.sort_order as category_sort_order
         FROM skill_demonstrations sd
         JOIN skills_master sm ON sd.skill_master_id = sm.id
         JOIN skill_categories sc ON sm.category_id = sc.id
@@ -140,7 +152,9 @@ export async function GET(request: NextRequest) {
             s.full_description as skill_description,
             sc.name as category_name,
             sc.color as category_color,
-            s.sort_order
+            s.sort_order,
+            s.sort_order as skill_sort_order,
+            sc.sort_order as category_sort_order
           FROM skills s
           JOIN skill_categories sc ON s.category_id = sc.id
           WHERE s.job_role_id = ${Number.parseInt(roleId)}
