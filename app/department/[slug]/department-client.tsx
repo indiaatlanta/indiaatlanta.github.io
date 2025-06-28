@@ -1,12 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3, Eye, Filter } from "lucide-react"
+import {
+  MoreHorizontal,
+  ClipboardCheck,
+  GitCompare,
+  Grid3X3,
+  Eye,
+  Filter,
+  Download,
+  FileSpreadsheet,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import jsPDF from "jspdf"
+import html2canvas from "html2canvas"
 
 interface Department {
   id: number
@@ -67,6 +78,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [selectedMatrixSkill, setSelectedMatrixSkill] = useState<MatrixSkill | null>(null)
   const [isMatrixSkillDetailOpen, setIsMatrixSkillDetailOpen] = useState(false)
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all")
+  const [isExportingMatrix, setIsExportingMatrix] = useState(false)
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -157,6 +169,175 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const handleMatrixSkillClick = (skill: MatrixSkill) => {
     setSelectedMatrixSkill(skill)
     setIsMatrixSkillDetailOpen(true)
+  }
+
+  const exportMatrixToCSV = () => {
+    if (matrixData.length === 0) return
+
+    // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
+    const sortedRoles = [...roles].sort((a, b) => {
+      const aIsLeadership = a.code.startsWith("M")
+      const bIsLeadership = b.code.startsWith("M")
+      if (aIsLeadership !== bIsLeadership) {
+        return aIsLeadership ? 1 : -1
+      }
+      return a.level - b.level
+    })
+
+    // Filter data based on category filter
+    const filteredData =
+      selectedCategoryFilter === "all"
+        ? matrixData
+        : matrixData.filter((skill) => skill.category_name === selectedCategoryFilter)
+
+    // Create CSV headers
+    const headers = ["Category", "Skill", ...sortedRoles.map((role) => `${role.name} (${role.code})`)]
+
+    // Create CSV rows
+    const rows = filteredData.map((skill) => {
+      const row = [
+        `"${skill.category_name}"`,
+        `"${skill.skill_name}"`,
+        ...sortedRoles.map((role) => {
+          const demonstration = skill.demonstrations[role.id]
+          if (demonstration) {
+            return `"${demonstration.level}: ${demonstration.description.replace(/"/g, '""')}"`
+          }
+          return '""'
+        }),
+      ]
+      return row.join(",")
+    })
+
+    // Combine headers and rows
+    const csvContent = [headers.join(","), ...rows].join("\n")
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `${department.name}-skills-matrix-${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const exportMatrixToPDF = async () => {
+    if (matrixData.length === 0) return
+
+    setIsExportingMatrix(true)
+    try {
+      const matrixElement = document.getElementById("skills-matrix-content")
+      if (!matrixElement) return
+
+      // Create a temporary container with better styling for PDF
+      const tempContainer = document.createElement("div")
+      tempContainer.style.position = "absolute"
+      tempContainer.style.left = "-9999px"
+      tempContainer.style.top = "0"
+      tempContainer.style.width = "1200px"
+      tempContainer.style.backgroundColor = "white"
+      tempContainer.style.padding = "20px"
+      tempContainer.style.fontFamily = "Arial, sans-serif"
+
+      // Clone the matrix content
+      const clonedMatrix = matrixElement.cloneNode(true) as HTMLElement
+
+      // Add title
+      const title = document.createElement("h1")
+      title.textContent = `${department.name} Skills Matrix`
+      title.style.fontSize = "24px"
+      title.style.marginBottom = "20px"
+      title.style.textAlign = "center"
+
+      tempContainer.appendChild(title)
+      tempContainer.appendChild(clonedMatrix)
+      document.body.appendChild(tempContainer)
+
+      const canvas = await html2canvas(tempContainer, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        width: 1200,
+        height: tempContainer.scrollHeight,
+      })
+
+      document.body.removeChild(tempContainer)
+
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("l", "mm", "a3") // Landscape A3 for better table fit
+
+      // Add logo
+      const logoImg = new Image()
+      logoImg.crossOrigin = "anonymous"
+      logoImg.onload = () => {
+        // Add logo (smaller for landscape)
+        pdf.addImage(logoImg, "PNG", 10, 10, 32, 5)
+
+        // Add title
+        pdf.setFontSize(16)
+        pdf.text(`${department.name} Skills Matrix`, 50, 18)
+
+        // Add date
+        pdf.setFontSize(10)
+        pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 50, 25)
+
+        // Add matrix content
+        const imgWidth = 400 // A3 landscape width minus margins
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        let yPosition = 35
+        const pageHeight = 287 // A3 height minus margins
+
+        if (imgHeight > pageHeight - yPosition) {
+          // If image is too tall, we might need multiple pages
+          const pagesNeeded = Math.ceil(imgHeight / (pageHeight - yPosition))
+
+          for (let page = 0; page < pagesNeeded; page++) {
+            if (page > 0) {
+              pdf.addPage()
+              yPosition = 10
+            }
+
+            const sourceY = page * (pageHeight - yPosition) * (canvas.height / imgHeight)
+            const sourceHeight = Math.min(
+              (pageHeight - yPosition) * (canvas.height / imgHeight),
+              canvas.height - sourceY,
+            )
+
+            // Create a temporary canvas for this page section
+            const pageCanvas = document.createElement("canvas")
+            pageCanvas.width = canvas.width
+            pageCanvas.height = sourceHeight
+            const pageCtx = pageCanvas.getContext("2d")!
+
+            pageCtx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
+
+            const pageImgData = pageCanvas.toDataURL("image/png")
+            const pageImgHeight = (sourceHeight * imgWidth) / canvas.width
+
+            pdf.addImage(pageImgData, "PNG", 10, yPosition, imgWidth, pageImgHeight)
+          }
+        } else {
+          pdf.addImage(imgData, "PNG", 10, yPosition, imgWidth, imgHeight)
+        }
+
+        const filename =
+          selectedCategoryFilter === "all"
+            ? `${department.name}-skills-matrix-${new Date().toISOString().split("T")[0]}.pdf`
+            : `${department.name}-skills-matrix-${selectedCategoryFilter.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
+
+        pdf.save(filename)
+        setIsExportingMatrix(false)
+      }
+      logoImg.src = "/images/hs1-logo.png"
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      setIsExportingMatrix(false)
+    }
   }
 
   const formatSalary = (role: Role) => {
@@ -390,9 +571,42 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
       <Dialog open={isMatrixOpen} onOpenChange={setIsMatrixOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Grid3X3 className="w-5 h-5" />
-              {department.name} Skills Matrix
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Grid3X3 className="w-5 h-5" />
+                {department.name} Skills Matrix
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportMatrixToCSV}
+                  disabled={matrixData.length === 0}
+                  className="flex items-center gap-2 bg-transparent"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportMatrixToPDF}
+                  disabled={matrixData.length === 0 || isExportingMatrix}
+                  className="flex items-center gap-2 bg-transparent"
+                >
+                  {isExportingMatrix ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              </div>
             </DialogTitle>
           </DialogHeader>
 
@@ -432,7 +646,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               </div>
 
               {/* Skills Matrix */}
-              <div className="space-y-8">
+              <div id="skills-matrix-content" className="space-y-8">
                 {filteredCategories.map(([categoryName, categoryData]) => (
                   <div key={categoryName}>
                     <h3
