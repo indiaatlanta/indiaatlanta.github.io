@@ -4,6 +4,9 @@ import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
 
+// Force dynamic rendering since we use cookies and database
+export const dynamic = "force-dynamic"
+
 // Fallback mock data for when database is not configured
 const mockDepartments = [
   {

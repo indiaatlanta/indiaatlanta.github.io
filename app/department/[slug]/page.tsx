@@ -6,6 +6,9 @@ import { getSession } from "@/lib/auth"
 import { DepartmentClient } from "./department-client"
 import Image from "next/image"
 
+// Force dynamic rendering since we use cookies and database
+export const dynamic = "force-dynamic"
+
 async function getDepartmentData(slug: string) {
   if (!isDatabaseConfigured() || !sql) {
     // Return mock data for demo mode
