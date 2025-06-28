@@ -369,7 +369,23 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                           <th className="border border-gray-300 p-3 text-left font-medium text-gray-900 min-w-[200px]">
                             Skill
                           </th>
-                          {roles.map((role) => (
+                          {(() => {
+                            // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
+                            const sortedRoles = [...roles].sort((a, b) => {
+                              const aIsLeadership = a.code.startsWith("M")
+                              const bIsLeadership = b.code.startsWith("M")
+
+                              // If one is leadership and one isn't, non-leadership comes first
+                              if (aIsLeadership !== bIsLeadership) {
+                                return aIsLeadership ? 1 : -1
+                              }
+
+                              // If both are same type, sort by level
+                              return a.level - b.level
+                            })
+
+                            return sortedRoles
+                          })().map((role) => (
                             <th
                               key={role.id}
                               className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[150px]"
@@ -388,7 +404,23 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                         {categoryData.skills.map((skill) => (
                           <tr key={skill.skill_name} className="hover:bg-gray-50">
                             <td className="border border-gray-300 p-3 font-medium text-gray-900">{skill.skill_name}</td>
-                            {roles.map((role) => {
+                            {(() => {
+                              // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
+                              const sortedRoles = [...roles].sort((a, b) => {
+                                const aIsLeadership = a.code.startsWith("M")
+                                const bIsLeadership = b.code.startsWith("M")
+
+                                // If one is leadership and one isn't, non-leadership comes first
+                                if (aIsLeadership !== bIsLeadership) {
+                                  return aIsLeadership ? 1 : -1
+                                }
+
+                                // If both are same type, sort by level
+                                return a.level - b.level
+                              })
+
+                              return sortedRoles
+                            })().map((role) => {
                               const demonstration = skill.demonstrations[role.id]
                               return (
                                 <td key={role.id} className="border border-gray-300 p-3 text-sm">
