@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ClipboardCheck } from "lucide-react"
+import { MoreHorizontal, ClipboardCheck, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -275,13 +275,22 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               <div>
                 <h3 className="text-lg font-semibold mb-3">Salary</h3>
                 <div className="text-gray-700">{formatSalary(selectedRole)}</div>
-                <Link
-                  href={`/self-review?roleId=${selectedRole.id}`}
-                  className="text-brand-600 hover:text-brand-700 text-sm mt-2 flex items-center gap-1"
-                >
-                  <ClipboardCheck className="w-3 h-3" />
-                  Review yourself
-                </Link>
+                <div className="flex flex-col gap-2 mt-3">
+                  <Link
+                    href={`/self-review?roleId=${selectedRole.id}`}
+                    className="text-brand-600 hover:text-brand-700 text-sm flex items-center gap-1"
+                  >
+                    <ClipboardCheck className="w-3 h-3" />
+                    Review yourself
+                  </Link>
+                  <Link
+                    href={`/compare?role1=${selectedRole.id}`}
+                    className="text-brand-600 hover:text-brand-700 text-sm flex items-center gap-1"
+                  >
+                    <GitCompare className="w-3 h-3" />
+                    Compare against another role
+                  </Link>
+                </div>
               </div>
 
               {/* Skills Section */}

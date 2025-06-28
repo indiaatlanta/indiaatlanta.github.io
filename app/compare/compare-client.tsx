@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Eye, ArrowLeftRight, Download, FileText } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 
 interface Role {
   id: number
@@ -46,6 +47,8 @@ export function CompareClient() {
   } | null>(null)
   const [isSkillDetailOpen, setIsSkillDetailOpen] = useState(false)
 
+  const searchParams = useSearchParams()
+
   const role1 = roles.find((r) => r.id === selectedRole1)
   const role2 = roles.find((r) => r.id === selectedRole2)
 
@@ -68,6 +71,16 @@ export function CompareClient() {
         const data = await response.json()
         setRoles(data.roles)
         setIsDemoMode(data.isDemoMode)
+
+        // Check if there's a role1 parameter in the URL and pre-select it
+        const role1Param = searchParams.get("role1")
+        if (role1Param) {
+          const roleId = Number.parseInt(role1Param)
+          const roleExists = data.roles.find((r: Role) => r.id === roleId)
+          if (roleExists) {
+            setSelectedRole1(roleId)
+          }
+        }
       } else {
         // Fallback to mock data
         setRoles([
@@ -76,6 +89,15 @@ export function CompareClient() {
           { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering", skill_count: 35 },
         ])
         setIsDemoMode(true)
+
+        // Handle pre-selection for mock data too
+        const role1Param = searchParams.get("role1")
+        if (role1Param) {
+          const roleId = Number.parseInt(role1Param)
+          if (roleId >= 1 && roleId <= 3) {
+            setSelectedRole1(roleId)
+          }
+        }
       }
     } catch (error) {
       console.error("Error loading roles:", error)
