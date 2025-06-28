@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Mail } from "lucide-react"
+import { ArrowLeft, Mail, CheckCircle } from "lucide-react"
 import Image from "next/image"
 
 export default function ForgotPasswordPage() {
@@ -34,9 +34,7 @@ export default function ForgotPasswordPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setMessage(
-          "If an account with that email exists, we've sent you a password reset link. Please check your email.",
-        )
+        setMessage(data.message)
         setEmail("")
       } else {
         setError(data.error || "An error occurred. Please try again.")
@@ -78,6 +76,7 @@ export default function ForgotPasswordPage() {
 
               {message && (
                 <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">{message}</AlertDescription>
                 </Alert>
               )}
@@ -119,13 +118,18 @@ export default function ForgotPasswordPage() {
           </CardContent>
         </Card>
 
-        {/* Demo Mode Notice */}
+        {/* Email Service Info */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="pt-6">
-            <h3 className="font-medium text-blue-900 mb-2">Demo Mode</h3>
-            <p className="text-sm text-blue-800">
-              In demo mode, password reset emails are simulated. Check the browser console for the reset link.
-            </p>
+            <h3 className="font-medium text-blue-900 mb-2">📧 Email Service</h3>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>✅ Real email sending enabled via Resend</p>
+              <p>⏱️ Reset links expire in 1 hour</p>
+              <p>🔒 Links can only be used once</p>
+              <p className="text-xs mt-2 text-blue-600">
+                If no email service is configured, reset links will be logged to the console.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

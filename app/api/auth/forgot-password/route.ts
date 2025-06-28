@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import { sendPasswordResetEmail } from "@/lib/email"
 import { z } from "zod"
 import { v4 as uuidv4 } from "uuid"
 
@@ -15,10 +16,13 @@ export async function POST(request: NextRequest) {
     // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
       // In demo mode, simulate sending email
+      const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`
+
       console.log(`[DEMO MODE] Password reset requested for: ${email}`)
-      console.log(
-        `[DEMO MODE] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`,
-      )
+      console.log(`[DEMO MODE] Reset link: ${resetUrl}`)
+
+      // Try to send email even in demo mode
+      await sendPasswordResetEmail(email, "Demo User", resetUrl)
 
       return NextResponse.json({
         message: "If an account with that email exists, we've sent you a password reset link.",
@@ -30,10 +34,13 @@ export async function POST(request: NextRequest) {
       await sql`SELECT 1 FROM password_reset_tokens LIMIT 1`
     } catch (tableError) {
       // Table doesn't exist, treat as demo mode
+      const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`
+
       console.log(`[DEMO MODE - No Table] Password reset requested for: ${email}`)
-      console.log(
-        `[DEMO MODE - No Table] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`,
-      )
+      console.log(`[DEMO MODE - No Table] Reset link: ${resetUrl}`)
+
+      // Try to send email even without table
+      await sendPasswordResetEmail(email, "Demo User", resetUrl)
 
       return NextResponse.json({
         message: "If an account with that email exists, we've sent you a password reset link.",
@@ -51,6 +58,10 @@ export async function POST(request: NextRequest) {
     const successMessage = "If an account with that email exists, we've sent you a password reset link."
 
     if (users.length === 0) {
+      // Still try to send email for security (won't reveal if email exists)
+      const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=invalid-${Date.now()}`
+      await sendPasswordResetEmail(email, "User", resetUrl)
+
       return NextResponse.json({ message: successMessage })
     }
 
@@ -66,16 +77,18 @@ export async function POST(request: NextRequest) {
       VALUES (${user.id}, ${resetToken}, ${expiresAt})
     `
 
-    // In a real application, you would send an email here
-    // For now, we'll log the reset link to the console
+    // Send password reset email
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`
 
-    console.log(`Password reset requested for: ${email}`)
-    console.log(`Reset link: ${resetUrl}`)
-    console.log(`This link expires at: ${expiresAt.toISOString()}`)
+    const emailSent = await sendPasswordResetEmail(user.email, user.name, resetUrl)
 
-    // TODO: Implement actual email sending
-    // await sendPasswordResetEmail(user.email, user.name, resetUrl)
+    if (emailSent) {
+      console.log(`Password reset email sent successfully to: ${email}`)
+    } else {
+      console.log(`Password reset email failed to send to: ${email}, but reset link logged to console`)
+      console.log(`Reset link: ${resetUrl}`)
+      console.log(`This link expires at: ${expiresAt.toISOString()}`)
+    }
 
     return NextResponse.json({ message: successMessage })
   } catch (error) {
@@ -86,10 +99,13 @@ export async function POST(request: NextRequest) {
       const body = await request.json()
       const { email } = body
 
+      const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`
+
       console.log(`[DEMO MODE - DB Error] Password reset requested for: ${email}`)
-      console.log(
-        `[DEMO MODE - DB Error] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=demo-token-${Date.now()}`,
-      )
+      console.log(`[DEMO MODE - DB Error] Reset link: ${resetUrl}`)
+
+      // Try to send email even on error
+      await sendPasswordResetEmail(email, "Demo User", resetUrl)
 
       return NextResponse.json({
         message: "If an account with that email exists, we've sent you a password reset link.",
