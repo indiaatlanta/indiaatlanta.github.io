@@ -1,7 +1,18 @@
 import { Resend } from "resend"
 
 // Initialize Resend with API key from environment variables
-const resend = new Resend(process.env.RESEND_API_KEY)
+let resend: Resend | null = null
+
+try {
+  if (process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY)
+    console.log("[EMAIL] Resend initialized successfully")
+  } else {
+    console.log("[EMAIL] RESEND_API_KEY not found in environment variables")
+  }
+} catch (error) {
+  console.error("[EMAIL] Failed to initialize Resend:", error)
+}
 
 export interface EmailOptions {
   to: string
@@ -12,14 +23,20 @@ export interface EmailOptions {
 
 export async function sendEmail({ to, subject, html, from }: EmailOptions): Promise<boolean> {
   try {
+    console.log(`[EMAIL] Attempting to send email to: ${to}`)
+    console.log(`[EMAIL] Subject: ${subject}`)
+    console.log(`[EMAIL] From: ${from || process.env.EMAIL_FROM || "noreply@henryscheinone.com"}`)
+
     // Check if Resend is configured
-    if (!process.env.RESEND_API_KEY) {
-      console.log("[EMAIL] Resend API key not configured, falling back to console logging")
+    if (!resend || !process.env.RESEND_API_KEY) {
+      console.log("[EMAIL] Resend not configured, falling back to console logging")
       console.log(`[EMAIL] To: ${to}`)
       console.log(`[EMAIL] Subject: ${subject}`)
-      console.log(`[EMAIL] HTML: ${html}`)
+      console.log(`[EMAIL] HTML: ${html.substring(0, 200)}...`)
       return false
     }
+
+    console.log("[EMAIL] Sending email via Resend...")
 
     const result = await resend.emails.send({
       from: from || process.env.EMAIL_FROM || "noreply@henryscheinone.com",
@@ -27,6 +44,8 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions): Prom
       subject,
       html,
     })
+
+    console.log("[EMAIL] Resend response:", result)
 
     if (result.error) {
       console.error("[EMAIL] Resend error:", result.error)
@@ -37,11 +56,18 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions): Prom
     return true
   } catch (error) {
     console.error("[EMAIL] Failed to send email:", error)
+    console.error("[EMAIL] Error details:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    })
     return false
   }
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<boolean> {
+  console.log(`[EMAIL] Preparing password reset email for: ${email}`)
+
   const subject = "Reset Your Password - Henry Schein One Career Matrix"
 
   const html = `
@@ -143,11 +169,21 @@ export async function sendPasswordResetEmail(email: string, name: string, resetU
     </html>
   `
 
-  return await sendEmail({
-    to: email,
-    subject,
-    html,
-  })
+  console.log(`[EMAIL] HTML email prepared (${html.length} characters)`)
+
+  try {
+    const result = await sendEmail({
+      to: email,
+      subject,
+      html,
+    })
+
+    console.log(`[EMAIL] Password reset email result: ${result}`)
+    return result
+  } catch (error) {
+    console.error("[EMAIL] Error in sendPasswordResetEmail:", error)
+    return false
+  }
 }
 
 export async function sendWelcomeEmail(email: string, name: string, temporaryPassword: string): Promise<boolean> {

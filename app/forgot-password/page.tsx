@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Mail, CheckCircle } from "lucide-react"
+import { ArrowLeft, Mail, CheckCircle, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 
 export default function ForgotPasswordPage() {
@@ -22,7 +22,11 @@ export default function ForgotPasswordPage() {
     setError("")
     setMessage("")
 
+    console.log("[FORGOT PASSWORD UI] Starting password reset request...")
+
     try {
+      console.log(`[FORGOT PASSWORD UI] Sending request for email: ${email}`)
+
       const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: {
@@ -31,18 +35,25 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       })
 
+      console.log(`[FORGOT PASSWORD UI] Response status: ${response.status}`)
+
       const data = await response.json()
+      console.log("[FORGOT PASSWORD UI] Response data:", data)
 
       if (response.ok) {
         setMessage(data.message)
         setEmail("")
+        console.log("[FORGOT PASSWORD UI] Success - message set")
       } else {
         setError(data.error || "An error occurred. Please try again.")
+        console.error("[FORGOT PASSWORD UI] Error response:", data)
       }
     } catch (error) {
-      setError("An error occurred. Please try again.")
+      console.error("[FORGOT PASSWORD UI] Network/fetch error:", error)
+      setError("Network error occurred. Please check your connection and try again.")
     } finally {
       setIsLoading(false)
+      console.log("[FORGOT PASSWORD UI] Request completed")
     }
   }
 
@@ -70,14 +81,27 @@ export default function ForgotPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Error:</strong> {error}
+                    <br />
+                    <small className="text-xs mt-1 block">
+                      Check the browser console (F12) for detailed error information.
+                    </small>
+                  </AlertDescription>
                 </Alert>
               )}
 
               {message && (
                 <Alert className="border-green-200 bg-green-50">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">{message}</AlertDescription>
+                  <AlertDescription className="text-green-800">
+                    {message}
+                    <br />
+                    <small className="text-xs mt-1 block">
+                      If you don't receive an email, check the browser console (F12) for the reset link.
+                    </small>
+                  </AlertDescription>
                 </Alert>
               )}
 
@@ -118,17 +142,34 @@ export default function ForgotPasswordPage() {
           </CardContent>
         </Card>
 
-        {/* Email Service Info */}
+        {/* Debug Info */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="pt-6">
-            <h3 className="font-medium text-blue-900 mb-2">📧 Email Service</h3>
+            <h3 className="font-medium text-blue-900 mb-2">🔧 Debug Information</h3>
             <div className="text-sm text-blue-800 space-y-1">
-              <p>✅ Real email sending enabled via Resend</p>
+              <p>✅ Enhanced error logging enabled</p>
+              <p>📧 Email service: {process.env.RESEND_API_KEY ? "Resend configured" : "Console fallback"}</p>
               <p>⏱️ Reset links expire in 1 hour</p>
               <p>🔒 Links can only be used once</p>
               <p className="text-xs mt-2 text-blue-600">
-                If no email service is configured, reset links will be logged to the console.
+                Open browser console (F12) to see detailed logs and any reset links.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Test Emails */}
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="pt-6">
+            <h3 className="font-medium text-yellow-900 mb-2">🧪 Test Emails</h3>
+            <div className="text-sm text-yellow-800 space-y-1">
+              <p>
+                <strong>Existing user:</strong> admin@henryscheinone.com
+              </p>
+              <p>
+                <strong>Any email:</strong> Will work in demo mode
+              </p>
+              <p className="text-xs mt-2 text-yellow-600">Try these emails to test the password reset functionality.</p>
             </div>
           </CardContent>
         </Card>
