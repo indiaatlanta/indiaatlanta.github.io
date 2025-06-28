@@ -289,64 +289,101 @@ export function SelfReviewClient() {
         return y + lines.length * fontSize * 0.4
       }
 
-      // Header
+      // Header with brand styling
+      doc.setFillColor(30, 64, 175) // brand-800 color
+      doc.rect(0, 0, pageWidth, 25, "F")
+
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(16)
+      doc.setFont(undefined, "bold")
+      doc.text("🚀 Henry Schein One - Self Review", margin, 15)
+
+      yPosition = 35
+      doc.setTextColor(0, 0, 0)
+
+      // Title
       doc.setFontSize(20)
       doc.setFont(undefined, "bold")
       doc.text("Self Review Report", margin, yPosition)
       yPosition += 15
 
-      doc.setFontSize(12)
+      doc.setFontSize(10)
       doc.setFont(undefined, "normal")
       doc.text(`Generated on ${new Date().toLocaleDateString()}`, margin, yPosition)
       yPosition += 20
 
-      // Role Information
+      // Role Information with styled box
+      doc.setFillColor(96, 150, 255) // brand-500 color
+      doc.rect(margin, yPosition, pageWidth - 2 * margin, 30, "F")
+
+      doc.setTextColor(255, 255, 255)
       doc.setFontSize(16)
       doc.setFont(undefined, "bold")
-      doc.text(`${role.name} (${role.code})`, margin, yPosition)
-      yPosition += 10
+      doc.text(`${role.name} (${role.code})`, margin + 10, yPosition + 12)
 
       doc.setFontSize(10)
       doc.setFont(undefined, "normal")
       const roleDetails = `${role.department_name} • Level ${role.level} • ${formatSalary(role)} • ${role.location_type || "Hybrid"}`
-      yPosition = addWrappedText(roleDetails, margin, yPosition, pageWidth - 2 * margin)
-      yPosition += 15
+      yPosition = addWrappedText(roleDetails, margin + 10, yPosition + 20, pageWidth - 2 * margin - 20, 10)
 
-      // Completion Stats
+      yPosition += 25
+      doc.setTextColor(0, 0, 0)
+
+      // Completion Stats with progress bar
       const stats = getCompletionStats()
-      doc.setFontSize(12)
+      doc.setFontSize(14)
       doc.setFont(undefined, "bold")
       doc.text("Review Summary", margin, yPosition)
-      yPosition += 8
+      yPosition += 10
+
+      // Progress bar
+      doc.setFillColor(229, 231, 235) // gray background
+      doc.rect(margin, yPosition, pageWidth - 2 * margin, 8, "F")
+
+      doc.setFillColor(96, 150, 255) // brand-500 color
+      const progressWidth = ((pageWidth - 2 * margin) * stats.completionPercentage) / 100
+      doc.rect(margin, yPosition, progressWidth, 8, "F")
 
       doc.setFontSize(10)
       doc.setFont(undefined, "normal")
       doc.text(
         `Completion: ${stats.ratedSkills}/${stats.totalSkills} skills (${stats.completionPercentage}%)`,
         margin,
-        yPosition,
+        yPosition + 15,
       )
-      yPosition += 15
+      yPosition += 25
 
-      // Rating Scale
+      // Rating Scale with color coding
       doc.setFontSize(12)
       doc.setFont(undefined, "bold")
       doc.text("Rating Scale", margin, yPosition)
       yPosition += 8
 
+      const ratingColors: Record<string, number[]> = {
+        "needs-development": [239, 68, 68],
+        developing: [245, 158, 11],
+        proficient: [34, 197, 94],
+        strength: [59, 130, 246],
+      }
+
       doc.setFontSize(9)
-      doc.setFont(undefined, "normal")
       for (const option of ratingOptions) {
+        const color = ratingColors[option.value] || [107, 114, 128]
+
+        // Color indicator
+        doc.setFillColor(color[0], color[1], color[2])
+        doc.rect(margin, yPosition - 2, 8, 6, "F")
+
         doc.setFont(undefined, "bold")
-        doc.text(`${option.label}:`, margin, yPosition)
+        doc.text(`${option.label}:`, margin + 12, yPosition + 2)
         yPosition += 4
         doc.setFont(undefined, "normal")
-        yPosition = addWrappedText(option.description, margin + 5, yPosition, pageWidth - 2 * margin - 5, 8)
+        yPosition = addWrappedText(option.description, margin + 12, yPosition, pageWidth - 2 * margin - 12, 8)
         yPosition += 5
       }
       yPosition += 10
 
-      // Skills by Category
+      // Skills by Category with enhanced styling
       for (const [categoryName, categoryData] of Object.entries(skillsByCategory)) {
         // Check if we need a new page
         if (yPosition > 250) {
@@ -354,11 +391,26 @@ export function SelfReviewClient() {
           yPosition = margin
         }
 
-        // Category Header
+        // Category Header with colored background
+        const colorMap: Record<string, number[]> = {
+          blue: [59, 130, 246],
+          green: [34, 197, 94],
+          purple: [147, 51, 234],
+          indigo: [99, 102, 241],
+          orange: [249, 115, 22],
+        }
+        const bgColor = colorMap[categoryData.color] || [107, 114, 128]
+
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2])
+        doc.rect(margin, yPosition - 5, pageWidth - 2 * margin, 15, "F")
+
+        doc.setTextColor(255, 255, 255)
         doc.setFontSize(14)
         doc.setFont(undefined, "bold")
-        doc.text(categoryName, margin, yPosition)
-        yPosition += 10
+        doc.text(categoryName, margin + 5, yPosition + 5)
+        yPosition += 15
+
+        doc.setTextColor(0, 0, 0)
 
         // Skills in this category
         for (const skill of categoryData.skills) {
@@ -372,35 +424,55 @@ export function SelfReviewClient() {
           const comment = skillRating?.comment
           const ratingOption = ratingOptions.find((opt) => opt.value === rating)
 
-          doc.setFontSize(10)
+          // Skill header with level indicator
+          doc.setFontSize(11)
           doc.setFont(undefined, "bold")
           doc.text(`• ${skill.skill_name} (${skill.level})`, margin, yPosition)
           yPosition += 5
 
+          // Rating with color indicator
           if (ratingOption) {
+            const ratingColor = ratingColors[rating] || [107, 114, 128]
+            doc.setFillColor(ratingColor[0], ratingColor[1], ratingColor[2])
+            doc.rect(margin + 5, yPosition - 2, 6, 4, "F")
+
             doc.setFont(undefined, "bold")
-            doc.text(`Rating: ${ratingOption.label}`, margin + 5, yPosition)
+            doc.setFontSize(9)
+            doc.text(`Rating: ${ratingOption.label}`, margin + 15, yPosition)
             yPosition += 4
           } else {
             doc.setFont(undefined, "italic")
+            doc.setTextColor(128, 128, 128)
+            doc.setFontSize(9)
             doc.text("Rating: Not rated", margin + 5, yPosition)
+            doc.setTextColor(0, 0, 0)
             yPosition += 4
           }
 
+          // Comments section
           if (comment && comment.trim()) {
             doc.setFont(undefined, "bold")
+            doc.setFontSize(9)
             doc.text("Comments:", margin + 5, yPosition)
             yPosition += 3
-            doc.setFontSize(9)
+
+            // Comment box
+            doc.setFillColor(249, 250, 251) // gray-50
+            const commentHeight = Math.max(12, Math.ceil(comment.length / 80) * 4)
+            doc.rect(margin + 10, yPosition - 2, pageWidth - 2 * margin - 20, commentHeight, "F")
+
             doc.setFont(undefined, "normal")
-            yPosition = addWrappedText(comment, margin + 10, yPosition, pageWidth - 2 * margin - 10, 8)
+            doc.setFontSize(8)
+            yPosition = addWrappedText(comment, margin + 12, yPosition + 2, pageWidth - 2 * margin - 24, 8)
             yPosition += 3
           }
 
+          // Demonstration required
           doc.setFontSize(9)
-          doc.setFont(undefined, "normal")
+          doc.setFont(undefined, "bold")
           doc.text("Demonstration Required:", margin + 5, yPosition)
           yPosition += 3
+          doc.setFont(undefined, "normal")
           yPosition = addWrappedText(
             skill.demonstration_description,
             margin + 10,
@@ -411,6 +483,16 @@ export function SelfReviewClient() {
           yPosition += 8
         }
         yPosition += 5
+      }
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(128, 128, 128)
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth - 30, doc.internal.pageSize.height - 10)
+        doc.text("Henry Schein One Career Matrix", margin, doc.internal.pageSize.height - 10)
       }
 
       // Save the PDF

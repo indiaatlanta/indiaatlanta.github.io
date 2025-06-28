@@ -224,35 +224,66 @@ export function CompareClient() {
         return y + lines.length * fontSize * 0.4
       }
 
-      // Header
+      // Header with brand styling
+      doc.setFillColor(30, 64, 175) // brand-800 color
+      doc.rect(0, 0, pageWidth, 25, "F")
+
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(16)
+      doc.setFont(undefined, "bold")
+      doc.text("🚀 Henry Schein One - Role Comparison", margin, 15)
+
+      yPosition = 35
+      doc.setTextColor(0, 0, 0)
+
+      // Comparison title
       doc.setFontSize(20)
       doc.setFont(undefined, "bold")
       doc.text("Role Comparison Report", margin, yPosition)
       yPosition += 15
 
-      doc.setFontSize(12)
+      doc.setFontSize(10)
       doc.setFont(undefined, "normal")
       doc.text(`Generated on ${new Date().toLocaleDateString()}`, margin, yPosition)
       yPosition += 20
 
-      // Role Headers
-      doc.setFontSize(16)
+      // Role comparison header with boxes
+      doc.setFontSize(14)
       doc.setFont(undefined, "bold")
-      doc.text(`${role1.name} (${role1.code}) vs ${role2.name} (${role2.code})`, margin, yPosition)
-      yPosition += 15
+
+      // Role 1 box
+      doc.setFillColor(96, 150, 255) // brand-500 color
+      doc.rect(margin, yPosition, (pageWidth - 3 * margin) / 2, 25, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${role1.name} (${role1.code})`, margin + 5, yPosition + 8)
+      doc.text(`${role1.department_name} • Level ${role1.level}`, margin + 5, yPosition + 16)
+
+      // VS text
+      doc.setTextColor(0, 0, 0)
+      doc.text("VS", pageWidth / 2 - 5, yPosition + 12)
+
+      // Role 2 box
+      doc.setFillColor(96, 150, 255) // brand-500 color
+      doc.rect(pageWidth / 2 + 10, yPosition, (pageWidth - 3 * margin) / 2, 25, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${role2.name} (${role2.code})`, pageWidth / 2 + 15, yPosition + 8)
+      doc.text(`${role2.department_name} • Level ${role2.level}`, pageWidth / 2 + 15, yPosition + 16)
+
+      yPosition += 35
+      doc.setTextColor(0, 0, 0)
 
       // Role Details
       doc.setFontSize(10)
       doc.setFont(undefined, "normal")
 
-      const role1Details = `${role1.department_name} • Level ${role1.level} • ${formatSalary(role1)} • ${role1.location_type || "Hybrid"}`
-      const role2Details = `${role2.department_name} • Level ${role2.level} • ${formatSalary(role2)} • ${role2.location_type || "Hybrid"}`
+      const role1Details = `${formatSalary(role1)} • ${role1.location_type || "Hybrid"}`
+      const role2Details = `${formatSalary(role2)} • ${role2.location_type || "Hybrid"}`
 
-      yPosition = addWrappedText(`Role 1: ${role1Details}`, margin, yPosition, pageWidth - 2 * margin)
-      yPosition = addWrappedText(`Role 2: ${role2Details}`, margin, yPosition + 5, pageWidth - 2 * margin)
-      yPosition += 15
+      yPosition = addWrappedText(`${role1.name}: ${role1Details}`, margin, yPosition, pageWidth - 2 * margin)
+      yPosition = addWrappedText(`${role2.name}: ${role2Details}`, margin, yPosition + 5, pageWidth - 2 * margin)
+      yPosition += 20
 
-      // Skills by Category
+      // Skills by Category with color coding
       for (const categoryName of allCategories) {
         // Check if we need a new page
         if (yPosition > 250) {
@@ -262,12 +293,28 @@ export function CompareClient() {
 
         const role1Category = role1SkillsByCategory[categoryName]
         const role2Category = role2SkillsByCategory[categoryName]
+        const categoryColor = role1Category?.color || role2Category?.color || "gray"
 
-        // Category Header
+        // Category Header with colored background
+        const colorMap: Record<string, number[]> = {
+          blue: [59, 130, 246],
+          green: [34, 197, 94],
+          purple: [147, 51, 234],
+          indigo: [99, 102, 241],
+          orange: [249, 115, 22],
+        }
+        const bgColor = colorMap[categoryColor] || [107, 114, 128]
+
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2])
+        doc.rect(margin, yPosition - 5, pageWidth - 2 * margin, 15, "F")
+
+        doc.setTextColor(255, 255, 255)
         doc.setFontSize(14)
         doc.setFont(undefined, "bold")
-        doc.text(categoryName, margin, yPosition)
-        yPosition += 10
+        doc.text(categoryName, margin + 5, yPosition + 5)
+        yPosition += 15
+
+        doc.setTextColor(0, 0, 0)
 
         // Create two columns for skills
         const columnWidth = (pageWidth - 3 * margin) / 2
@@ -309,7 +356,9 @@ export function CompareClient() {
         } else {
           doc.setFontSize(9)
           doc.setFont(undefined, "italic")
+          doc.setTextColor(128, 128, 128)
           doc.text("No skills in this category", leftColumnX, leftColumnY)
+          doc.setTextColor(0, 0, 0)
           leftColumnY += 8
         }
 
@@ -345,11 +394,23 @@ export function CompareClient() {
         } else {
           doc.setFontSize(9)
           doc.setFont(undefined, "italic")
+          doc.setTextColor(128, 128, 128)
           doc.text("No skills in this category", rightColumnX, rightColumnY)
+          doc.setTextColor(0, 0, 0)
           rightColumnY += 8
         }
 
         yPosition = Math.max(leftColumnY, rightColumnY) + 10
+      }
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(128, 128, 128)
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth - 30, doc.internal.pageSize.height - 10)
+        doc.text("Henry Schein One Career Matrix", margin, doc.internal.pageSize.height - 10)
       }
 
       // Save the PDF
