@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ExternalLink } from "lucide-react"
+import { MoreHorizontal, ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
 interface Department {
   id: number
@@ -274,10 +275,13 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               <div>
                 <h3 className="text-lg font-semibold mb-3">Salary</h3>
                 <div className="text-gray-700">{formatSalary(selectedRole)}</div>
-                <button className="text-amber-700 hover:text-amber-800 text-sm mt-2 flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" />
-                  Open as page
-                </button>
+                <Link
+                  href={`/self-review?roleId=${selectedRole.id}`}
+                  className="text-brand-600 hover:text-brand-700 text-sm mt-2 flex items-center gap-1"
+                >
+                  <ClipboardCheck className="w-3 h-3" />
+                  Review yourself
+                </Link>
               </div>
 
               {/* Skills Section */}
