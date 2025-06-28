@@ -39,20 +39,28 @@ export function CompareClient({ isDemoMode }: Props) {
   const [role2Skills, setRole2Skills] = useState<Skill[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
 
   useEffect(() => {
     fetchRoles()
   }, [])
 
   const fetchRoles = async () => {
+    setIsLoadingRoles(true)
     try {
       const response = await fetch("/api/roles")
       if (response.ok) {
         const data = await response.json()
-        setRoles(data)
+        setRoles(data.roles || [])
+      } else {
+        console.error("Failed to fetch roles")
+        setRoles([])
       }
     } catch (error) {
       console.error("Error fetching roles:", error)
+      setRoles([])
+    } finally {
+      setIsLoadingRoles(false)
     }
   }
 
@@ -220,11 +228,21 @@ export function CompareClient({ isDemoMode }: Props) {
                 <SelectValue placeholder="Select first role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.department_name} - {role.name} ({role.code})
+                {isLoadingRoles ? (
+                  <SelectItem value="" disabled>
+                    Loading roles...
                   </SelectItem>
-                ))}
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
             {selectedRole1 && (
@@ -248,11 +266,21 @@ export function CompareClient({ isDemoMode }: Props) {
                 <SelectValue placeholder="Select second role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.department_name} - {role.name} ({role.code})
+                {isLoadingRoles ? (
+                  <SelectItem value="" disabled>
+                    Loading roles...
                   </SelectItem>
-                ))}
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
             {selectedRole2 && (
