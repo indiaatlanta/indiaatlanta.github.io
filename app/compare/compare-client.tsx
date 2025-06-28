@@ -229,7 +229,7 @@ export function CompareClient({ isDemoMode }: Props) {
               </SelectTrigger>
               <SelectContent>
                 {isLoadingRoles ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="loading" disabled>
                     Loading roles...
                   </SelectItem>
                 ) : roles.length > 0 ? (
@@ -239,7 +239,7 @@ export function CompareClient({ isDemoMode }: Props) {
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="no-roles" disabled>
                     No roles available
                   </SelectItem>
                 )}
@@ -267,7 +267,7 @@ export function CompareClient({ isDemoMode }: Props) {
               </SelectTrigger>
               <SelectContent>
                 {isLoadingRoles ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="loading" disabled>
                     Loading roles...
                   </SelectItem>
                 ) : roles.length > 0 ? (
@@ -277,7 +277,7 @@ export function CompareClient({ isDemoMode }: Props) {
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="no-roles" disabled>
                     No roles available
                   </SelectItem>
                 )}
