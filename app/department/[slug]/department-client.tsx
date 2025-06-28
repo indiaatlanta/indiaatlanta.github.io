@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ClipboardCheck, GitCompare } from "lucide-react"
+import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +35,13 @@ interface Skill {
   category_color: string
 }
 
+interface MatrixSkill {
+  skill_name: string
+  category_name: string
+  category_color: string
+  demonstrations: Record<number, { level: string; description: string }>
+}
+
 interface Props {
   department: Department
   roles: Role[]
@@ -48,6 +55,9 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [isLoadingSkills, setIsLoadingSkills] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isSkillDetailOpen, setIsSkillDetailOpen] = useState(false)
+  const [isMatrixOpen, setIsMatrixOpen] = useState(false)
+  const [matrixData, setMatrixData] = useState<MatrixSkill[]>([])
+  const [isLoadingMatrix, setIsLoadingMatrix] = useState(false)
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -63,6 +73,60 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
       setRoleSkills([])
     } finally {
       setIsLoadingSkills(false)
+    }
+  }
+
+  const handleMatrixClick = async () => {
+    setIsMatrixOpen(true)
+    setIsLoadingMatrix(true)
+
+    try {
+      // Fetch skills for all roles in this department
+      const skillsPromises = roles.map(async (role) => {
+        const response = await fetch(`/api/role-skills?roleId=${role.id}`)
+        const skills = response.ok ? await response.json() : []
+        return { roleId: role.id, skills }
+      })
+
+      const allRoleSkills = await Promise.all(skillsPromises)
+
+      // Create a map of all unique skills and their demonstrations per role
+      const skillsMap = new Map<string, MatrixSkill>()
+
+      allRoleSkills.forEach(({ roleId, skills }) => {
+        skills.forEach((skill: Skill) => {
+          const key = skill.skill_name
+          if (!skillsMap.has(key)) {
+            skillsMap.set(key, {
+              skill_name: skill.skill_name,
+              category_name: skill.category_name,
+              category_color: skill.category_color,
+              demonstrations: {},
+            })
+          }
+
+          const matrixSkill = skillsMap.get(key)!
+          matrixSkill.demonstrations[roleId] = {
+            level: skill.level,
+            description: skill.demonstration_description,
+          }
+        })
+      })
+
+      // Convert to array and sort by category and skill name
+      const sortedSkills = Array.from(skillsMap.values()).sort((a, b) => {
+        if (a.category_name !== b.category_name) {
+          return a.category_name.localeCompare(b.category_name)
+        }
+        return a.skill_name.localeCompare(b.skill_name)
+      })
+
+      setMatrixData(sortedSkills)
+    } catch (error) {
+      console.error("Error loading matrix data:", error)
+      setMatrixData([])
+    } finally {
+      setIsLoadingMatrix(false)
     }
   }
 
@@ -139,6 +203,21 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
 
   const { regularRoles, leadershipRoles } = organizeRoles(roles)
 
+  // Group matrix data by category
+  const matrixByCategory = matrixData.reduce(
+    (acc, skill) => {
+      if (!acc[skill.category_name]) {
+        acc[skill.category_name] = {
+          color: skill.category_color,
+          skills: [],
+        }
+      }
+      acc[skill.category_name].skills.push(skill)
+      return acc
+    },
+    {} as Record<string, { color: string; skills: MatrixSkill[] }>,
+  )
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Database Status Banner */}
@@ -165,6 +244,16 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
           <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
             <span>Individual Contributors: {regularRoles.length}</span>
             {leadershipRoles.length > 0 && <span>Leadership: {leadershipRoles.length}</span>}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        {roles.length > 0 && (
+          <div className="flex items-center gap-3 mt-4">
+            <Button onClick={handleMatrixClick} className="bg-brand-600 hover:bg-brand-700 flex items-center gap-2">
+              <Grid3X3 className="w-4 h-4" />
+              Skills Matrix
+            </Button>
           </div>
         )}
       </div>
@@ -248,6 +337,96 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
           <div className="text-gray-500 text-sm">This department currently has no defined roles.</div>
         </div>
       )}
+
+      {/* Skills Matrix Modal */}
+      <Dialog open={isMatrixOpen} onOpenChange={setIsMatrixOpen}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Grid3X3 className="w-5 h-5" />
+              {department.name} Skills Matrix
+            </DialogTitle>
+          </DialogHeader>
+
+          {isLoadingMatrix ? (
+            <div className="text-center py-8">
+              <div className="text-gray-500">Loading skills matrix...</div>
+            </div>
+          ) : matrixData.length > 0 ? (
+            <div className="space-y-8">
+              {Object.entries(matrixByCategory).map(([categoryName, categoryData]) => (
+                <div key={categoryName}>
+                  <h3
+                    className={`text-lg font-semibold mb-4 border-b pb-2 text-${categoryData.color}-700 border-${categoryData.color}-200`}
+                  >
+                    {categoryName}
+                  </h3>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-300 p-3 text-left font-medium text-gray-900 min-w-[200px]">
+                            Skill
+                          </th>
+                          {roles.map((role) => (
+                            <th
+                              key={role.id}
+                              className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[150px]"
+                            >
+                              <div className="flex flex-col items-center gap-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {role.code}
+                                </Badge>
+                                <span className="text-sm">{role.name}</span>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryData.skills.map((skill) => (
+                          <tr key={skill.skill_name} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 p-3 font-medium text-gray-900">{skill.skill_name}</td>
+                            {roles.map((role) => {
+                              const demonstration = skill.demonstrations[role.id]
+                              return (
+                                <td key={role.id} className="border border-gray-300 p-3 text-sm">
+                                  {demonstration ? (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-center">
+                                        <Badge variant="outline" className="text-xs">
+                                          {demonstration.level}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-gray-700 text-xs leading-relaxed">
+                                        {demonstration.description}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center text-gray-400 text-xs">—</div>
+                                  )}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-gray-400 text-lg mb-2">No skills data available</div>
+              <div className="text-gray-500 text-sm">
+                This department currently has no skills defined for its roles.
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Role Detail Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
