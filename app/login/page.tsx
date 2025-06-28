@@ -145,10 +145,17 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center">
-              <Link href="/" className="text-brand-600 hover:text-brand-700 text-sm">
-                ← Back to Career Matrix
-              </Link>
+            <div className="mt-4 text-center space-y-2">
+              {!isDemoMode && (
+                <Link href="/forgot-password" className="text-brand-600 hover:text-brand-700 text-sm">
+                  Forgot your password?
+                </Link>
+              )}
+              <div>
+                <Link href="/" className="text-gray-600 hover:text-gray-800 text-sm">
+                  ← Back to Career Matrix
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>
