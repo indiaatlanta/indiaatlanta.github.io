@@ -388,7 +388,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                           })().map((role) => (
                             <th
                               key={role.id}
-                              className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[150px]"
+                              className="border border-gray-300 p-3 text-center font-medium text-gray-900 min-w-[300px]"
                             >
                               <div className="flex flex-col items-center gap-1">
                                 <Badge variant="outline" className="text-xs">
@@ -423,7 +423,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                             })().map((role) => {
                               const demonstration = skill.demonstrations[role.id]
                               return (
-                                <td key={role.id} className="border border-gray-300 p-3 text-sm">
+                                <td key={role.id} className="border border-gray-300 p-4 text-sm">
                                   {demonstration ? (
                                     <div className="space-y-2">
                                       <div className="flex items-center justify-center">
