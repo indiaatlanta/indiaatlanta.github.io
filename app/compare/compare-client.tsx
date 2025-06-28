@@ -236,7 +236,7 @@ export function CompareClient() {
         await new Promise((resolve, reject) => {
           img.onload = () => {
             // Use a much smaller, fixed size without scaling to maintain quality
-            const logoWidth = 40
+            const logoWidth = 30
             const logoHeight = 10
 
             // Add the image directly at a small size to maintain crispness

@@ -301,8 +301,8 @@ export function SelfReviewClient() {
         await new Promise((resolve, reject) => {
           img.onload = () => {
             // Use a much smaller, fixed size without scaling to maintain quality
-            const logoWidth = 40
-            const logoHeight = 10
+            const logoWidth = 30 // Reduced from 40
+            const logoHeight = 10 // Keep the same
 
             // Add the image directly at a small size to maintain crispness
             const canvas = document.createElement("canvas")
