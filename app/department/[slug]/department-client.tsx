@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3 } from "lucide-react"
+import { MoreHorizontal, ClipboardCheck, GitCompare, Grid3X3, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,7 @@ interface MatrixSkill {
   skill_name: string
   category_name: string
   category_color: string
+  skill_description?: string
   demonstrations: Record<number, { level: string; description: string }>
 }
 
@@ -58,6 +59,8 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [isMatrixOpen, setIsMatrixOpen] = useState(false)
   const [matrixData, setMatrixData] = useState<MatrixSkill[]>([])
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false)
+  const [selectedMatrixSkill, setSelectedMatrixSkill] = useState<MatrixSkill | null>(null)
+  const [isMatrixSkillDetailOpen, setIsMatrixSkillDetailOpen] = useState(false)
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -101,6 +104,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               skill_name: skill.skill_name,
               category_name: skill.category_name,
               category_color: skill.category_color,
+              skill_description: skill.skill_description,
               demonstrations: {},
             })
           }
@@ -128,6 +132,11 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
     } finally {
       setIsLoadingMatrix(false)
     }
+  }
+
+  const handleMatrixSkillClick = (skill: MatrixSkill) => {
+    setSelectedMatrixSkill(skill)
+    setIsMatrixSkillDetailOpen(true)
   }
 
   const formatSalary = (role: Role) => {
@@ -403,7 +412,22 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                       <tbody>
                         {categoryData.skills.map((skill) => (
                           <tr key={skill.skill_name} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 p-3 font-medium text-gray-900">{skill.skill_name}</td>
+                            <td className="border border-gray-300 p-3 font-medium text-gray-900">
+                              <div className="flex items-center justify-between">
+                                <span>{skill.skill_name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleMatrixSkillClick(skill)
+                                  }}
+                                  className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </td>
                             {(() => {
                               // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
                               const sortedRoles = [...roles].sort((a, b) => {
@@ -454,6 +478,93 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               <div className="text-gray-400 text-lg mb-2">No skills data available</div>
               <div className="text-gray-500 text-sm">
                 This department currently has no skills defined for its roles.
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Matrix Skill Detail Modal */}
+      <Dialog open={isMatrixSkillDetailOpen} onOpenChange={setIsMatrixSkillDetailOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>{selectedMatrixSkill?.skill_name || "Skill Definition"}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedMatrixSkill && (
+            <div className="space-y-6">
+              {/* Skill Category */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-1">Category</h4>
+                <Badge variant="secondary" className={`${getColorClasses(selectedMatrixSkill.category_color)} border`}>
+                  {selectedMatrixSkill.category_name}
+                </Badge>
+              </div>
+
+              {/* Skill Description */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">Skill Definition</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                    {selectedMatrixSkill.skill_description ||
+                      "This skill definition provides the foundational understanding and context for what this skill encompasses across all roles."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Role-Specific Demonstrations */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">Role-Specific Demonstrations</h4>
+                <div className="space-y-4">
+                  {(() => {
+                    // Sort roles: Individual contributors first (E1, E2, etc.), then leadership (M1, M2, etc.)
+                    const sortedRoles = [...roles].sort((a, b) => {
+                      const aIsLeadership = a.code.startsWith("M")
+                      const bIsLeadership = b.code.startsWith("M")
+
+                      // If one is leadership and one isn't, non-leadership comes first
+                      if (aIsLeadership !== bIsLeadership) {
+                        return aIsLeadership ? 1 : -1
+                      }
+
+                      // If both are same type, sort by level
+                      return a.level - b.level
+                    })
+
+                    return sortedRoles
+                  })().map((role) => {
+                    const demonstration = selectedMatrixSkill.demonstrations[role.id]
+                    return (
+                      <div key={role.id} className="border rounded-lg p-4">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Badge variant="outline" className="text-xs">
+                            {role.code}
+                          </Badge>
+                          <span className="font-medium text-gray-900">{role.name}</span>
+                          {demonstration && (
+                            <Badge variant="outline" className="text-xs">
+                              {demonstration.level}
+                            </Badge>
+                          )}
+                        </div>
+                        {demonstration ? (
+                          <p className="text-sm text-gray-700 leading-relaxed">{demonstration.description}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">This skill is not required for this role</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="flex justify-end pt-4">
+                <Button variant="outline" onClick={() => setIsMatrixSkillDetailOpen(false)}>
+                  Close
+                </Button>
               </div>
             </div>
           )}
