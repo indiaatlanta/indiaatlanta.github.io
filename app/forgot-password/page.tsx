@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Mail, CheckCircle, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Mail, CheckCircle, AlertTriangle, Copy } from "lucide-react"
 import Image from "next/image"
 
 export default function ForgotPasswordPage() {
@@ -15,12 +15,14 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
+  const [resetLink, setResetLink] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
     setMessage("")
+    setResetLink("")
 
     console.log("[FORGOT PASSWORD UI] Starting password reset request...")
 
@@ -44,6 +46,12 @@ export default function ForgotPasswordPage() {
         setMessage(data.message)
         setEmail("")
         console.log("[FORGOT PASSWORD UI] Success - message set")
+
+        // Extract reset link from console logs for demo purposes
+        // In a real app, this would be sent via email
+        if (data.resetLink) {
+          setResetLink(data.resetLink)
+        }
       } else {
         setError(data.error || "An error occurred. Please try again.")
         console.error("[FORGOT PASSWORD UI] Error response:", data)
@@ -55,6 +63,19 @@ export default function ForgotPasswordPage() {
       setIsLoading(false)
       console.log("[FORGOT PASSWORD UI] Request completed")
     }
+  }
+
+  const copyResetLink = () => {
+    navigator.clipboard.writeText(resetLink)
+    alert("Reset link copied to clipboard!")
+  }
+
+  const testResetLink = () => {
+    // Generate a test reset link for demo purposes
+    const testToken = `demo-token-${Date.now()}`
+    const testLink = `${window.location.origin}/reset-password?token=${testToken}`
+    setResetLink(testLink)
+    setMessage("Test reset link generated! Click the link below to test the reset password page.")
   }
 
   return (
@@ -86,7 +107,7 @@ export default function ForgotPasswordPage() {
                     <strong>Error:</strong> {error}
                     <br />
                     <small className="text-xs mt-1 block">
-                      Check the browser console (F12) for detailed error information.
+                      Make sure your development server is running on localhost:3000
                     </small>
                   </AlertDescription>
                 </Alert>
@@ -97,10 +118,28 @@ export default function ForgotPasswordPage() {
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
                     {message}
-                    <br />
-                    <small className="text-xs mt-1 block">
-                      If you don't receive an email, check the browser console (F12) for the reset link.
-                    </small>
+                    {resetLink && (
+                      <div className="mt-3 space-y-2">
+                        <div className="bg-white p-3 rounded border text-sm font-mono break-all">{resetLink}</div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={copyResetLink}
+                            className="flex items-center gap-1 bg-transparent"
+                          >
+                            <Copy className="w-3 h-3" />
+                            Copy Link
+                          </Button>
+                          <Link href={resetLink}>
+                            <Button size="sm" className="bg-brand-600 hover:bg-brand-700">
+                              Test Reset Page
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
@@ -116,18 +155,20 @@ export default function ForgotPasswordPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="Enter your email address"
-                  disabled={isLoading || !!message}
+                  disabled={isLoading}
                 />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-brand-600 hover:bg-brand-700"
-                disabled={isLoading || !!message}
-              >
+              <Button type="submit" className="w-full bg-brand-600 hover:bg-brand-700" disabled={isLoading}>
                 {isLoading ? "Sending..." : "Send Reset Link"}
               </Button>
             </form>
+
+            <div className="mt-4">
+              <Button type="button" variant="outline" onClick={testResetLink} className="w-full bg-transparent">
+                🧪 Generate Test Reset Link
+              </Button>
+            </div>
 
             <div className="mt-6 text-center space-y-2">
               <Link
@@ -142,17 +183,20 @@ export default function ForgotPasswordPage() {
           </CardContent>
         </Card>
 
-        {/* Debug Info */}
+        {/* Server Status Check */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="pt-6">
-            <h3 className="font-medium text-blue-900 mb-2">🔧 Debug Information</h3>
+            <h3 className="font-medium text-blue-900 mb-2">🔧 Server Status</h3>
             <div className="text-sm text-blue-800 space-y-1">
-              <p>✅ Enhanced error logging enabled</p>
-              <p>📧 Email service: {process.env.RESEND_API_KEY ? "Resend configured" : "Console fallback"}</p>
-              <p>⏱️ Reset links expire in 1 hour</p>
-              <p>🔒 Links can only be used once</p>
+              <p>
+                ✅ Make sure your dev server is running: <code className="bg-blue-100 px-1 rounded">npm run dev</code>
+              </p>
+              <p>
+                🌐 Server should be accessible at: <code className="bg-blue-100 px-1 rounded">localhost:3000</code>
+              </p>
+              <p>🧪 Use the "Generate Test Reset Link" button to test without email</p>
               <p className="text-xs mt-2 text-blue-600">
-                Open browser console (F12) to see detailed logs and any reset links.
+                The reset link will only work when your Next.js server is running.
               </p>
             </div>
           </CardContent>

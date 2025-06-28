@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         message: "If an account with that email exists, we've sent you a password reset link.",
+        resetLink: resetUrl, // Include reset link in response for demo purposes
       })
     }
 
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         message: "If an account with that email exists, we've sent you a password reset link.",
+        resetLink: resetUrl, // Include reset link in response for demo purposes
       })
     }
 
@@ -146,7 +148,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[FORGOT PASSWORD] Process completed successfully")
-    return NextResponse.json({ message: successMessage })
+    return NextResponse.json({
+      message: successMessage,
+      resetLink: resetUrl, // Include reset link in response for demo purposes
+    })
   } catch (error) {
     console.error("[FORGOT PASSWORD] Unexpected error:", error)
     console.error("[FORGOT PASSWORD] Error stack:", error.stack)
@@ -189,6 +194,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           message: "If an account with that email exists, we've sent you a password reset link.",
+          resetLink: resetUrl, // Include reset link in response for demo purposes
         })
       } catch (fallbackError) {
         console.error("[FORGOT PASSWORD] Fallback error:", fallbackError)
