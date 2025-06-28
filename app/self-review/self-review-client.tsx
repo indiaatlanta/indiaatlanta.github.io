@@ -289,16 +289,50 @@ export function SelfReviewClient() {
         return y + lines.length * fontSize * 0.4
       }
 
-      // Header with brand styling
+      // Header with brand styling and logo
       doc.setFillColor(30, 64, 175) // brand-800 color
-      doc.rect(0, 0, pageWidth, 25, "F")
+      doc.rect(0, 0, pageWidth, 30, "F")
+
+      // Add logo
+      try {
+        // Create a canvas to load and resize the logo
+        const canvas = document.createElement("canvas")
+        const ctx = canvas.getContext("2d")
+        const img = new Image()
+        img.crossOrigin = "anonymous"
+
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            // Resize logo to fit header
+            const logoHeight = 20
+            const logoWidth = (img.width / img.height) * logoHeight
+
+            canvas.width = logoWidth
+            canvas.height = logoHeight
+            ctx?.drawImage(img, 0, 0, logoWidth, logoHeight)
+
+            // Convert to base64 and add to PDF
+            const logoData = canvas.toDataURL("image/png")
+            doc.addImage(logoData, "PNG", margin, 5, logoWidth, logoHeight)
+            resolve(true)
+          }
+          img.onerror = () => resolve(false) // Continue without logo if it fails
+          img.src = "/images/hs1-logo.png"
+        })
+      } catch (error) {
+        console.log("Logo could not be loaded, continuing without it")
+      }
 
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(16)
       doc.setFont(undefined, "bold")
-      doc.text("🚀 Henry Schein One - Self Review", margin, 15)
+      doc.text("Self Review Report", margin + 60, 15)
 
-      yPosition = 35
+      doc.setFontSize(10)
+      doc.setFont(undefined, "normal")
+      doc.text("Henry Schein One Career Matrix", margin + 60, 22)
+
+      yPosition = 40
       doc.setTextColor(0, 0, 0)
 
       // Title
