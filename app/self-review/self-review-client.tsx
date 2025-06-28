@@ -37,12 +37,6 @@ interface SkillRating {
   comment?: string
 }
 
-interface Props {
-  roles: Role[]
-  getRoleSkills: (roleId: number) => Promise<Skill[]>
-  isDemoMode: boolean
-}
-
 const ratingOptions = [
   {
     value: "needs-development",
@@ -73,29 +67,66 @@ const ratingOptions = [
   },
 ]
 
-export function SelfReviewClient({ roles, getRoleSkills, isDemoMode }: Props) {
+export function SelfReviewClient() {
+  const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState<number | null>(null)
   const [roleSkills, setRoleSkills] = useState<Skill[]>([])
   const [skillRatings, setSkillRatings] = useState<Record<number, { rating: string; comment: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isSkillDetailOpen, setIsSkillDetailOpen] = useState(false)
   const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({})
 
   const role = roles.find((r) => r.id === selectedRole)
 
+  // Load roles on component mount
+  useEffect(() => {
+    loadRoles()
+  }, [])
+
+  // Load skills when role is selected
   useEffect(() => {
     if (selectedRole) {
       loadSkillsForReview()
     }
   }, [selectedRole])
 
+  const loadRoles = async () => {
+    try {
+      const response = await fetch("/api/roles")
+      if (response.ok) {
+        const data = await response.json()
+        setRoles(data.roles)
+        setIsDemoMode(data.isDemoMode)
+      } else {
+        // Fallback to mock data
+        setRoles([
+          { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering", skill_count: 25 },
+          { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering", skill_count: 30 },
+          { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering", skill_count: 35 },
+        ])
+        setIsDemoMode(true)
+      }
+    } catch (error) {
+      console.error("Error loading roles:", error)
+      // Fallback to mock data
+      setRoles([
+        { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering", skill_count: 25 },
+        { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering", skill_count: 30 },
+        { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering", skill_count: 35 },
+      ])
+      setIsDemoMode(true)
+    }
+  }
+
   const loadSkillsForReview = async () => {
     if (!selectedRole) return
 
     setIsLoading(true)
     try {
-      const skills = await getRoleSkills(selectedRole)
+      const response = await fetch(`/api/role-skills?roleId=${selectedRole}`)
+      const skills = response.ok ? await response.json() : []
       setRoleSkills(skills)
       // Reset ratings when changing roles
       setSkillRatings({})
