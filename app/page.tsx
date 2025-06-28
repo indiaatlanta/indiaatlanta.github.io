@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ExternalLink, Rocket, GitCompare, ClipboardCheck } from "lucide-react"
+import { ExternalLink, Rocket, GitCompare, ClipboardCheck, Settings } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
@@ -187,13 +187,24 @@ export default async function Home() {
         {/* Database Status Banner */}
         {!isDatabaseConfigured() && (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
+                </div>
+                <p className="text-blue-700 text-sm mt-1">
+                  Running in preview mode. Database features are simulated for demonstration purposes.
+                </p>
+              </div>
+              <Link
+                href="/admin"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Access Admin Panel
+              </Link>
             </div>
-            <p className="text-blue-700 text-sm mt-1">
-              Running in preview mode. Database features are simulated for demonstration purposes.
-            </p>
           </div>
         )}
 

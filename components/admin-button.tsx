@@ -11,14 +11,32 @@ export function AdminButton() {
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
-        // In demo mode (development), show admin button
+        // In demo mode (development or no database), always show admin button
         if (process.env.NODE_ENV === "development") {
           setIsAdmin(true)
           setIsLoading(false)
           return
         }
 
-        // Try to check session via API call
+        // Check if database is configured by trying to fetch roles
+        try {
+          const rolesResponse = await fetch("/api/roles")
+          const rolesData = await rolesResponse.json()
+
+          // If we're in demo mode (no database), show admin button
+          if (rolesData.isDemoMode) {
+            setIsAdmin(true)
+            setIsLoading(false)
+            return
+          }
+        } catch (error) {
+          // If API fails, assume demo mode
+          setIsAdmin(true)
+          setIsLoading(false)
+          return
+        }
+
+        // Try to check session via API call for database mode
         const response = await fetch("/api/auth/session")
         if (response.ok) {
           const data = await response.json()
@@ -27,8 +45,9 @@ export function AdminButton() {
           setIsAdmin(false)
         }
       } catch (error) {
-        // Silently fail - user is not admin
-        setIsAdmin(false)
+        // On any error, show admin button in development
+        console.log("Admin check error:", error)
+        setIsAdmin(process.env.NODE_ENV === "development")
       } finally {
         setIsLoading(false)
       }
