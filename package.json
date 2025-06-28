@@ -21,7 +21,6 @@
     "@radix-ui/react-separator": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tabs": "latest",
-    "@vercel/postgres": "latest",
     "ai": "^3.4.32",
     "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",

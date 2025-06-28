@@ -1,76 +1,66 @@
-\
-Now
-let
-'s fix the API response structure issue:
+"use client"
 
-```typescriptreact file="app/api/role-skills/route.ts"
-[v0-no-op-code-block-prefix]
-import { sql } from "@vercel/postgres"
-import { NextResponse } from "next/server"
+import type React from "react"
+import { useState } from "react"
+import { jsPDF } from "jspdf"
+import autoTable from "jspdf-autotable"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const roleId = searchParams.get("roleId")
-
-  if (!roleId) {
-    return NextResponse.json({ error: "roleId is required" }, { status: 400 })
-  }
-
-  try {
-    const query = sql`
-      SELECT 
-        dt.id,
-        dt.skill_master_id,
-        sm.name as skill_name,
-        dt.level,
-        dt.demonstration_description,
-        sm.description as skill_description,
-        sc.name as category_name,
-        sc.color as category_color,
-        djr.sort_order
-      FROM demonstration_templates dt
-      JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
-      JOIN skills_master sm ON dt.skill_master_id = sm.id
-      JOIN skill_categories sc ON sm.category_id = sc.id
-      WHERE djr.job_role_id = ${Number.parseInt(roleId)}
-      ORDER BY sc.sort_order, sm.sort_order, djr.sort_order, sm.name
-    `
-    const result = await query
-    return NextResponse.json(result.rows)
-  } catch (error) {
-    console.error("Error fetching role skills:", error)
-
-    // Return mock data for demo mode
-    const mockSkills = [
-      {
-        id: 1,
-        skill_name: "Security",
-        level: "L1",
-        demonstration_description: "Understands the importance of security.",
-        skill_description: "Security is a fundamental aspect of software engineering...",
-        category_name: "Technical Skills",
-        category_color: "blue",
-      },
-      {
-        id: 2,
-        skill_name: "Work Breakdown",
-        level: "L1",
-        demonstration_description: "Understands value of rightsizing pieces of work.",
-        skill_description: "Work Breakdown is the practice of decomposing large, complex work items...",
-        category_name: "Delivery",
-        category_color: "green",
-      },
-      {
-        id: 3,
-        skill_name: "Communication",
-        level: "L1",
-        demonstration_description: "Communicates effectively with team members.",
-        skill_description: "Effective communication is essential for collaboration...",
-        category_name: "Feedback, Communication & Collaboration",
-        category_color: "purple",
-      },
-    ]
-
-    return NextResponse.json(mockSkills)
-  }
+interface SelfReviewData {
+  employeeName: string
+  reviewDate: string
+  reviewerName: string
+  questions: {
+    question: string
+    answer: string
+  }[]
 }
+
+const SelfReviewClient: React.FC = () => {
+  const [reviewData, setReviewData] = useState<SelfReviewData>({
+    employeeName: "John Doe",
+    reviewDate: "2024-01-01",
+    reviewerName: "Jane Smith",
+    questions: [
+      { question: "What are your key accomplishments?", answer: "Completed project X and Y." },
+      { question: "What are your areas for improvement?", answer: "Public speaking." },
+    ],
+  })
+
+  const generatePDF = () => {
+    const doc = new jsPDF()
+
+    // Header
+    doc.setFontSize(20)
+    doc.text("Self Review", 14, 22)
+
+    // Logo
+    doc.addImage("/images/hs1-logo.png", "PNG", 170, 8, 30, 10)
+
+    // Employee Information
+    doc.setFontSize(12)
+    doc.text(`Employee Name: ${reviewData.employeeName}`, 14, 35)
+    doc.text(`Review Date: ${reviewData.reviewDate}`, 14, 42)
+    doc.text(`Reviewer Name: ${reviewData.reviewerName}`, 14, 49)
+
+    // Table Data
+    const tableData = reviewData.questions.map((q) => [q.question, q.answer])
+
+    // Table
+    autoTable(doc, {
+      head: [["Question", "Answer"]],
+      body: tableData,
+      startY: 60,
+    })
+
+    // Save the PDF
+    doc.save("self-review.pdf")
+  }
+
+  return (
+    <div>
+      <button onClick={generatePDF}>Generate PDF</button>
+    </div>
+  )
+}
+
+export default SelfReviewClient
