@@ -88,7 +88,8 @@ export async function GET(request: NextRequest) {
           sm.description as skill_description,
           sc.name as category_name,
           sc.color as category_color,
-          djr.sort_order
+          djr.sort_order,
+          sm.sort_order as skill_sort_order
         FROM demonstration_templates dt
         JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
         JOIN skills_master sm ON dt.skill_master_id = sm.id
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Use the current skill demonstrations structure
+      // Use the current skill demonstrations structure with skills_master sort order
       const skills = await sql`
         SELECT 
           sd.id,
@@ -115,7 +116,8 @@ export async function GET(request: NextRequest) {
           sm.description as skill_description,
           sc.name as category_name,
           sc.color as category_color,
-          sd.sort_order
+          sd.sort_order,
+          sm.sort_order as skill_sort_order
         FROM skill_demonstrations sd
         JOIN skills_master sm ON sd.skill_master_id = sm.id
         JOIN skill_categories sc ON sm.category_id = sc.id
