@@ -303,17 +303,28 @@ export function SelfReviewClient() {
 
         await new Promise((resolve, reject) => {
           img.onload = () => {
-            // Resize logo to fit header
-            const logoHeight = 20
-            const logoWidth = (img.width / img.height) * logoHeight
+            // Calculate proper aspect ratio
+            const maxLogoHeight = 18
+            const maxLogoWidth = 80
+
+            // Calculate scaling factor to maintain aspect ratio
+            const scaleX = maxLogoWidth / img.width
+            const scaleY = maxLogoHeight / img.height
+            const scale = Math.min(scaleX, scaleY)
+
+            const logoWidth = img.width * scale
+            const logoHeight = img.height * scale
 
             canvas.width = logoWidth
             canvas.height = logoHeight
+
+            // Clear canvas and draw image with proper scaling
+            ctx?.clearRect(0, 0, logoWidth, logoHeight)
             ctx?.drawImage(img, 0, 0, logoWidth, logoHeight)
 
             // Convert to base64 and add to PDF
             const logoData = canvas.toDataURL("image/png")
-            doc.addImage(logoData, "PNG", margin, 5, logoWidth, logoHeight)
+            doc.addImage(logoData, "PNG", margin, 6, logoWidth, logoHeight)
             resolve(true)
           }
           img.onerror = () => resolve(false) // Continue without logo if it fails
