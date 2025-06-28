@@ -293,18 +293,19 @@ export function SelfReviewClient() {
       doc.setFillColor(30, 64, 175) // brand-800 color
       doc.rect(0, 0, pageWidth, 30, "F")
 
-      // Add logo with better quality handling
+      // Add logo with correct aspect ratio
       try {
         const img = new Image()
         img.crossOrigin = "anonymous"
 
         await new Promise((resolve, reject) => {
           img.onload = () => {
-            // Use a much smaller, fixed size without scaling to maintain quality
-            const logoWidth = 30 // Reduced from 40
-            const logoHeight = 10 // Keep the same
+            // Original logo dimensions: 1384px × 216px
+            // Aspect ratio: 6.4:1 (width:height)
+            const logoHeight = 10
+            const logoWidth = logoHeight * 6.4 // 64px
 
-            // Add the image directly at a small size to maintain crispness
+            // Add the image directly at correct proportions
             const canvas = document.createElement("canvas")
             const ctx = canvas.getContext("2d")
 
@@ -315,7 +316,7 @@ export function SelfReviewClient() {
             if (ctx) {
               // Scale the context for high DPI
               ctx.scale(2, 2)
-              // Draw the image at the target size
+              // Draw the image at the target size with correct aspect ratio
               ctx.drawImage(img, 0, 0, logoWidth, logoHeight)
 
               // Convert to base64 and add to PDF
