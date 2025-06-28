@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { LogIn, User, LogOut } from "lucide-react"
+import { LogIn, User, LogOut, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface UserInterface {
@@ -16,6 +16,7 @@ export function LoginButton() {
   const [user, setUser] = useState<UserInterface | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [hasDemoSession, setHasDemoSession] = useState(false)
 
   useEffect(() => {
     checkAuthStatus()
@@ -29,6 +30,9 @@ export function LoginButton() {
 
       if (rolesData.isDemoMode) {
         setIsDemoMode(true)
+        // Check for demo session cookie
+        const demoSession = document.cookie.includes("demo-session=true")
+        setHasDemoSession(demoSession)
         setIsLoading(false)
         return
       }
@@ -50,8 +54,14 @@ export function LoginButton() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      setUser(null)
+      if (isDemoMode) {
+        // Clear demo session cookie
+        document.cookie = "demo-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        setHasDemoSession(false)
+      } else {
+        await fetch("/api/auth/logout", { method: "POST" })
+        setUser(null)
+      }
       // Refresh the page to update admin button visibility
       window.location.reload()
     } catch (error) {
@@ -59,18 +69,46 @@ export function LoginButton() {
     }
   }
 
+  const handleDemoLogin = () => {
+    // Set demo session cookie and redirect
+    document.cookie = "demo-session=true; path=/; max-age=86400" // 24 hours
+    window.location.href = "/admin"
+  }
+
   if (isLoading) {
     return <div className="w-20 h-8 bg-brand-700 rounded animate-pulse"></div>
   }
 
-  // In demo mode, show a demo indicator instead of login
+  // In demo mode
   if (isDemoMode) {
-    return (
-      <div className="flex items-center gap-2 text-white text-sm bg-brand-700 px-3 py-1 rounded-md">
-        <User className="w-4 h-4" />
-        <span>Demo Mode</span>
-      </div>
-    )
+    if (hasDemoSession) {
+      // Show logged in state for demo
+      return (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-white text-sm">
+            <User className="w-4 h-4" />
+            <span>Demo Admin</span>
+            <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-xs font-medium">Admin</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700 h-8">
+            <LogOut className="w-4 h-4" />
+          </Button>
+        </div>
+      )
+    } else {
+      // Show demo login button
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDemoLogin}
+          className="text-white hover:bg-brand-700 flex items-center gap-2"
+        >
+          <Settings className="w-4 h-4" />
+          Demo Admin
+        </Button>
+      )
+    }
   }
 
   // If user is logged in, show user info and logout
