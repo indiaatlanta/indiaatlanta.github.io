@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { ExternalLink, Rocket, GitCompare, ClipboardCheck, Settings } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
-import { LoginButton } from "@/components/login-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
 
@@ -163,7 +162,6 @@ export default async function Home() {
                 Self Review
               </Link>
               <AdminButton />
-              <LoginButton />
             </div>
           </div>
         </div>
