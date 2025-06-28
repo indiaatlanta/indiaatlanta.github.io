@@ -1,69 +1,57 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
 import jsPDF from "jspdf"
 import "jspdf-autotable"
+import { useSearchParams } from "next/navigation"
 
-interface CarData {
-  [key: string]: string | number | boolean | null
+interface ComparisonData {
+  [key: string]: {
+    [key: string]: string | number | boolean | null | undefined
+  }
 }
 
-interface CompareClientProps {
-  car1: CarData
-  car2: CarData
-}
-
-const CompareClient: React.FC<CompareClientProps> = ({ car1, car2 }) => {
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
+const CompareClient = () => {
+  const searchParams = useSearchParams()
+  const dataParam = searchParams.get("data")
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchLogo = async () => {
+    if (dataParam) {
       try {
-        const response = await fetch("/logo.png")
-        const blob = await response.blob()
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setLogoDataUrl(reader.result as string)
-        }
-        reader.readAsDataURL(blob)
+        const decodedData = JSON.parse(decodeURIComponent(dataParam))
+        setComparisonData(decodedData)
+        setLoading(false)
       } catch (error) {
-        console.error("Error fetching logo:", error)
+        console.error("Error parsing comparison data:", error)
+        setLoading(false)
       }
+    } else {
+      setLoading(false)
     }
-
-    fetchLogo()
-  }, [])
+  }, [dataParam])
 
   const generatePDF = () => {
-    if (!logoDataUrl) {
-      console.error("Logo not loaded yet.")
-      return
-    }
+    if (!comparisonData) return
 
     const doc = new jsPDF()
 
     // Add logo
+    const logoDataUrl = "/logo.png" // Replace with your actual logo path
     doc.addImage(logoDataUrl, "PNG", 20, 20, 64, 10)
 
-    // Add title
-    doc.setFontSize(20)
-    doc.text("Car Comparison", 20, 40)
+    // Set document title
+    doc.setFontSize(18)
+    doc.text("Comparison Report", 20, 40)
 
-    // Prepare data for the table
-    const tableData = []
-    const headers = ["Feature", "Car 1", "Car 2"]
+    // Prepare table data
+    const headers = Object.keys(comparisonData[Object.keys(comparisonData)[0]])
+    const tableData = Object.keys(comparisonData).map((key) => {
+      return headers.map((header) => comparisonData[key][header])
+    })
 
-    for (const key in car1) {
-      if (car1.hasOwnProperty(key) && car2.hasOwnProperty(key)) {
-        tableData.push([
-          key,
-          car1[key] !== null ? car1[key].toString() : "N/A",
-          car2[key] !== null ? car2[key].toString() : "N/A",
-        ])
-      }
-    }
-    // Add table to the PDF
+    // Add table to PDF
     ;(doc as any).autoTable({
       head: [headers],
       body: tableData,
@@ -71,11 +59,38 @@ const CompareClient: React.FC<CompareClientProps> = ({ car1, car2 }) => {
     })
 
     // Save the PDF
-    doc.save("car_comparison.pdf")
+    doc.save("comparison_report.pdf")
+  }
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  if (!comparisonData) {
+    return <div>No data to display.</div>
   }
 
   return (
     <div>
+      <h1>Comparison Table</h1>
+      <table>
+        <thead>
+          <tr>
+            {Object.keys(comparisonData[Object.keys(comparisonData)[0]]).map((header) => (
+              <th key={header}>{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Object.keys(comparisonData).map((key) => (
+            <tr key={key}>
+              {Object.values(comparisonData[key]).map((value, index) => (
+                <td key={index}>{String(value)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <button onClick={generatePDF}>Generate PDF</button>
     </div>
   )

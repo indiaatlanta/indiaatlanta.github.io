@@ -1,79 +1,86 @@
 "use client"
 
-import type React from "react"
-
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import { useEffect, useState } from "react"
 
 interface SelfReviewData {
   employeeName: string
-  reviewPeriod: string
-  jobTitle: string
-  department: string
-  dateSubmitted: string
-  overallRating: string
+  reviewDate: string
+  overallRating: number
   strengths: string
   areasForImprovement: string
   goals: string
-  employeeComments: string
-  managerComments: string
 }
 
-interface SelfReviewClientProps {
-  data: SelfReviewData
-  logoDataUrl: string
-}
-
-const SelfReviewClient: React.FC<SelfReviewClientProps> = ({ data, logoDataUrl }) => {
-  const [isClient, setIsClient] = useState(false)
+const SelfReviewClient = ({ data }: { data: SelfReviewData }) => {
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    setIsClient(true)
+    const fetchLogo = async () => {
+      try {
+        const response = await fetch("/logo.png")
+        const blob = await response.blob()
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setLogoDataUrl(reader.result as string)
+        }
+        reader.readAsDataURL(blob)
+      } catch (error) {
+        console.error("Error fetching logo:", error)
+      }
+    }
+
+    fetchLogo()
   }, [])
 
   const generatePDF = () => {
     const doc = new jsPDF()
 
     // Add logo
-    doc.addImage(logoDataUrl, "PNG", 20, 20, 64, 10)
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", 20, 20, 64, 10)
+    }
 
     // Add title
     doc.setFontSize(20)
     doc.text("Self Review", 20, 40)
 
-    // Add general information
+    // Add employee name and review date
     doc.setFontSize(12)
     doc.text(`Employee Name: ${data.employeeName}`, 20, 50)
-    doc.text(`Review Period: ${data.reviewPeriod}`, 20, 58)
-    doc.text(`Job Title: ${data.jobTitle}`, 20, 66)
-    doc.text(`Department: ${data.department}`, 20, 74)
-    doc.text(`Date Submitted: ${data.dateSubmitted}`, 20, 82)
+    doc.text(`Review Date: ${data.reviewDate}`, 20, 57)
 
-    // Add review details
+    // Add overall rating
+    doc.text(`Overall Rating: ${data.overallRating}`, 20, 64)
+
+    // Add strengths, areas for improvement, and goals as tables
     autoTable(doc, {
-      startY: 90,
-      head: [["Category", "Details"]],
-      body: [
-        ["Overall Rating", data.overallRating],
-        ["Strengths", data.strengths],
-        ["Areas for Improvement", data.areasForImprovement],
-        ["Goals", data.goals],
-        ["Employee Comments", data.employeeComments],
-        ["Manager Comments", data.managerComments],
-      ],
+      startY: 75,
+      head: [["Strengths"]],
+      body: [[data.strengths]],
+    })
+
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [["Areas for Improvement"]],
+      body: [[data.areasForImprovement]],
+    })
+
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [["Goals"]],
+      body: [[data.goals]],
     })
 
     // Save the PDF
-    doc.save("self_review.pdf")
+    doc.save("self-review.pdf")
   }
 
   return (
-    isClient && (
-      <button onClick={generatePDF} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        Generate PDF
-      </button>
-    )
+    <button onClick={generatePDF} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+      Generate PDF
+    </button>
   )
 }
 
