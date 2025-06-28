@@ -5,17 +5,21 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { GitCompare, Download, Loader2 } from "lucide-react"
+import { Loader2, Download } from "lucide-react"
 import jsPDF from "jspdf"
+
+interface Department {
+  id: number
+  name: string
+  slug: string
+}
 
 interface Role {
   id: number
   name: string
   code: string
   level: number
-  department_name: string
+  department_id: number
 }
 
 interface Skill {
@@ -28,72 +32,99 @@ interface Skill {
   category_color: string
 }
 
-interface ComparisonData {
-  role1: Role
-  role2: Role
-  role1Skills: Skill[]
-  role2Skills: Skill[]
-  commonSkills: Array<{
-    skill_name: string
-    category_name: string
-    category_color: string
-    role1_level: string
-    role2_level: string
-    role1_description: string
-    role2_description: string
-  }>
-  uniqueToRole1: Skill[]
-  uniqueToRole2: Skill[]
+interface Props {
+  departments: Department[]
+  roles: Role[]
+  isDemoMode: boolean
 }
 
-export function CompareClient() {
-  const [roles, setRoles] = useState<Role[]>([])
+export function CompareClient({ departments, roles, isDemoMode }: Props) {
   const [selectedRole1, setSelectedRole1] = useState<string>("")
   const [selectedRole2, setSelectedRole2] = useState<string>("")
-  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null)
+  const [role1Skills, setRole1Skills] = useState<Skill[]>([])
+  const [role2Skills, setRole2Skills] = useState<Skill[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [comparisonData, setComparisonData] = useState<any[]>([])
+
+  const role1 = roles.find((r) => r.id.toString() === selectedRole1)
+  const role2 = roles.find((r) => r.id.toString() === selectedRole2)
 
   useEffect(() => {
-    fetchRoles()
+    const urlParams = new URLSearchParams(window.location.search)
+    const role1Param = urlParams.get("role1")
+    const role2Param = urlParams.get("role2")
+
+    if (role1Param) setSelectedRole1(role1Param)
+    if (role2Param) setSelectedRole2(role2Param)
   }, [])
 
-  const fetchRoles = async () => {
+  const fetchSkills = async (roleId: string) => {
     try {
-      const response = await fetch("/api/roles")
-      if (response.ok) {
-        const data = await response.json()
-        setRoles(data)
-      }
+      const response = await fetch(`/api/role-skills?roleId=${roleId}`)
+      return response.ok ? await response.json() : []
     } catch (error) {
-      console.error("Error fetching roles:", error)
+      console.error("Error fetching skills:", error)
+      return []
     }
   }
 
   const handleCompare = async () => {
-    if (!selectedRole1 || !selectedRole2) {
-      setError("Please select both roles to compare")
-      return
-    }
-
-    if (selectedRole1 === selectedRole2) {
-      setError("Please select different roles to compare")
-      return
-    }
+    if (!selectedRole1 || !selectedRole2) return
 
     setIsLoading(true)
-    setError(null)
-
     try {
-      const response = await fetch(`/api/compare?role1=${selectedRole1}&role2=${selectedRole2}`)
-      if (response.ok) {
-        const data = await response.json()
-        setComparisonData(data)
-      } else {
-        setError("Failed to fetch comparison data")
-      }
+      const [skills1, skills2] = await Promise.all([fetchSkills(selectedRole1), fetchSkills(selectedRole2)])
+
+      setRole1Skills(skills1)
+      setRole2Skills(skills2)
+
+      // Create comparison data
+      const skillsMap = new Map()
+
+      skills1.forEach((skill: Skill) => {
+        skillsMap.set(skill.skill_name, {
+          skill_name: skill.skill_name,
+          category_name: skill.category_name,
+          category_color: skill.category_color,
+          skill_description: skill.skill_description,
+          role1: {
+            level: skill.level,
+            description: skill.demonstration_description,
+          },
+          role2: null,
+        })
+      })
+
+      skills2.forEach((skill: Skill) => {
+        if (skillsMap.has(skill.skill_name)) {
+          skillsMap.get(skill.skill_name).role2 = {
+            level: skill.level,
+            description: skill.demonstration_description,
+          }
+        } else {
+          skillsMap.set(skill.skill_name, {
+            skill_name: skill.skill_name,
+            category_name: skill.category_name,
+            category_color: skill.category_color,
+            skill_description: skill.skill_description,
+            role1: null,
+            role2: {
+              level: skill.level,
+              description: skill.demonstration_description,
+            },
+          })
+        }
+      })
+
+      const sortedComparison = Array.from(skillsMap.values()).sort((a, b) => {
+        if (a.category_name !== b.category_name) {
+          return a.category_name.localeCompare(b.category_name)
+        }
+        return a.skill_name.localeCompare(b.skill_name)
+      })
+
+      setComparisonData(sortedComparison)
     } catch (error) {
-      setError("An error occurred while comparing roles")
       console.error("Error comparing roles:", error)
     } finally {
       setIsLoading(false)
@@ -101,75 +132,84 @@ export function CompareClient() {
   }
 
   const generatePDF = () => {
-    if (!comparisonData) return
+    if (!role1 || !role2 || comparisonData.length === 0) return
 
     const pdf = new jsPDF()
     const pageWidth = pdf.internal.pageSize.getWidth()
     const margin = 20
 
     // Add logo with correct aspect ratio (1384x216 = 6.4:1)
+    const logoWidth = 64
     const logoHeight = 10
-    const logoWidth = 64 // 6.4:1 ratio
-    pdf.addImage("/images/hs1-logo.png", "PNG", margin, margin, logoWidth, logoHeight)
+    pdf.addImage("/images/hs1-logo.png", "PNG", margin, 10, logoWidth, logoHeight)
 
     // Title
-    pdf.setFontSize(20)
-    pdf.text("Role Comparison Report", margin, margin + 25)
+    pdf.setFontSize(18)
+    pdf.setFont("helvetica", "bold")
+    pdf.text("Role Comparison Report", margin, 35)
 
-    // Role names
-    pdf.setFontSize(14)
-    pdf.text(`${comparisonData.role1.name} vs ${comparisonData.role2.name}`, margin, margin + 35)
+    // Role information
+    pdf.setFontSize(12)
+    pdf.setFont("helvetica", "normal")
+    pdf.text(`${role1.name} (${role1.code}) vs ${role2.name} (${role2.code})`, margin, 45)
 
-    let yPosition = margin + 50
+    let yPosition = 60
 
-    // Common Skills
-    pdf.setFontSize(16)
-    pdf.text("Common Skills", margin, yPosition)
-    yPosition += 10
+    // Group by category
+    const skillsByCategory = comparisonData.reduce(
+      (acc, skill) => {
+        if (!acc[skill.category_name]) {
+          acc[skill.category_name] = []
+        }
+        acc[skill.category_name].push(skill)
+        return acc
+      },
+      {} as Record<string, any[]>,
+    )
 
-    pdf.setFontSize(10)
-    comparisonData.commonSkills.forEach((skill) => {
-      if (yPosition > 250) {
-        pdf.addPage()
-        yPosition = 20
-      }
-      pdf.text(`• ${skill.skill_name} (${skill.role1_level} vs ${skill.role2_level})`, margin + 5, yPosition)
-      yPosition += 6
+    Object.entries(skillsByCategory).forEach(([categoryName, skills]) => {
+      // Category header
+      pdf.setFontSize(14)
+      pdf.setFont("helvetica", "bold")
+      pdf.text(categoryName, margin, yPosition)
+      yPosition += 10
+
+      skills.forEach((skill) => {
+        // Check if we need a new page
+        if (yPosition > 250) {
+          pdf.addPage()
+          yPosition = 20
+        }
+
+        // Skill name
+        pdf.setFontSize(11)
+        pdf.setFont("helvetica", "bold")
+        pdf.text(skill.skill_name, margin, yPosition)
+        yPosition += 8
+
+        // Role 1
+        pdf.setFontSize(9)
+        pdf.setFont("helvetica", "normal")
+        if (skill.role1) {
+          pdf.text(`${role1.code}: ${skill.role1.level} - ${skill.role1.description}`, margin + 5, yPosition)
+        } else {
+          pdf.text(`${role1.code}: Not required`, margin + 5, yPosition)
+        }
+        yPosition += 6
+
+        // Role 2
+        if (skill.role2) {
+          pdf.text(`${role2.code}: ${skill.role2.level} - ${skill.role2.description}`, margin + 5, yPosition)
+        } else {
+          pdf.text(`${role2.code}: Not required`, margin + 5, yPosition)
+        }
+        yPosition += 10
+      })
+
+      yPosition += 5
     })
 
-    // Unique to Role 1
-    yPosition += 10
-    pdf.setFontSize(16)
-    pdf.text(`Unique to ${comparisonData.role1.name}`, margin, yPosition)
-    yPosition += 10
-
-    pdf.setFontSize(10)
-    comparisonData.uniqueToRole1.forEach((skill) => {
-      if (yPosition > 250) {
-        pdf.addPage()
-        yPosition = 20
-      }
-      pdf.text(`• ${skill.skill_name} (${skill.level})`, margin + 5, yPosition)
-      yPosition += 6
-    })
-
-    // Unique to Role 2
-    yPosition += 10
-    pdf.setFontSize(16)
-    pdf.text(`Unique to ${comparisonData.role2.name}`, margin, yPosition)
-    yPosition += 10
-
-    pdf.setFontSize(10)
-    comparisonData.uniqueToRole2.forEach((skill) => {
-      if (yPosition > 250) {
-        pdf.addPage()
-        yPosition = 20
-      }
-      pdf.text(`• ${skill.skill_name} (${skill.level})`, margin + 5, yPosition)
-      yPosition += 6
-    })
-
-    pdf.save(`role-comparison-${comparisonData.role1.code}-vs-${comparisonData.role2.code}.pdf`)
+    pdf.save(`role-comparison-${role1.code}-vs-${role2.code}.pdf`)
   }
 
   const getColorClasses = (color: string) => {
@@ -185,12 +225,21 @@ export function CompareClient() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+      {isDemoMode && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
+          </div>
+          <p className="text-blue-700 text-sm mt-1">
+            Running in preview mode. Database features are simulated for demonstration purposes.
+          </p>
+        </div>
+      )}
+
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-          <GitCompare className="w-6 h-6" />
-          Compare Roles
-        </h1>
-        <p className="text-gray-600">Compare skills and requirements between different roles</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Compare Roles</h1>
+        <p className="text-gray-600">Compare skills and requirements between different roles.</p>
       </div>
 
       <Card className="mb-8">
@@ -206,11 +255,23 @@ export function CompareClient() {
                   <SelectValue placeholder="Select first role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.name} ({role.code}) - {role.department_name}
-                    </SelectItem>
-                  ))}
+                  {departments.map((dept) => {
+                    const deptRoles = roles.filter((role) => role.department_id === dept.id)
+                    if (deptRoles.length === 0) return null
+
+                    return (
+                      <div key={dept.id}>
+                        <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {dept.name}
+                        </div>
+                        {deptRoles.map((role) => (
+                          <SelectItem key={role.id} value={role.id.toString()}>
+                            {role.name} ({role.code})
+                          </SelectItem>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -222,183 +283,110 @@ export function CompareClient() {
                   <SelectValue placeholder="Select second role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.name} ({role.code}) - {role.department_name}
-                    </SelectItem>
-                  ))}
+                  {departments.map((dept) => {
+                    const deptRoles = roles.filter((role) => role.department_id === dept.id)
+                    if (deptRoles.length === 0) return null
+
+                    return (
+                      <div key={dept.id}>
+                        <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {dept.name}
+                        </div>
+                        {deptRoles.map((role) => (
+                          <SelectItem key={role.id} value={role.id.toString()}>
+                            {role.name} ({role.code})
+                          </SelectItem>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {error && (
-            <Alert>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button onClick={handleCompare} disabled={isLoading || !selectedRole1 || !selectedRole2}>
+          <Button onClick={handleCompare} disabled={!selectedRole1 || !selectedRole2 || isLoading} className="w-full">
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Comparing...
               </>
             ) : (
-              <>
-                <GitCompare className="w-4 h-4 mr-2" />
-                Compare Roles
-              </>
+              "Compare Roles"
             )}
           </Button>
         </CardContent>
       </Card>
 
-      {comparisonData && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">
-              {comparisonData.role1.name} vs {comparisonData.role2.name}
-            </h2>
-            <Button onClick={generatePDF} variant="outline">
+      {comparisonData.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>
+              Comparison: {role1?.name} vs {role2?.name}
+            </CardTitle>
+            <Button onClick={generatePDF} variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
-              Download PDF
+              Export PDF
             </Button>
-          </div>
-
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="common">Common Skills</TabsTrigger>
-              <TabsTrigger value="unique1">Unique to {comparisonData.role1.code}</TabsTrigger>
-              <TabsTrigger value="unique2">Unique to {comparisonData.role2.code}</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-center">Common Skills</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-center text-green-600">
-                      {comparisonData.commonSkills.length}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-center">Unique to {comparisonData.role1.code}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-center text-blue-600">
-                      {comparisonData.uniqueToRole1.length}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-center">Unique to {comparisonData.role2.code}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-center text-purple-600">
-                      {comparisonData.uniqueToRole2.length}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="common" className="space-y-4">
-              {comparisonData.commonSkills.length > 0 ? (
-                <div className="space-y-4">
-                  {comparisonData.commonSkills.map((skill, index) => (
-                    <Card key={index} className={getColorClasses(skill.category_color)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{skill.skill_name}</h3>
-                          <Badge variant="secondary">{skill.category_name}</Badge>
-                        </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {Object.entries(
+                comparisonData.reduce(
+                  (acc, skill) => {
+                    if (!acc[skill.category_name]) {
+                      acc[skill.category_name] = { color: skill.category_color, skills: [] }
+                    }
+                    acc[skill.category_name].skills.push(skill)
+                    return acc
+                  },
+                  {} as Record<string, { color: string; skills: any[] }>,
+                ),
+              ).map(([categoryName, categoryData]) => (
+                <div key={categoryName}>
+                  <h3 className={`text-lg font-semibold mb-4 border-b pb-2 text-${categoryData.color}-700`}>
+                    {categoryName}
+                  </h3>
+                  <div className="space-y-4">
+                    {categoryData.skills.map((skill) => (
+                      <div key={skill.skill_name} className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 mb-3">{skill.skill_name}</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline">{comparisonData.role1.code}</Badge>
-                              <Badge variant="outline">{skill.role1_level}</Badge>
+                          <div className={`p-3 rounded border ${getColorClasses(skill.category_color)}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium">{role1?.code}</span>
+                              {skill.role1 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {skill.role1.level}
+                                </Badge>
+                              )}
                             </div>
-                            <p className="text-sm">{skill.role1_description}</p>
+                            <p className="text-sm">
+                              {skill.role1 ? skill.role1.description : "This skill is not required for this role"}
+                            </p>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline">{comparisonData.role2.code}</Badge>
-                              <Badge variant="outline">{skill.role2_level}</Badge>
+                          <div className={`p-3 rounded border ${getColorClasses(skill.category_color)}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium">{role2?.code}</span>
+                              {skill.role2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {skill.role2.level}
+                                </Badge>
+                              )}
                             </div>
-                            <p className="text-sm">{skill.role2_description}</p>
+                            <p className="text-sm">
+                              {skill.role2 ? skill.role2.description : "This skill is not required for this role"}
+                            </p>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No common skills found between these roles.</p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="unique1" className="space-y-4">
-              {comparisonData.uniqueToRole1.length > 0 ? (
-                <div className="space-y-4">
-                  {comparisonData.uniqueToRole1.map((skill) => (
-                    <Card key={skill.id} className={getColorClasses(skill.category_color)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{skill.skill_name}</h3>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{skill.level}</Badge>
-                            <Badge variant="secondary">{skill.category_name}</Badge>
-                          </div>
-                        </div>
-                        <p className="text-sm">{skill.demonstration_description}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No unique skills found for {comparisonData.role1.name}.</p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="unique2" className="space-y-4">
-              {comparisonData.uniqueToRole2.length > 0 ? (
-                <div className="space-y-4">
-                  {comparisonData.uniqueToRole2.map((skill) => (
-                    <Card key={skill.id} className={getColorClasses(skill.category_color)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{skill.skill_name}</h3>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{skill.level}</Badge>
-                            <Badge variant="secondary">{skill.category_name}</Badge>
-                          </div>
-                        </div>
-                        <p className="text-sm">{skill.demonstration_description}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No unique skills found for {comparisonData.role2.name}.</p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

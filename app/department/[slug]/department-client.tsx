@@ -33,6 +33,7 @@ interface Skill {
   skill_description: string
   category_name: string
   category_color: string
+  skill_sort_order?: number
 }
 
 interface MatrixSkill {
@@ -40,6 +41,7 @@ interface MatrixSkill {
   category_name: string
   category_color: string
   skill_description?: string
+  skill_sort_order?: number
   demonstrations: Record<number, { level: string; description: string }>
 }
 
@@ -105,6 +107,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
               category_name: skill.category_name,
               category_color: skill.category_color,
               skill_description: skill.skill_description,
+              skill_sort_order: skill.skill_sort_order,
               demonstrations: {},
             })
           }
@@ -117,10 +120,16 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
         })
       })
 
-      // Convert to array and sort by category and skill name
+      // Convert to array and sort by category and skill master sort order
       const sortedSkills = Array.from(skillsMap.values()).sort((a, b) => {
         if (a.category_name !== b.category_name) {
           return a.category_name.localeCompare(b.category_name)
+        }
+        // Use skill_sort_order if available, otherwise fall back to skill name
+        const aSort = a.skill_sort_order || 999
+        const bSort = b.skill_sort_order || 999
+        if (aSort !== bSort) {
+          return aSort - bSort
         }
         return a.skill_name.localeCompare(b.skill_name)
       })
@@ -414,7 +423,12 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                           <tr key={skill.skill_name} className="hover:bg-gray-50">
                             <td className="border border-gray-300 p-3 font-medium text-gray-900">
                               <div className="flex items-center justify-between">
-                                <span>{skill.skill_name}</span>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                                    {skill.category_name}
+                                  </div>
+                                  <span>{skill.skill_name}</span>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
