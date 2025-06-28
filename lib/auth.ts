@@ -55,14 +55,14 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
     return null
   }
 
-  const cookieStore = cookies()
-  const sessionId = cookieStore.get("session")?.value
-
-  if (!sessionId) {
-    return null
-  }
-
   try {
+    const cookieStore = cookies()
+    const sessionId = cookieStore.get("session")?.value
+
+    if (!sessionId) {
+      return null
+    }
+
     const result = await sql`
       SELECT 
         s.id as session_id,
@@ -104,23 +104,31 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
 export async function deleteSession(): Promise<void> {
   if (!isDatabaseConfigured() || !sql) {
     // Just clear the cookie if database is not configured
-    const cookieStore = cookies()
-    cookieStore.delete("session")
+    try {
+      const cookieStore = cookies()
+      cookieStore.delete("session")
+    } catch (error) {
+      console.error("Error clearing cookie:", error)
+    }
     return
   }
 
-  const cookieStore = cookies()
-  const sessionId = cookieStore.get("session")?.value
+  try {
+    const cookieStore = cookies()
+    const sessionId = cookieStore.get("session")?.value
 
-  if (sessionId) {
-    try {
-      await sql`DELETE FROM sessions WHERE id = ${sessionId}`
-    } catch (error) {
-      console.error("Error deleting session:", error)
+    if (sessionId) {
+      try {
+        await sql`DELETE FROM sessions WHERE id = ${sessionId}`
+      } catch (error) {
+        console.error("Error deleting session:", error)
+      }
     }
-  }
 
-  cookieStore.delete("session")
+    cookieStore.delete("session")
+  } catch (error) {
+    console.error("Error in deleteSession:", error)
+  }
 }
 
 export async function requireAuth(): Promise<User> {
