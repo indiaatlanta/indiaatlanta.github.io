@@ -55,9 +55,17 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
 
+      // Check if response is ok first
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Login failed:", errorText)
+        setError("Login failed. Please check your credentials.")
+        return
+      }
+
       const data = await response.json()
 
-      if (response.ok) {
+      if (data.success && data.user) {
         // Redirect based on user role
         if (data.user.role === "admin") {
           router.push("/admin")

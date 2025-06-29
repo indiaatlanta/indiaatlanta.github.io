@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
@@ -32,11 +31,10 @@ const DEMO_USERS = [
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
-    const token = cookieStore.get("auth-token")?.value
+    const token = request.cookies.get("auth-token")?.value
 
     if (!token) {
-      return NextResponse.json({ user: null }, { status: 200 })
+      return NextResponse.json({ user: null })
     }
 
     // Verify JWT token
@@ -68,21 +66,9 @@ export async function GET(request: NextRequest) {
       user = DEMO_USERS.find((u) => u.id === decoded.userId)
     }
 
-    if (!user) {
-      return NextResponse.json({ user: null }, { status: 200 })
-    }
-
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-      },
-    })
+    return NextResponse.json({ user: user || null })
   } catch (error) {
     console.error("Session error:", error)
-    return NextResponse.json({ user: null }, { status: 200 })
+    return NextResponse.json({ user: null })
   }
 }
