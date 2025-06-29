@@ -21,6 +21,24 @@ export async function POST(request: NextRequest) {
             role: "admin",
           },
         })
+      } else if (email === "manager@henryscheinone.com" && password === "manager123") {
+        return NextResponse.json({
+          user: {
+            id: 2,
+            email: "manager@henryscheinone.com",
+            name: "Demo Manager",
+            role: "manager",
+          },
+        })
+      } else if (email === "user@henryscheinone.com" && password === "user123") {
+        return NextResponse.json({
+          user: {
+            id: 3,
+            email: "user@henryscheinone.com",
+            name: "Demo User",
+            role: "user",
+          },
+        })
       } else {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
@@ -28,9 +46,9 @@ export async function POST(request: NextRequest) {
 
     // Find user by email
     const users = await sql`
-      SELECT id, email, password_hash, name, role
+      SELECT id, email, password_hash, name, role, manager_id, department_id, job_title, hire_date, is_active
       FROM users
-      WHERE email = ${email}
+      WHERE email = ${email} AND is_active = true
     `
 
     if (users.length === 0) {
@@ -54,6 +72,11 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role,
+        manager_id: user.manager_id,
+        department_id: user.department_id,
+        job_title: user.job_title,
+        hire_date: user.hire_date,
+        is_active: user.is_active,
       },
     })
   } catch (error) {

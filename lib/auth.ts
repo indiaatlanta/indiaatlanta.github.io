@@ -8,7 +8,12 @@ export interface User {
   id: number
   email: string
   name: string
-  role: "admin" | "user"
+  role: "admin" | "manager" | "user"
+  manager_id?: number
+  department_id?: number
+  job_title?: string
+  hire_date?: string
+  is_active?: boolean
 }
 
 export interface Session {
@@ -107,10 +112,15 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
         u.id,
         u.email,
         u.name,
-        u.role
+        u.role,
+        u.manager_id,
+        u.department_id,
+        u.job_title,
+        u.hire_date,
+        u.is_active
       FROM sessions s
       JOIN users u ON s.user_id = u.id
-      WHERE s.id = ${sessionId} AND s.expires_at > NOW()
+      WHERE s.id = ${sessionId} AND s.expires_at > NOW() AND u.is_active = true
     `
 
     if (result.length === 0) {
@@ -129,6 +139,11 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
         email: row.email,
         name: row.name,
         role: row.role,
+        manager_id: row.manager_id,
+        department_id: row.department_id,
+        job_title: row.job_title,
+        hire_date: row.hire_date,
+        is_active: row.is_active,
       },
     }
   } catch (error) {
@@ -178,6 +193,14 @@ export async function requireAuth(): Promise<User> {
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth()
   if (user.role !== "admin") {
+    redirect("/")
+  }
+  return user
+}
+
+export async function requireManagerOrAdmin(): Promise<User> {
+  const user = await requireAuth()
+  if (user.role !== "admin" && user.role !== "manager") {
     redirect("/")
   }
   return user

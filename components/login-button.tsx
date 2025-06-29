@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { LogIn, User, LogOut, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 interface UserInterface {
   id: number
@@ -33,6 +34,15 @@ export function LoginButton() {
         // Check for demo session cookie
         const demoSession = document.cookie.includes("demo-session=true")
         setHasDemoSession(demoSession)
+        if (demoSession) {
+          // Set mock user based on demo session
+          setUser({
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          })
+        }
         setIsLoading(false)
         return
       }
@@ -58,6 +68,7 @@ export function LoginButton() {
         // Clear demo session cookie
         document.cookie = "demo-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         setHasDemoSession(false)
+        setUser(null)
       } else {
         await fetch("/api/auth/logout", { method: "POST" })
         setUser(null)
@@ -75,20 +86,35 @@ export function LoginButton() {
     window.location.href = "/admin"
   }
 
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "bg-red-100 text-red-800"
+      case "manager":
+        return "bg-blue-100 text-blue-800"
+      case "user":
+        return "bg-green-100 text-green-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
   if (isLoading) {
     return <div className="w-20 h-8 bg-brand-700 rounded animate-pulse"></div>
   }
 
   // In demo mode
   if (isDemoMode) {
-    if (hasDemoSession) {
+    if (user) {
       // Show logged in state for demo
       return (
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-white text-sm">
             <User className="w-4 h-4" />
-            <span>Demo Admin</span>
-            <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-xs font-medium">Admin</span>
+            <span>{user.name}</span>
+            <Badge className={getRoleBadgeColor(user.role)}>
+              {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+            </Badge>
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700 h-8">
             <LogOut className="w-4 h-4" />
@@ -118,9 +144,9 @@ export function LoginButton() {
         <div className="flex items-center gap-2 text-white text-sm">
           <User className="w-4 h-4" />
           <span>{user.name}</span>
-          {user.role === "admin" && (
-            <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-xs font-medium">Admin</span>
-          )}
+          <Badge className={getRoleBadgeColor(user.role)}>
+            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+          </Badge>
         </div>
         <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700 h-8">
           <LogOut className="w-4 h-4" />
