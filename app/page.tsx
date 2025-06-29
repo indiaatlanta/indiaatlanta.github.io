@@ -81,7 +81,7 @@ async function getDepartments() {
   }
 
   try {
-    // Show ALL departments, but calculate accurate counts
+    // Count unique skills assigned to roles in each department
     const departments = await sql`
       SELECT 
         d.id,
@@ -89,10 +89,11 @@ async function getDepartments() {
         d.slug,
         d.description,
         COUNT(DISTINCT jr.id) as role_count,
-        COUNT(DISTINCT s.id) as skill_count
+        COUNT(DISTINCT dt.id) as skill_count
       FROM departments d
       LEFT JOIN job_roles jr ON d.id = jr.department_id
-      LEFT JOIN skills s ON jr.id = s.job_role_id
+      LEFT JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
+      LEFT JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
       GROUP BY d.id, d.name, d.slug, d.description
       ORDER BY d.name
     `
