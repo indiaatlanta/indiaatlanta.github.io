@@ -1,11 +1,20 @@
 import jwt from "jsonwebtoken"
-import { cookies } from "next/headers"
+import bcrypt from "bcryptjs"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
+export interface User {
+  id: number
+  email: string
+  name: string
+  role: "admin" | "manager" | "user"
+  department?: string
+  job_title?: string
+}
+
 // Demo users for when database is not configured
-const DEMO_USERS = [
+const DEMO_USERS: User[] = [
   {
     id: 1,
     email: "admin@henryscheinone.com",
@@ -29,22 +38,9 @@ const DEMO_USERS = [
   },
 ]
 
-export interface User {
-  id: number
-  email: string
-  name: string
-  role: "admin" | "manager" | "user"
-  department?: string
-}
-
-export async function getSession(): Promise<User | null> {
+export async function getSession(token: string): Promise<User | null> {
   try {
-    const cookieStore = cookies()
-    const token = cookieStore.get("auth-token")?.value
-
-    if (!token) {
-      return null
-    }
+    if (!token) return null
 
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET) as any
@@ -54,46 +50,61 @@ export async function getSession(): Promise<User | null> {
     // Check if database is configured
     if (isDatabaseConfigured() && sql) {
       try {
-        // Try to get user from database
+        // Try to find user in database
         const users = await sql`
-          SELECT id, email, name, role, department
+          SELECT id, email, name, role, department, job_title
           FROM users 
           WHERE id = ${decoded.userId} AND active = true
         `
 
         if (users.length > 0) {
-          user = users[0]
+          const dbUser = users[0]
+          user = {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            role: dbUser.role,
+            department: dbUser.department,
+            job_title: dbUser.job_title,
+          }
         }
       } catch (error) {
-        console.error("Database session error:", error)
-        // Fall back to demo mode
+        console.error("Database error during session check:", error)
+        // Fall back to demo users
       }
     }
 
-    // If no database user found, try demo users
+    // If no database user found, check demo users
     if (!user) {
-      user = DEMO_USERS.find((u) => u.id === decoded.userId)
+      const demoUser = DEMO_USERS.find((u) => u.id === decoded.userId)
+      if (demoUser) {
+        user = demoUser
+      }
     }
 
-    return user || null
+    return user
   } catch (error) {
-    console.error("Session error:", error)
+    console.error("Session verification error:", error)
     return null
   }
 }
 
-export function requireAuth(allowedRoles?: string[]) {
-  return async (request: Request) => {
-    const user = await getSession()
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12)
+}
 
-    if (!user) {
-      return new Response("Unauthorized", { status: 401 })
-    }
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
+  return bcrypt.compare(password, hashedPassword)
+}
 
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
-      return new Response("Forbidden", { status: 403 })
-    }
-
-    return user
-  }
+export function createToken(user: User): string {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" },
+  )
 }

@@ -45,42 +45,45 @@ export async function GET(request: NextRequest) {
     // Check if database is configured
     if (isDatabaseConfigured() && sql) {
       try {
-        // Try to get user from database
+        // Try to find user in database
         const users = await sql`
-          SELECT id, email, name, role, department
+          SELECT id, email, name, role, department, job_title
           FROM users 
           WHERE id = ${decoded.userId} AND active = true
         `
 
         if (users.length > 0) {
-          user = users[0]
+          const dbUser = users[0]
+          user = {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            role: dbUser.role,
+            department: dbUser.department,
+            job_title: dbUser.job_title,
+          }
         }
       } catch (error) {
-        console.error("Database session error:", error)
-        // Fall back to demo mode
+        console.error("Database error during session check:", error)
+        // Fall back to demo users
       }
     }
 
-    // If no database user found, try demo users
+    // If no database user found, check demo users
     if (!user) {
-      user = DEMO_USERS.find((u) => u.id === decoded.userId)
+      const demoUser = DEMO_USERS.find((u) => u.id === decoded.userId)
+      if (demoUser) {
+        user = demoUser
+      }
     }
 
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 })
     }
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-      },
-    })
+    return NextResponse.json({ user })
   } catch (error) {
-    console.error("Session error:", error)
+    console.error("Session check error:", error)
     return NextResponse.json({ user: null }, { status: 200 })
   }
 }

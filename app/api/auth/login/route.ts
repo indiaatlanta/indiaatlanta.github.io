@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
     // Check if database is configured
     if (isDatabaseConfigured() && sql) {
       try {
-        // Try to authenticate with database
+        // Try to find user in database
         const users = await sql`
-          SELECT id, email, name, role, department, password_hash
+          SELECT id, email, password_hash, name, role, department, job_title
           FROM users 
           WHERE email = ${email} AND active = true
         `
@@ -64,16 +64,17 @@ export async function POST(request: NextRequest) {
               name: dbUser.name,
               role: dbUser.role,
               department: dbUser.department,
+              job_title: dbUser.job_title,
             }
           }
         }
       } catch (error) {
-        console.error("Database authentication error:", error)
-        // Fall back to demo mode
+        console.error("Database error during login:", error)
+        // Fall back to demo users
       }
     }
 
-    // If no database user found, try demo users
+    // If no database user found, check demo users
     if (!user) {
       const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
       if (demoUser) {
