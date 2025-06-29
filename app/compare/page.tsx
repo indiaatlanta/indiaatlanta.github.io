@@ -329,10 +329,9 @@ export default async function ComparePage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Role Comparison</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Compare Job Roles</h2>
           <p className="text-lg text-gray-600 mb-6">
-            Compare skills and requirements between different roles to understand career progression paths and skill
-            gaps.
+            Select two job roles to compare their skill requirements and understand career progression paths.
           </p>
         </div>
 
@@ -344,7 +343,7 @@ export default async function ComparePage() {
             </div>
           }
         >
-          <CompareClient roles={roles} />
+          <CompareClient roles={roles} isDemoMode={true} />
         </Suspense>
       </main>
     </div>

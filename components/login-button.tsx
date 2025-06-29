@@ -9,21 +9,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
-import { Settings, UserCircle, LogOut, Users } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
-interface User {
+interface UserData {
   id: number
   email: string
+  role: string
   name: string
-  role: "admin" | "manager" | "user"
-  department?: string
 }
 
 export default function LoginButton() {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<UserData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     checkSession()
@@ -32,107 +32,102 @@ export default function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-
-      if (!response.ok) {
-        setUser(null)
-        return
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
       }
-
-      const data = await response.json()
-      setUser(data.user)
     } catch (error) {
       console.error("Error checking session:", error)
-      setUser(null)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      setUser(null)
-      window.location.href = "/"
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+      })
+      if (response.ok) {
+        setUser(null)
+        router.push("/")
+        router.refresh()
+      }
     } catch (error) {
       console.error("Error logging out:", error)
     }
   }
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "bg-red-100 text-red-800 hover:bg-red-200"
-      case "manager":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200"
-      case "user":
-        return "bg-green-100 text-green-800 hover:bg-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-    }
-  }
-
-  if (loading) {
-    return (
-      <Button variant="ghost" size="sm" disabled>
-        Loading...
-      </Button>
-    )
+  if (isLoading) {
+    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
   }
 
   if (!user) {
     return (
-      <Link href="/login">
-        <Button variant="outline" size="sm">
-          <LogOut className="w-4 h-4 mr-2" />
-          Login
-        </Button>
-      </Link>
+      <Button asChild variant="default" size="sm">
+        <Link href="/login">Login</Link>
+      </Button>
     )
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2 text-white hover:bg-brand-700">
-          <UserCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">{user.name}</span>
-          <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
-            {user.role}
-          </Badge>
+        <Button variant="outline" size="sm">
+          <div className="w-4 h-4 mr-2" /> {/* Placeholder for User icon */}
+          {user.name || user.email}
+          <ChevronDown className="w-4 h-4 ml-2" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <div className="px-2 py-1.5">
-          <p className="text-sm font-medium">{user.name}</p>
-          <p className="text-xs text-muted-foreground">{user.email}</p>
-          {user.department && <p className="text-xs text-muted-foreground">{user.department}</p>}
-        </div>
-        <DropdownMenuSeparator />
+      <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem asChild>
           <Link href="/profile" className="flex items-center">
-            <UserCircle className="w-4 h-4 mr-2" />
+            <div className="w-4 h-4 mr-2" /> {/* Placeholder for User icon */}
             Profile
           </Link>
         </DropdownMenuItem>
-        {user.role === "admin" && (
-          <DropdownMenuItem asChild>
-            <Link href="/admin" className="flex items-center">
-              <Settings className="w-4 h-4 mr-2" />
-              Admin Panel
-            </Link>
-          </DropdownMenuItem>
-        )}
+
+        <DropdownMenuItem asChild>
+          <Link href="/self-review" className="flex items-center">
+            <div className="w-4 h-4 mr-2" /> {/* Placeholder for FileText icon */}
+            Self Assessment
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild>
+          <Link href="/compare" className="flex items-center">
+            <div className="w-4 h-4 mr-2" /> {/* Placeholder for BarChart3 icon */}
+            Compare Roles
+          </Link>
+        </DropdownMenuItem>
+
         {user.role === "manager" && (
-          <DropdownMenuItem asChild>
-            <Link href="/team" className="flex items-center">
-              <Users className="w-4 h-4 mr-2" />
-              Team Dashboard
-            </Link>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/manager/dashboard" className="flex items-center">
+                <div className="w-4 h-4 mr-2" /> {/* Placeholder for BarChart3 icon */}
+                Team Dashboard
+              </Link>
+            </DropdownMenuItem>
+          </>
         )}
+
+        {user.role === "admin" && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center">
+                <div className="w-4 h-4 mr-2" /> {/* Placeholder for Settings icon */}
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-          <LogOut className="w-4 h-4 mr-2" />
+        <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
+          <div className="w-4 h-4 mr-2" /> {/* Placeholder for LogOut icon */}
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
