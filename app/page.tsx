@@ -129,14 +129,17 @@ export default async function Home() {
           </div>
         </div>
         <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
-          
+          <div className="h-56 w-full bg-gradient-to-r from-blue-400 to-blue-600 sm:h-72 md:h-96 lg:w-full lg:h-full"></div>
         </div>
       </div>
 
       {/* Database Status Banner */}
       {isDemoMode && (
         <div className="bg-blue-50 border-b border-blue-200">
-    800 text-sm font-medium">Demo Mode</span>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="py-3">
+              <div className="flex items-center justify-center">
+                <span className="bg-blue-800 text-white px-2 py-1 rounded text-sm font-medium">Demo Mode</span>
                 <span className="text-blue-700 text-sm ml-2">
                   - Database connection unavailable, showing sample data
                 </span>
