@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    // Create response
     const response = NextResponse.json({ success: true })
 
     // Clear the auth token cookie

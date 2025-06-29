@@ -1,22 +1,30 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Settings, Users, BarChart3, Database } from "lucide-react"
-import Link from "next/link"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Settings, Users, Database, FileText, BarChart3, Shield } from "lucide-react"
 
 interface User {
   id: number
   email: string
   name: string
-  role: "admin" | "manager" | "user"
+  role: string
   department?: string
 }
 
 export default function AdminButton() {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     checkSession()
@@ -24,66 +32,75 @@ export default function AdminButton() {
 
   const checkSession = async () => {
     try {
-      const response = await fetch("/api/auth/session")
+      const response = await fetch("/api/auth/session", {
+        credentials: "include",
+      })
+
       if (response.ok) {
         const data = await response.json()
         setUser(data.user)
+      } else {
+        setUser(null)
       }
     } catch (error) {
       console.error("Session check error:", error)
+      setUser(null)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  if (loading || !user || (user.role !== "admin" && user.role !== "manager")) {
+  if (isLoading) {
+    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
+  }
+
+  // Only show for admin and manager users
+  if (!user || (user.role !== "admin" && user.role !== "manager")) {
     return null
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Settings className="w-4 h-4 mr-2" />
+        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+          <Shield className="h-4 w-4" />
           {user.role === "admin" ? "Admin" : "Manager"}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>{user.role === "admin" ? "Admin Tools" : "Manager Tools"}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+
         {user.role === "admin" && (
           <>
-            <DropdownMenuItem asChild>
-              <Link href="/admin" className="flex items-center">
-                <Database className="w-4 h-4 mr-2" />
-                Admin Panel
-              </Link>
+            <DropdownMenuItem onClick={() => router.push("/admin")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Admin Dashboard
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/users" className="flex items-center">
-                <Users className="w-4 h-4 mr-2" />
-                User Management
-              </Link>
+            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
+              <Users className="mr-2 h-4 w-4" />
+              User Management
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/analytics" className="flex items-center">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Analytics
-              </Link>
+            <DropdownMenuItem onClick={() => router.push("/admin/skills")}>
+              <Database className="mr-2 h-4 w-4" />
+              Skills Management
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/admin/audit")}>
+              <FileText className="mr-2 h-4 w-4" />
+              Audit Logs
             </DropdownMenuItem>
           </>
         )}
+
         {user.role === "manager" && (
           <>
-            <DropdownMenuItem asChild>
-              <Link href="/team" className="flex items-center">
-                <Users className="w-4 h-4 mr-2" />
-                Team Dashboard
-              </Link>
+            <DropdownMenuItem onClick={() => router.push("/manager")}>
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Team Dashboard
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/team/reports" className="flex items-center">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Team Reports
-              </Link>
+            <DropdownMenuItem onClick={() => router.push("/manager/reviews")}>
+              <FileText className="mr-2 h-4 w-4" />
+              Team Reviews
             </DropdownMenuItem>
           </>
         )}

@@ -3,151 +3,213 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import LoginButton from "@/components/login-button"
+import AdminButton from "@/components/admin-button"
+import { sql, isDatabaseConfigured, DEMO_DEPARTMENTS } from "@/lib/db"
 import {
   Users,
-  Target,
   TrendingUp,
+  Target,
   BookOpen,
   ArrowRight,
   Building2,
-  Briefcase,
-  GraduationCap,
   BarChart3,
   FileText,
-  Search,
+  Zap,
+  Shield,
+  Globe,
 } from "lucide-react"
-import LoginButton from "@/components/login-button"
-import AdminButton from "@/components/admin-button"
-import { isDatabaseConfigured, DEMO_DEPARTMENTS } from "@/lib/db"
 
-export default function HomePage() {
-  const isDemo = !isDatabaseConfigured()
+async function getDepartments() {
+  if (!isDatabaseConfigured() || !sql) {
+    return DEMO_DEPARTMENTS
+  }
+
+  try {
+    const departments = await sql`
+      SELECT id, name, slug, description, color
+      FROM departments
+      ORDER BY name
+    `
+    return departments
+  } catch (error) {
+    console.error("Error fetching departments:", error)
+    return DEMO_DEPARTMENTS
+  }
+}
+
+async function getStats() {
+  if (!isDatabaseConfigured() || !sql) {
+    return {
+      totalRoles: 25,
+      totalSkills: 150,
+      totalDepartments: 4,
+      activeUsers: 120,
+    }
+  }
+
+  try {
+    const [rolesResult, skillsResult, departmentsResult, usersResult] = await Promise.all([
+      sql`SELECT COUNT(*) as count FROM job_roles`,
+      sql`SELECT COUNT(*) as count FROM skills_master`,
+      sql`SELECT COUNT(*) as count FROM departments`,
+      sql`SELECT COUNT(*) as count FROM users WHERE active = true`,
+    ])
+
+    return {
+      totalRoles: rolesResult[0]?.count || 0,
+      totalSkills: skillsResult[0]?.count || 0,
+      totalDepartments: departmentsResult[0]?.count || 0,
+      activeUsers: usersResult[0]?.count || 0,
+    }
+  } catch (error) {
+    console.error("Error fetching stats:", error)
+    return {
+      totalRoles: 25,
+      totalSkills: 150,
+      totalDepartments: 4,
+      activeUsers: 120,
+    }
+  }
+}
+
+export default async function HomePage() {
+  const departments = await getDepartments()
+  const stats = await getStats()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 to-white">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-brand-600 text-white shadow-lg">
+      <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Image
-                src="/images/hs1-logo.png"
-                alt="Henry Schein One"
-                width={150}
-                height={40}
-                className="brightness-0 invert"
-              />
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-semibold">Careers Matrix</h1>
-                <p className="text-brand-100 text-sm">Professional Development Platform</p>
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-auto" />
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Career Matrix</h1>
+                <p className="text-sm text-gray-500">Professional Development Platform</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Suspense fallback={<div className="h-9 w-20 bg-brand-700 rounded animate-pulse" />}>
-                <AdminButton />
-              </Suspense>
-              <Suspense fallback={<div className="h-9 w-20 bg-brand-700 rounded animate-pulse" />}>
+            <div className="flex items-center space-x-4">
+              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
                 <LoginButton />
+              </Suspense>
+              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
+                <AdminButton />
               </Suspense>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Demo Mode Banner */}
-      {isDemo && (
-        <Alert className="mx-4 mt-4 border-amber-200 bg-amber-50">
-          <AlertDescription className="text-amber-800">
-            <strong>Demo Mode:</strong> This is a preview version with sample data. Database integration is not
-            configured.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Hero Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Navigate Your
-            <span className="text-brand-600 block">Career Journey</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Discover career paths, assess your skills, and plan your professional development with Henry Schein One's
-            comprehensive careers matrix platform.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-brand-600 hover:bg-brand-700" asChild>
-              <Link href="/self-review">
-                <FileText className="w-5 h-5 mr-2" />
-                Start Self Assessment
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/compare">
-                <BarChart3 className="w-5 h-5 mr-2" />
-                Compare Roles
-              </Link>
-            </Button>
+      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6">Navigate Your Career Journey</h1>
+            <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
+              Discover skills, compare roles, and chart your path to success with our comprehensive career development
+              platform.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                <Target className="mr-2 h-5 w-5" />
+                Explore Roles
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white text-white hover:bg-white hover:text-blue-600 bg-transparent"
+              >
+                <FileText className="mr-2 h-5 w-5" />
+                Start Self Review
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{stats.totalRoles}</div>
+              <div className="text-gray-600">Job Roles</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">{stats.totalSkills}</div>
+              <div className="text-gray-600">Skills Tracked</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">{stats.totalDepartments}</div>
+              <div className="text-gray-600">Departments</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-orange-600">{stats.activeUsers}</div>
+              <div className="text-gray-600">Active Users</div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Quick Actions */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">Quick Actions</h2>
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+            <p className="text-lg text-gray-600">Get started with these popular features</p>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 text-blue-600" />
-                </div>
-                <CardTitle>Self Assessment</CardTitle>
-                <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  Self Assessment
+                </CardTitle>
+                <CardDescription>Evaluate your skills against specific role requirements</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full" asChild>
-                  <Link href="/self-review">
-                    Start Assessment
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Link>
-                </Button>
+                <Link href="/self-review">
+                  <Button className="w-full">
+                    Start Review
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <BarChart3 className="w-6 h-6 text-green-600" />
-                </div>
-                <CardTitle>Compare Roles</CardTitle>
-                <CardDescription>Compare different positions to understand skill requirements</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-green-600" />
+                  Compare Roles
+                </CardTitle>
+                <CardDescription>See skill differences between different positions</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-transparent" variant="outline" asChild>
-                  <Link href="/compare">
+                <Link href="/compare">
+                  <Button className="w-full">
                     Compare Now
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Link>
-                </Button>
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <Search className="w-6 h-6 text-purple-600" />
-                </div>
-                <CardTitle>Explore Departments</CardTitle>
-                <CardDescription>Browse roles and skills across different departments</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-purple-600" />
+                  Browse Departments
+                </CardTitle>
+                <CardDescription>Explore roles and skills by department</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-transparent" variant="outline" asChild>
-                  <Link href="#departments">
-                    Explore
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Link>
+                <Button className="w-full bg-transparent" variant="outline">
+                  View All
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardContent>
             </Card>
@@ -156,99 +218,102 @@ export default function HomePage() {
       </section>
 
       {/* Departments */}
-      <section id="departments" className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore Departments</h2>
-            <p className="text-xl text-gray-600">Discover career opportunities across our organization</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore by Department</h2>
+            <p className="text-lg text-gray-600">Discover career paths across different areas of expertise</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {DEMO_DEPARTMENTS.map((dept) => (
-              <Card key={dept.id} className="hover:shadow-lg transition-all duration-200 group">
-                <CardHeader>
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: `${dept.color}20` }}
-                  >
-                    <Building2 className="w-6 h-6" style={{ color: dept.color }} />
-                  </div>
-                  <CardTitle className="group-hover:text-brand-600 transition-colors">{dept.name}</CardTitle>
-                  <CardDescription>{dept.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    variant="outline"
-                    className="w-full group-hover:bg-brand-50 group-hover:border-brand-200 bg-transparent"
-                    asChild
-                  >
-                    <Link href={`/department/${dept.slug}`}>
-                      View Roles
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
+            {departments.map((department) => (
+              <Link key={department.id} href={`/department/${department.slug}`}>
+                <Card className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{department.name}</CardTitle>
+                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: department.color }} />
+                    </div>
+                    <CardDescription className="text-sm">{department.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center text-sm text-blue-600 font-medium">
+                      View Skills Matrix
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
       {/* Features */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Platform Features</h2>
-            <p className="text-xl text-gray-600">Everything you need for career development</p>
+            <p className="text-lg text-gray-600">Everything you need for career development</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Target className="w-8 h-8 text-blue-600" />
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Zap className="h-8 w-8 text-blue-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Skill Assessment</h3>
-              <p className="text-gray-600">Comprehensive skill evaluation with detailed feedback and recommendations</p>
+              <h3 className="text-xl font-semibold mb-2">Skills Assessment</h3>
+              <p className="text-gray-600">
+                Comprehensive skill evaluation with detailed feedback and improvement suggestions.
+              </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-8 h-8 text-green-600" />
+              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Career Progression</h3>
-              <p className="text-gray-600">Clear pathways and requirements for advancing in your career</p>
+              <h3 className="text-xl font-semibold mb-2">Career Progression</h3>
+              <p className="text-gray-600">
+                Clear pathways showing how to advance from your current role to your dream position.
+              </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-8 h-8 text-purple-600" />
+              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-purple-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Learning Resources</h3>
-              <p className="text-gray-600">Curated learning materials and development opportunities</p>
+              <h3 className="text-xl font-semibold mb-2">Role-Based Access</h3>
+              <p className="text-gray-600">
+                Secure platform with appropriate access levels for employees, managers, and administrators.
+              </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-orange-600" />
+              <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="h-8 w-8 text-orange-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Team Collaboration</h3>
-              <p className="text-gray-600">Manager tools for team development and skill gap analysis</p>
+              <h3 className="text-xl font-semibold mb-2">Learning Resources</h3>
+              <p className="text-gray-600">
+                Curated learning materials and resources to help you develop required skills.
+              </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Briefcase className="w-8 h-8 text-red-600" />
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="h-8 w-8 text-red-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Role Matching</h3>
-              <p className="text-gray-600">Find roles that match your skills and career aspirations</p>
+              <h3 className="text-xl font-semibold mb-2">Team Management</h3>
+              <p className="text-gray-600">
+                Tools for managers to track team progress and identify development opportunities.
+              </p>
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <GraduationCap className="w-8 h-8 text-indigo-600" />
+              <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Globe className="h-8 w-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Development Plans</h3>
-              <p className="text-gray-600">Personalized development plans based on your goals and assessments</p>
+              <h3 className="text-xl font-semibold mb-2">Global Standards</h3>
+              <p className="text-gray-600">Industry-standard skill definitions and competency frameworks.</p>
             </div>
           </div>
         </div>
@@ -258,23 +323,25 @@ export default function HomePage() {
       <footer className="bg-gray-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8">
-            <div className="col-span-2">
-              <Image
-                src="/images/hs1-logo.png"
-                alt="Henry Schein One"
-                width={150}
-                height={40}
-                className="brightness-0 invert mb-4"
-              />
-              <p className="text-gray-400 mb-4">
-                Empowering dental professionals with innovative technology solutions and comprehensive career
-                development opportunities.
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Image
+                  src="/images/hs1-logo.png"
+                  alt="Henry Schein One"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto filter brightness-0 invert"
+                />
+                <span className="text-lg font-semibold">Career Matrix</span>
+              </div>
+              <p className="text-gray-400 text-sm">
+                Empowering professional growth through comprehensive career development tools.
               </p>
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-4">Platform</h3>
-              <ul className="space-y-2 text-gray-400">
+              <h3 className="font-semibold mb-4">Platform</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
                 <li>
                   <Link href="/self-review" className="hover:text-white">
                     Self Assessment
@@ -282,33 +349,49 @@ export default function HomePage() {
                 </li>
                 <li>
                   <Link href="/compare" className="hover:text-white">
-                    Compare Roles
+                    Role Comparison
                   </Link>
                 </li>
                 <li>
-                  <Link href="#departments" className="hover:text-white">
+                  <Link href="/departments" className="hover:text-white">
                     Departments
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/profile" className="hover:text-white">
-                    Profile
                   </Link>
                 </li>
               </ul>
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-gray-400">
+              <h3 className="font-semibold mb-4">Resources</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
                 <li>
                   <Link href="/help" className="hover:text-white">
                     Help Center
                   </Link>
                 </li>
                 <li>
+                  <Link href="/guides" className="hover:text-white">
+                    User Guides
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/api-docs" className="hover:text-white">
+                    API Documentation
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-4">Company</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li>
+                  <Link href="/about" className="hover:text-white">
+                    About Us
+                  </Link>
+                </li>
+                <li>
                   <Link href="/contact" className="hover:text-white">
-                    Contact Us
+                    Contact
                   </Link>
                 </li>
                 <li>
@@ -316,16 +399,11 @@ export default function HomePage() {
                     Privacy Policy
                   </Link>
                 </li>
-                <li>
-                  <Link href="/terms" className="hover:text-white">
-                    Terms of Service
-                  </Link>
-                </li>
               </ul>
             </div>
           </div>
 
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
             <p>&copy; 2024 Henry Schein One. All rights reserved.</p>
           </div>
         </div>
