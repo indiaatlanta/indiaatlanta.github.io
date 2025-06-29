@@ -99,7 +99,7 @@ WHERE email = 'user@henryscheinone.com';
 
 -- Create user profiles for sample users
 INSERT INTO user_profiles (user_id, bio, skills, goals) VALUES 
-    ((SELECT id FROM users WHERE email = 'admin@henryscheinone.com'), 'System administrator with 10+ years experience', ARRAY['System Administration', 'Security', 'DevOps']::JSONB, 'Lead technical infrastructure initiatives'),
-    ((SELECT id FROM users WHERE email = 'manager@henryscheinone.com'), 'Engineering manager focused on team growth', ARRAY['Leadership', 'Software Architecture', 'Team Management']::JSONB, 'Build high-performing engineering teams'),
-    ((SELECT id FROM users WHERE email = 'user@henryscheinone.com'), 'Full-stack developer passionate about user experience', ARRAY['React', 'Node.js', 'UI/UX']::JSONB, 'Become a senior technical lead')
+    ((SELECT id FROM users WHERE email = 'admin@henryscheinone.com'), 'System administrator with 10+ years experience', '["System Administration", "Security", "DevOps"]'::JSONB, 'Lead technical infrastructure initiatives'),
+    ((SELECT id FROM users WHERE email = 'manager@henryscheinone.com'), 'Engineering manager focused on team growth', '["Leadership", "Software Architecture", "Team Management"]'::JSONB, 'Build high-performing engineering teams'),
+    ((SELECT id FROM users WHERE email = 'user@henryscheinone.com'), 'Full-stack developer passionate about user experience', '["React", "Node.js", "UI/UX"]'::JSONB, 'Become a senior technical lead')
 ON CONFLICT DO NOTHING;

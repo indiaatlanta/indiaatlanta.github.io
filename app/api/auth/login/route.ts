@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { verifyPassword } from "@/lib/auth"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
-// Demo users for authentication
+// Demo users for when database is not configured
 const DEMO_USERS = [
   {
     id: 1,
@@ -14,6 +14,7 @@ const DEMO_USERS = [
     name: "Admin User",
     role: "admin",
     department: "IT",
+    job_title: "System Administrator",
   },
   {
     id: 2,
@@ -22,6 +23,7 @@ const DEMO_USERS = [
     name: "Manager User",
     role: "manager",
     department: "Engineering",
+    job_title: "Engineering Manager",
   },
   {
     id: 3,
@@ -30,6 +32,7 @@ const DEMO_USERS = [
     name: "Regular User",
     role: "user",
     department: "Engineering",
+    job_title: "Software Developer",
   },
 ]
 
@@ -43,41 +46,39 @@ export async function POST(request: NextRequest) {
 
     let user = null
 
-    // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - check against demo users
       const demoUser = DEMO_USERS.find((u) => u.email === email)
       if (demoUser && demoUser.password === password) {
-        user = {
-          id: demoUser.id,
-          email: demoUser.email,
-          name: demoUser.name,
-          role: demoUser.role,
-          department: demoUser.department,
-        }
+        user = demoUser
       }
     } else {
       // Database mode - check against database
-      const users = await sql`
-        SELECT id, email, name, role, password_hash, department, manager_id
-        FROM users 
-        WHERE email = ${email} AND active = true
-      `
+      try {
+        const users = await sql`
+          SELECT id, email, password_hash, name, role, department, job_title
+          FROM users 
+          WHERE email = ${email} AND active = true
+        `
 
-      if (users.length > 0) {
-        const dbUser = users[0]
-        const isValidPassword = await verifyPassword(password, dbUser.password_hash)
+        if (users.length > 0) {
+          const dbUser = users[0]
+          const isValidPassword = await bcrypt.compare(password, dbUser.password_hash)
 
-        if (isValidPassword) {
-          user = {
-            id: dbUser.id,
-            email: dbUser.email,
-            name: dbUser.name,
-            role: dbUser.role,
-            department: dbUser.department,
-            manager_id: dbUser.manager_id,
+          if (isValidPassword) {
+            user = {
+              id: dbUser.id,
+              email: dbUser.email,
+              name: dbUser.name,
+              role: dbUser.role,
+              department: dbUser.department,
+              job_title: dbUser.job_title,
+            }
           }
         }
+      } catch (dbError) {
+        console.error("Database error during login:", dbError)
+        return NextResponse.json({ error: "Authentication service temporarily unavailable" }, { status: 503 })
       }
     }
 
@@ -90,13 +91,18 @@ export async function POST(request: NextRequest) {
       {
         userId: user.id,
         email: user.email,
+        name: user.name,
         role: user.role,
+        department: user.department,
+        job_title: user.job_title,
       },
       JWT_SECRET,
       { expiresIn: "7d" },
     )
 
-    // Create response with cookie
+    // Create response with redirect based on role
+    const redirectUrl = user.role === "admin" ? "/admin" : "/profile"
+
     const response = NextResponse.json({
       success: true,
       user: {
@@ -105,9 +111,12 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
         department: user.department,
+        job_title: user.job_title,
       },
+      redirectUrl,
     })
 
+    // Set HTTP-only cookie
     response.cookies.set("auth-token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

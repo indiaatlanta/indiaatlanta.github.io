@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
-import { Settings, UserCircle, LogOut, Users } from "lucide-react"
+import { LogOut, UserCircle } from "lucide-react"
 import Link from "next/link"
 
 interface User {
@@ -19,6 +19,7 @@ interface User {
   name: string
   role: "admin" | "manager" | "user"
   department?: string
+  job_title?: string
 }
 
 export function LoginButton() {
@@ -32,17 +33,12 @@ export function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-
-      if (!response.ok) {
-        setUser(null)
-        return
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
       }
-
-      const data = await response.json()
-      setUser(data.user)
     } catch (error) {
       console.error("Error checking session:", error)
-      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -58,84 +54,77 @@ export function LoginButton() {
     }
   }
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "bg-red-100 text-red-800 hover:bg-red-200"
-      case "manager":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200"
-      case "user":
-        return "bg-green-100 text-green-800 hover:bg-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
-    }
-  }
-
   if (loading) {
-    return (
-      <Button variant="ghost" size="sm" disabled>
-        Loading...
-      </Button>
-    )
+    return <div className="w-20 h-9 bg-gray-200 rounded animate-pulse" />
   }
 
   if (!user) {
     return (
-      <Link href="/login">
-        <Button variant="outline" size="sm">
-          <LogOut className="w-4 h-4 mr-2" />
-          Login
-        </Button>
-      </Link>
+      <Button asChild>
+        <Link href="/login">Login</Link>
+      </Button>
     )
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "bg-red-100 text-red-800"
+      case "manager":
+        return "bg-blue-100 text-blue-800"
+      case "user":
+        return "bg-green-100 text-green-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2">
-          <UserCircle className="w-4 h-4" />
+        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+          <UserCircle className="h-4 w-4" />
           <span className="hidden sm:inline">{user.name}</span>
-          <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
-            {user.role}
-          </Badge>
+          <Badge className={`text-xs ${getRoleBadgeColor(user.role)}`}>{user.role}</Badge>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-2 py-1.5">
           <p className="text-sm font-medium">{user.name}</p>
-          <p className="text-xs text-muted-foreground">{user.email}</p>
-          {user.department && <p className="text-xs text-muted-foreground">{user.department}</p>}
+          <p className="text-xs text-gray-500">{user.email}</p>
+          {user.job_title && <p className="text-xs text-gray-500">{user.job_title}</p>}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center">
-            <UserCircle className="w-4 h-4 mr-2" />
+          <Link href="/profile" className="flex items-center gap-2">
+            <UserCircle className="h-4 w-4" />
             Profile
           </Link>
         </DropdownMenuItem>
-        {user.role === "admin" && (
-          <DropdownMenuItem asChild>
-            <Link href="/admin" className="flex items-center">
-              <Settings className="w-4 h-4 mr-2" />
-              Admin Panel
-            </Link>
-          </DropdownMenuItem>
-        )}
         {user.role === "manager" && (
           <DropdownMenuItem asChild>
-            <Link href="/team" className="flex items-center">
-              <Users className="w-4 h-4 mr-2" />
+            <Link href="/team" className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4" />
               Team Dashboard
             </Link>
           </DropdownMenuItem>
         )}
+        {user.role === "admin" && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin" className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4" />
+              Admin Panel
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-          <LogOut className="w-4 h-4 mr-2" />
+        <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2">
+          <LogOut className="h-4 w-4" />
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
+
+export default LoginButton
