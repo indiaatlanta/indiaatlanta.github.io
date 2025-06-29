@@ -27,11 +27,7 @@ interface Skill {
   category_color: string
 }
 
-interface Props {
-  isDemoMode: boolean
-}
-
-export function CompareClient({ isDemoMode }: Props) {
+export function CompareClient() {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole1, setSelectedRole1] = useState<Role | null>(null)
   const [selectedRole2, setSelectedRole2] = useState<Role | null>(null)
@@ -40,6 +36,7 @@ export function CompareClient({ isDemoMode }: Props) {
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [isLoadingRoles, setIsLoadingRoles] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(false)
 
   useEffect(() => {
     fetchRoles()
@@ -51,14 +48,29 @@ export function CompareClient({ isDemoMode }: Props) {
       const response = await fetch("/api/roles")
       if (response.ok) {
         const data = await response.json()
-        setRoles(data.roles || [])
+        console.log("Roles API response:", data) // Debug log
+
+        // Handle different response formats
+        if (data && Array.isArray(data.roles)) {
+          setRoles(data.roles)
+          setIsDemoMode(data.isDemoMode || false)
+        } else if (Array.isArray(data)) {
+          setRoles(data)
+          setIsDemoMode(false)
+        } else {
+          console.error("Unexpected roles data format:", data)
+          setRoles([])
+          setIsDemoMode(true)
+        }
       } else {
-        console.error("Failed to fetch roles")
+        console.error("Failed to fetch roles, status:", response.status)
         setRoles([])
+        setIsDemoMode(true)
       }
     } catch (error) {
       console.error("Error fetching roles:", error)
       setRoles([])
+      setIsDemoMode(true)
     } finally {
       setIsLoadingRoles(false)
     }
@@ -68,7 +80,8 @@ export function CompareClient({ isDemoMode }: Props) {
     try {
       const response = await fetch(`/api/role-skills?roleId=${roleId}`)
       if (response.ok) {
-        return await response.json()
+        const data = await response.json()
+        return Array.isArray(data) ? data : []
       }
       return []
     } catch (error) {

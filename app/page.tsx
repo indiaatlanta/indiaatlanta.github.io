@@ -1,87 +1,44 @@
 import Link from "next/link"
-import { ExternalLink, Rocket, GitCompare, ClipboardCheck, Settings } from "lucide-react"
-import { AdminButton } from "@/components/admin-button"
+import { ArrowRight, Users, Target, TrendingUp, Rocket, Settings } from "lucide-react"
+import { getSession } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
 
-// Fallback mock data for when database is not configured
-const mockDepartments = [
-  {
-    id: 1,
-    name: "Engineering",
-    slug: "engineering",
-    description: "Software development and technical roles",
-    role_count: 3,
-    skill_count: 45,
-  },
-  {
-    id: 2,
-    name: "Design",
-    slug: "design",
-    description: "Product design and user experience roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 3,
-    name: "Customer Success",
-    slug: "customer-success",
-    description: "Customer support and success roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 4,
-    name: "Marketing/Growth",
-    slug: "marketing-growth",
-    description: "Marketing and growth roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 5,
-    name: "Operations",
-    slug: "operations",
-    description: "Operations and process roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 6,
-    name: "People",
-    slug: "people",
-    description: "Human resources and people operations",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 7,
-    name: "Finance",
-    slug: "finance",
-    description: "Finance and accounting roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-  {
-    id: 8,
-    name: "Product",
-    slug: "product",
-    description: "Product management roles",
-    role_count: 0,
-    skill_count: 0,
-  },
-]
-
 async function getDepartments() {
   if (!isDatabaseConfigured() || !sql) {
-    return mockDepartments
+    // Return mock data for demo mode
+    return [
+      {
+        id: 1,
+        name: "Engineering",
+        slug: "engineering",
+        description: "Software development and technical innovation",
+        role_count: 5,
+        skill_count: 45,
+      },
+      {
+        id: 2,
+        name: "Product",
+        slug: "product",
+        description: "Product strategy and user experience",
+        role_count: 4,
+        skill_count: 32,
+      },
+      {
+        id: 3,
+        name: "Design",
+        slug: "design",
+        description: "User interface and experience design",
+        role_count: 3,
+        skill_count: 28,
+      },
+    ]
   }
 
   try {
-    // Count unique skills assigned to roles in each department
     const departments = await sql`
       SELECT 
         d.id,
@@ -89,54 +46,66 @@ async function getDepartments() {
         d.slug,
         d.description,
         COUNT(DISTINCT jr.id) as role_count,
-        COUNT(DISTINCT dt.skill_master_id) as skill_count
+        COUNT(DISTINCT sm.id) as skill_count
       FROM departments d
       LEFT JOIN job_roles jr ON d.id = jr.department_id
       LEFT JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
       LEFT JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
+      LEFT JOIN skills_master sm ON dt.skill_master_id = sm.id
       GROUP BY d.id, d.name, d.slug, d.description
       ORDER BY d.name
     `
-    return departments
+
+    return departments.map((dept: any) => ({
+      ...dept,
+      role_count: Number(dept.role_count),
+      skill_count: Number(dept.skill_count),
+    }))
   } catch (error) {
     console.error("Error fetching departments:", error)
-    return mockDepartments
+    // Return mock data as fallback
+    return [
+      {
+        id: 1,
+        name: "Engineering",
+        slug: "engineering",
+        description: "Software development and technical innovation",
+        role_count: 5,
+        skill_count: 45,
+      },
+      {
+        id: 2,
+        name: "Product",
+        slug: "product",
+        description: "Product strategy and user experience",
+        role_count: 4,
+        skill_count: 32,
+      },
+      {
+        id: 3,
+        name: "Design",
+        slug: "design",
+        description: "User interface and experience design",
+        role_count: 3,
+        skill_count: 28,
+      },
+    ]
   }
-}
-
-// Department icons mapping
-const departmentIcons: Record<string, string[]> = {
-  engineering: ["💻", "🔧", "📋", "⚙️", "🏠"],
-  design: ["🎨", "✨", "📱", "📋", "⚙️"],
-  "customer-success": ["💎", "☕", "📋", "⭐", "👥"],
-  "marketing-growth": ["📧", "⭐", "📧", "🔄", "📈"],
-  operations: ["🔧", "🏭", "📋", "📊", "⚙️"],
-  people: ["👥", "📋", "⚙️", "📊", "💙"],
-  finance: ["💰", "⚙️", "📊", "💳", "💰"],
-  product: ["📋", "🔗", "📊", "📈", "📋"],
-}
-
-// Department emojis mapping
-const departmentEmojis: Record<string, string> = {
-  engineering: "👨‍💻",
-  design: "🎨",
-  "customer-success": "💙",
-  "marketing-growth": "🚀",
-  operations: "⚙️",
-  people: "👥",
-  finance: "💰",
-  product: "📋",
 }
 
 export default async function Home() {
-  let departments = mockDepartments
+  let session = null
+  let isAdmin = false
 
   try {
-    departments = await getDepartments()
+    session = await getSession()
+    isAdmin = session?.user?.role === "admin"
   } catch (error) {
-    console.error("Error in Home page:", error)
-    // Use mock data as fallback
+    console.error("Error getting session:", error)
+    // Continue without session
   }
+
+  const departments = await getDepartments()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -146,114 +115,128 @@ export default async function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <Rocket className="w-4 h-4 text-white" />
+              <span className="text-white text-sm">Career Matrix</span>
             </div>
-            <div className="flex items-center gap-3">
+            {isAdmin && (
               <Link
-                href="/compare"
-                className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+                href="/admin"
+                className="ml-auto bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
               >
-                <GitCompare className="w-4 h-4" />
-                Compare Roles
+                <Settings className="w-4 h-4" />
+                Admin Panel
               </Link>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Hero Section */}
+      <div className="bg-white">
+        <div className="max-w-6xl mx-auto px-4 py-16">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">Henry Schein One Career Matrix</h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              Explore career paths, understand skill requirements, and plan your professional development journey with
+              our comprehensive career framework.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/self-review"
-                className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+                className="bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors flex items-center gap-2"
               >
-                <ClipboardCheck className="w-4 h-4" />
-                Self Review
+                <Target className="w-5 h-5" />
+                Start Self Assessment
               </Link>
-              <AdminButton />
+              <Link
+                href="/compare"
+                className="bg-white text-brand-600 border border-brand-600 px-6 py-3 rounded-lg font-medium hover:bg-brand-50 transition-colors flex items-center gap-2"
+              >
+                <TrendingUp className="w-5 h-5" />
+                Compare Roles
+              </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Title Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">Henry Schein One Career Development</h1>
-            <Rocket className="w-6 h-6 text-gray-600" />
-          </div>
-          <Link
-            href="https://careers.henryscheinone.co.uk/"
-            className="text-brand-600 hover:text-brand-700 flex items-center gap-1 text-sm"
-          >
-            https://careers.henryscheinone.co.uk/
-            <ExternalLink className="w-3 h-3" />
-          </Link>
+      {/* Departments Grid */}
+      <div className="max-w-6xl mx-auto px-4 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore by Department</h2>
+          <p className="text-lg text-gray-600">
+            Browse career paths and skill requirements across different departments
+          </p>
         </div>
 
-        {/* Database Status Banner */}
-        {!isDatabaseConfigured() && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
-                </div>
-                <p className="text-blue-700 text-sm mt-1">
-                  Running in preview mode. Database features are simulated for demonstration purposes.
-                </p>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {departments.map((department) => (
+            <Link
+              key={department.id}
+              href={`/department/${department.slug}`}
+              className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-6 group"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900 group-hover:text-brand-600 transition-colors">
+                  {department.name}
+                </h3>
+                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-brand-600 transition-colors" />
               </div>
-              <Link
-                href="/admin"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Access Admin Panel
-              </Link>
+              <p className="text-gray-600 mb-6">{department.description}</p>
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1 text-gray-500">
+                  <Users className="w-4 h-4" />
+                  <span>{department.role_count} Roles</span>
+                </div>
+                <div className="flex items-center gap-1 text-gray-500">
+                  <Target className="w-4 h-4" />
+                  <span>{department.skill_count} Skills</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div className="bg-white">
+        <div className="max-w-6xl mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Career Development Tools</h2>
+            <p className="text-lg text-gray-600">Everything you need to plan and track your career growth</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Target className="w-8 h-8 text-brand-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Self Assessment</h3>
+              <p className="text-gray-600">
+                Evaluate your current skills against role requirements and identify areas for development.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="w-8 h-8 text-brand-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Role Comparison</h3>
+              <p className="text-gray-600">
+                Compare different roles to understand career progression paths and skill requirements.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-brand-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Skills Matrix</h3>
+              <p className="text-gray-600">
+                Explore comprehensive skill frameworks for each department and role level.
+              </p>
             </div>
           </div>
-        )}
-
-        {/* Department Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {departments.map((dept) => {
-            const icons = departmentIcons[dept.slug] || ["📋", "🔗", "📊", "📈", "⚙️"]
-            const emoji = departmentEmojis[dept.slug] || "📋"
-
-            return (
-              <Link key={dept.id} href={`/department/${dept.slug}`}>
-                <div className="bg-brand-800 text-white rounded-lg overflow-hidden hover:bg-brand-700 transition-colors cursor-pointer">
-                  {/* Header */}
-                  <div className="p-4 pb-3">
-                    <h2 className="text-lg font-semibold mb-3 text-white">{dept.name}</h2>
-
-                    {/* Icons */}
-                    <div className="flex gap-3 mb-4">
-                      {icons.map((icon, iconIndex) => (
-                        <span key={iconIndex} className="text-brand-200 text-lg">
-                          {icon}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="bg-white text-gray-700 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{dept.name}</span>
-                        <span className="text-lg">{emoji}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span>
-                        Positions <span className="font-medium">{dept.role_count}</span>
-                      </span>
-                      <span>
-                        Team Skills <span className="font-medium">{dept.skill_count}</span>
-                      </span>
-                    </div>
-                    {dept.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{dept.description}</p>}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
         </div>
       </div>
     </div>
