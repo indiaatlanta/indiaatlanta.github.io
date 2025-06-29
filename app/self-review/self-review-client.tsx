@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, FileText, Star } from "lucide-react"
+import { Download, FileText, Info } from "lucide-react"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 
@@ -29,12 +29,30 @@ interface Skill {
 
 interface SelfAssessment {
   skillId: number
-  rating: number
+  rating: string
   notes: string
 }
 
 interface Props {
   isDemoMode?: boolean
+}
+
+const RATING_OPTIONS = [
+  { value: "needs-development", label: "Needs Development" },
+  { value: "developing", label: "Developing" },
+  { value: "proficient", label: "Proficient / Fully Displayed" },
+  { value: "strength", label: "Strength / Role Model" },
+  { value: "not-applicable", label: "Not Applicable" },
+]
+
+const RATING_DESCRIPTIONS = {
+  "needs-development":
+    "I have limited experience or confidence in this area and would benefit from support or learning opportunities.",
+  developing:
+    "I'm gaining experience in this skill and can apply it with guidance. I understand the fundamentals but am still building confidence and consistency.",
+  proficient: "I demonstrate this skill consistently and effectively in my role, independently and with good outcomes.",
+  strength: "I consistently excel in this area and often guide, coach, or support others to develop this skill.",
+  "not-applicable": "This skill is not currently relevant to my role or responsibilities.",
 }
 
 export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
@@ -120,15 +138,15 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
     }
   }
 
-  const updateAssessment = (skillId: number, field: "rating" | "notes", value: number | string) => {
+  const updateAssessment = (skillId: number, field: "rating" | "notes", value: string) => {
     setAssessments((prev) => ({
       ...prev,
       [skillId]: {
         ...prev[skillId],
         skillId,
         [field]: value,
-        rating: field === "rating" ? (value as number) : prev[skillId]?.rating || 0,
-        notes: field === "notes" ? (value as string) : prev[skillId]?.notes || "",
+        rating: field === "rating" ? value : prev[skillId]?.rating || "",
+        notes: field === "notes" ? value : prev[skillId]?.notes || "",
       },
     }))
   }
@@ -187,22 +205,22 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
     return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
   }
 
-  const renderStars = (skillId: number, currentRating: number) => {
-    return (
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => updateAssessment(skillId, "rating", star)}
-            className={`w-6 h-6 ${
-              star <= currentRating ? "text-yellow-400" : "text-gray-300"
-            } hover:text-yellow-400 transition-colors`}
-          >
-            <Star className="w-full h-full fill-current" />
-          </button>
-        ))}
-      </div>
-    )
+  const getRatingCounts = () => {
+    const counts = {
+      "needs-development": 0,
+      developing: 0,
+      proficient: 0,
+      strength: 0,
+      "not-applicable": 0,
+    }
+
+    Object.values(assessments).forEach((assessment) => {
+      if (assessment.rating && counts.hasOwnProperty(assessment.rating)) {
+        counts[assessment.rating as keyof typeof counts]++
+      }
+    })
+
+    return counts
   }
 
   // Group skills by category
@@ -219,6 +237,8 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
     },
     {} as Record<string, { color: string; skills: Skill[] }>,
   )
+
+  const ratingCounts = getRatingCounts()
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -239,6 +259,28 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Self Review</h1>
         <p className="text-gray-600">Assess your skills against a specific role's requirements.</p>
       </div>
+
+      {/* Rating Descriptions */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Info className="w-5 h-5" />
+            Rating Scale Descriptions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {RATING_OPTIONS.map((option) => (
+              <div key={option.value} className="border-l-4 border-gray-200 pl-4">
+                <h4 className="font-semibold text-gray-900 mb-1">{option.label}</h4>
+                <p className="text-sm text-gray-600">
+                  {RATING_DESCRIPTIONS[option.value as keyof typeof RATING_DESCRIPTIONS]}
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Role Selection */}
       <Card className="mb-8">
@@ -268,6 +310,27 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Rating Summary Panel */}
+      {selectedRole && skills.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Assessment Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {RATING_OPTIONS.map((option) => (
+                <div key={option.value} className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {ratingCounts[option.value as keyof typeof ratingCounts]}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">{option.label}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Export Button */}
       {selectedRole && skills.length > 0 && (
@@ -311,16 +374,30 @@ export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
                             key={skill.id}
                             className={`p-4 rounded-lg border ${getColorClasses(categoryData.color)}`}
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
                                 <h4 className="font-semibold">{skill.skill_name}</h4>
                                 <Badge variant="outline" className="text-xs mt-1">
                                   {skill.level}
                                 </Badge>
                               </div>
-                              <div className="text-right">
-                                <div className="text-sm text-gray-600 mb-1">Your Rating</div>
-                                {renderStars(skill.id, assessment?.rating || 0)}
+                              <div className="ml-4 min-w-[200px]">
+                                <div className="text-sm text-gray-600 mb-2">Your Rating</div>
+                                <Select
+                                  value={assessment?.rating || ""}
+                                  onValueChange={(value) => updateAssessment(skill.id, "rating", value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select rating" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {RATING_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
 
