@@ -89,11 +89,12 @@ async function getDepartments() {
         d.slug,
         d.description,
         COUNT(DISTINCT jr.id) as role_count,
-        COUNT(DISTINCT dt.id) as skill_count
+        COUNT(DISTINCT sm.id) as skill_count
       FROM departments d
       LEFT JOIN job_roles jr ON d.id = jr.department_id
       LEFT JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
       LEFT JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
+      LEFT JOIN skills_master sm ON dt.skill_id = sm.id
       GROUP BY d.id, d.name, d.slug, d.description
       ORDER BY d.name
     `

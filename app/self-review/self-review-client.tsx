@@ -6,31 +6,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Textarea } from "@/components/ui/textarea"
-import { Download, FileText, AlertCircle, Info, BarChart3 } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Download, FileText, AlertCircle, BarChart3 } from "lucide-react"
 import jsPDF from "jspdf"
+import "jspdf-autotable"
 
 interface Role {
   id: number
   title: string
   department: string
   level: string
-  description: string
+  salary_min: number | null
+  salary_max: number | null
 }
 
 interface Skill {
   id: number
   skill_name: string
   skill_category: string
-  skill_description: string
-  demonstration_text: string
-  level: string
+  skill_level: string
+  description: string
 }
 
 interface SkillRating {
   skillId: number
   rating: string
-  notes: string
 }
 
 const RATING_OPTIONS = [
@@ -43,21 +43,34 @@ const RATING_OPTIONS = [
 ]
 
 const RATING_DESCRIPTIONS = {
-  "needs-development":
-    "I have limited experience or confidence in this area and would benefit from support or learning opportunities.",
-  developing:
-    "I'm gaining experience in this skill and can apply it with guidance. I understand the fundamentals but am still building confidence and consistency.",
-  proficient: "I demonstrate this skill consistently and effectively in my role, independently and with good outcomes.",
-  strength: "I consistently excel in this area and often guide, coach, or support others to develop this skill.",
-  "not-applicable": "This skill is not currently relevant to my role or responsibilities.",
-}
-
-const RATING_COLORS = {
-  "needs-development": "bg-red-100 text-red-800 border-red-200",
-  developing: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  proficient: "bg-green-100 text-green-800 border-green-200",
-  strength: "bg-blue-100 text-blue-800 border-blue-200",
-  "not-applicable": "bg-gray-100 text-gray-800 border-gray-200",
+  "needs-development": {
+    title: "Needs Development",
+    description:
+      "I have limited experience or confidence in this area and would benefit from support or learning opportunities.",
+    color: "bg-red-100 text-red-800 border-red-200",
+  },
+  developing: {
+    title: "Developing",
+    description:
+      "I'm gaining experience in this skill and can apply it with guidance. I understand the fundamentals but am still building confidence and consistency.",
+    color: "bg-orange-100 text-orange-800 border-orange-200",
+  },
+  proficient: {
+    title: "Proficient / Fully Displayed",
+    description:
+      "I demonstrate this skill consistently and effectively in my role, independently and with good outcomes.",
+    color: "bg-green-100 text-green-800 border-green-200",
+  },
+  strength: {
+    title: "Strength / Role Model",
+    description: "I consistently excel in this area and often guide, coach, or support others to develop this skill.",
+    color: "bg-blue-100 text-blue-800 border-blue-200",
+  },
+  "not-applicable": {
+    title: "Not Applicable",
+    description: "This skill is not currently relevant to my role or responsibilities.",
+    color: "bg-gray-100 text-gray-800 border-gray-200",
+  },
 }
 
 export default function SelfReviewClient() {
@@ -67,18 +80,11 @@ export default function SelfReviewClient() {
   const [ratings, setRatings] = useState<SkillRating[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("assessment")
 
-  // Fetch roles on component mount
   useEffect(() => {
     fetchRoles()
   }, [])
-
-  // Fetch skills when role is selected
-  useEffect(() => {
-    if (selectedRole) {
-      fetchSkills(selectedRole.id)
-    }
-  }, [selectedRole])
 
   const fetchRoles = async () => {
     try {
@@ -86,18 +92,21 @@ export default function SelfReviewClient() {
       const response = await fetch("/api/roles")
       const data = await response.json()
 
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        setRoles(data)
-      } else if (data.roles && Array.isArray(data.roles)) {
-        setRoles(data.roles)
+      if (response.ok) {
+        // Handle both array and object responses
+        if (Array.isArray(data)) {
+          setRoles(data)
+        } else if (data.roles && Array.isArray(data.roles)) {
+          setRoles(data.roles)
+        } else {
+          setRoles([])
+        }
       } else {
-        console.error("Unexpected roles data format:", data)
-        setRoles([])
+        throw new Error(data.error || "Failed to fetch roles")
       }
     } catch (error) {
       console.error("Error fetching roles:", error)
-      setError("Failed to load roles")
+      setError("Failed to load roles. Please try again.")
       setRoles([])
     } finally {
       setLoading(false)
@@ -110,33 +119,20 @@ export default function SelfReviewClient() {
       const response = await fetch(`/api/role-skills?roleId=${roleId}`)
       const data = await response.json()
 
-      if (Array.isArray(data)) {
-        setSkills(data)
+      if (response.ok) {
+        setSkills(data.skills || [])
         // Initialize ratings for all skills
-        setRatings(
-          data.map((skill) => ({
-            skillId: skill.id,
-            rating: "",
-            notes: "",
-          })),
-        )
-      } else if (data.skills && Array.isArray(data.skills)) {
-        setSkills(data.skills)
-        setRatings(
-          data.skills.map((skill: Skill) => ({
-            skillId: skill.id,
-            rating: "",
-            notes: "",
-          })),
-        )
+        const initialRatings = (data.skills || []).map((skill: Skill) => ({
+          skillId: skill.id,
+          rating: "",
+        }))
+        setRatings(initialRatings)
       } else {
-        console.error("Unexpected skills data format:", data)
-        setSkills([])
-        setRatings([])
+        throw new Error(data.error || "Failed to fetch skills")
       }
     } catch (error) {
       console.error("Error fetching skills:", error)
-      setError("Failed to load skills for this role")
+      setError("Failed to load skills for this role.")
       setSkills([])
       setRatings([])
     } finally {
@@ -144,8 +140,17 @@ export default function SelfReviewClient() {
     }
   }
 
-  const updateRating = (skillId: number, field: "rating" | "notes", value: string) => {
-    setRatings((prev) => prev.map((rating) => (rating.skillId === skillId ? { ...rating, [field]: value } : rating)))
+  const handleRoleSelect = (roleId: string) => {
+    const role = roles.find((r) => r.id === Number.parseInt(roleId))
+    if (role) {
+      setSelectedRole(role)
+      fetchSkills(role.id)
+      setActiveTab("assessment")
+    }
+  }
+
+  const handleRatingChange = (skillId: number, rating: string) => {
+    setRatings((prev) => prev.map((r) => (r.skillId === skillId ? { ...r, rating } : r)))
   }
 
   const getRatingCounts = () => {
@@ -155,10 +160,13 @@ export default function SelfReviewClient() {
       proficient: 0,
       strength: 0,
       "not-applicable": 0,
+      unrated: 0,
     }
 
     ratings.forEach((rating) => {
-      if (rating.rating && counts.hasOwnProperty(rating.rating)) {
+      if (rating.rating === "") {
+        counts.unrated++
+      } else {
         counts[rating.rating as keyof typeof counts]++
       }
     })
@@ -166,335 +174,310 @@ export default function SelfReviewClient() {
     return counts
   }
 
-  const exportToPDF = async () => {
+  const exportToPDF = () => {
     if (!selectedRole) return
 
-    const pdf = new jsPDF()
-    const pageWidth = pdf.internal.pageSize.width
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.width
     const margin = 20
-    let yPosition = margin
 
     // Add logo
     try {
-      const logoResponse = await fetch("/images/hs1-logo.png")
-      const logoBlob = await logoResponse.blob()
-      const logoDataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.readAsDataURL(logoBlob)
-      })
-      pdf.addImage(logoDataUrl, "PNG", margin, yPosition, 30, 30)
-      yPosition += 40
+      const logoImg = new Image()
+      logoImg.crossOrigin = "anonymous"
+      logoImg.onload = () => {
+        doc.addImage(logoImg, "PNG", margin, 15, 30, 15)
+        generatePDFContent()
+      }
+      logoImg.onerror = () => {
+        generatePDFContent()
+      }
+      logoImg.src = "/images/hs1-logo.png"
     } catch (error) {
-      console.error("Error adding logo:", error)
-      yPosition += 10
+      generatePDFContent()
     }
 
-    // Title
-    pdf.setFontSize(20)
-    pdf.setFont("helvetica", "bold")
-    pdf.text("Self-Assessment Report", margin, yPosition)
-    yPosition += 15
+    function generatePDFContent() {
+      // Header
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text("Self-Assessment Report", pageWidth / 2, 40, { align: "center" })
 
-    // Role information
-    pdf.setFontSize(12)
-    pdf.setFont("helvetica", "normal")
-    pdf.text(`Role: ${selectedRole.title}`, margin, yPosition)
-    yPosition += 8
-    pdf.text(`Department: ${selectedRole.department}`, margin, yPosition)
-    yPosition += 8
-    pdf.text(`Level: ${selectedRole.level}`, margin, yPosition)
-    yPosition += 15
+      // Role information
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Role: ${selectedRole.title}`, margin, 60)
+      doc.text(`Department: ${selectedRole.department}`, margin, 70)
+      doc.text(`Level: ${selectedRole.level}`, margin, 80)
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, margin, 90)
 
-    // Assessment summary
-    const counts = getRatingCounts()
-    pdf.setFont("helvetica", "bold")
-    pdf.text("Assessment Summary:", margin, yPosition)
-    yPosition += 10
+      // Summary
+      const counts = getRatingCounts()
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Assessment Summary", margin, 110)
 
-    pdf.setFont("helvetica", "normal")
-    Object.entries(counts).forEach(([rating, count]) => {
-      const label = RATING_OPTIONS.find((opt) => opt.value === rating)?.label || rating
-      pdf.text(`${label}: ${count}`, margin + 10, yPosition)
-      yPosition += 6
-    })
-    yPosition += 10
-
-    // Skills assessment
-    pdf.setFont("helvetica", "bold")
-    pdf.text("Skills Assessment:", margin, yPosition)
-    yPosition += 10
-
-    // Group skills by category
-    const skillsByCategory = skills.reduce(
-      (acc, skill) => {
-        if (!acc[skill.skill_category]) {
-          acc[skill.skill_category] = []
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      let yPos = 120
+      Object.entries(counts).forEach(([key, count]) => {
+        if (key !== "unrated" && count > 0) {
+          const description = RATING_DESCRIPTIONS[key as keyof typeof RATING_DESCRIPTIONS]
+          doc.text(`${description?.title || key}: ${count} skills`, margin, yPos)
+          yPos += 10
         }
-        acc[skill.skill_category].push(skill)
-        return acc
-      },
-      {} as Record<string, Skill[]>,
-    )
-
-    Object.entries(skillsByCategory).forEach(([category, categorySkills]) => {
-      // Check if we need a new page
-      if (yPosition > pdf.internal.pageSize.height - 60) {
-        pdf.addPage()
-        yPosition = margin
-      }
-
-      pdf.setFont("helvetica", "bold")
-      pdf.setFontSize(14)
-      pdf.text(category, margin, yPosition)
-      yPosition += 10
-
-      categorySkills.forEach((skill) => {
-        const rating = ratings.find((r) => r.skillId === skill.id)
-        const ratingLabel = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)?.label || "Not Rated"
-
-        // Check if we need a new page
-        if (yPosition > pdf.internal.pageSize.height - 40) {
-          pdf.addPage()
-          yPosition = margin
-        }
-
-        pdf.setFont("helvetica", "bold")
-        pdf.setFontSize(10)
-        pdf.text(skill.skill_name, margin + 5, yPosition)
-        yPosition += 6
-
-        pdf.setFont("helvetica", "normal")
-        pdf.text(`Rating: ${ratingLabel}`, margin + 5, yPosition)
-        yPosition += 6
-
-        if (rating?.notes) {
-          const noteLines = pdf.splitTextToSize(`Notes: ${rating.notes}`, pageWidth - margin * 2 - 10)
-          pdf.text(noteLines, margin + 5, yPosition)
-          yPosition += noteLines.length * 5
-        }
-        yPosition += 5
       })
-      yPosition += 5
-    })
 
-    // Save the PDF
-    pdf.save(`self-assessment-${selectedRole.title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+      // Skills table
+      yPos += 10
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Detailed Assessment", margin, yPos)
+
+      const tableData = skills.map((skill) => {
+        const rating = ratings.find((r) => r.skillId === skill.id)
+        const ratingText = rating?.rating
+          ? RATING_DESCRIPTIONS[rating.rating as keyof typeof RATING_DESCRIPTIONS]?.title || rating.rating
+          : "Not Rated"
+
+        return [skill.skill_category, skill.skill_name, skill.skill_level, ratingText]
+      })
+      ;(doc as any).autoTable({
+        startY: yPos + 10,
+        head: [["Category", "Skill", "Level", "Self-Rating"]],
+        body: tableData,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [41, 128, 185] },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 45 },
+        },
+      })
+
+      doc.save(`self-assessment-${selectedRole.title.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+    }
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
+  const skillsByCategory = skills.reduce(
+    (acc, skill) => {
+      if (!acc[skill.skill_category]) {
+        acc[skill.skill_category] = []
+      }
+      acc[skill.skill_category].push(skill)
+      return acc
+    },
+    {} as Record<string, Skill[]>,
+  )
+
+  const ratingCounts = getRatingCounts()
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Self-Assessment</h1>
-        <p className="text-gray-600">
-          Evaluate your skills against role requirements and identify areas for development.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Self-Assessment</h1>
+          <p className="text-gray-600">
+            Evaluate your skills against role requirements and identify development opportunities.
+          </p>
+        </div>
 
-      {/* Rating Scale Descriptions */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="w-5 h-5" />
-            Rating Scale Guide
-          </CardTitle>
-          <CardDescription>
-            Use this guide to understand what each rating level means when assessing your skills.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {Object.entries(RATING_DESCRIPTIONS).map(([rating, description]) => {
-            const option = RATING_OPTIONS.find((opt) => opt.value === rating)
-            return (
-              <div key={rating} className="border-l-4 border-gray-200 pl-4">
-                <h4 className="font-semibold text-gray-900">{option?.label}</h4>
-                <p className="text-sm text-gray-600 mt-1">{description}</p>
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
+        {/* Role Selection */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Select Role</CardTitle>
+            <CardDescription>Choose the role you want to assess yourself against</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select onValueChange={handleRoleSelect} disabled={loading}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={loading ? "Loading roles..." : "Select a role..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((role) => (
+                  <SelectItem key={role.id} value={role.id.toString()}>
+                    {role.title} - {role.department} ({role.level})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
 
-      {/* Role Selection */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Select Role</CardTitle>
-          <CardDescription>Choose the role you want to assess yourself against.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select
-            value={selectedRole?.id.toString() || ""}
-            onValueChange={(value) => {
-              const role = roles.find((r) => r.id.toString() === value)
-              setSelectedRole(role || null)
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a role..." />
-            </SelectTrigger>
-            <SelectContent>
-              {roles.map((role) => (
-                <SelectItem key={role.id} value={role.id.toString()}>
-                  {role.title} - {role.department} ({role.level})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {selectedRole && (
-        <>
-          {/* Assessment Summary */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Assessment Summary
-              </CardTitle>
-              <CardDescription>Track your progress as you complete the assessment.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(getRatingCounts()).map(([rating, count]) => {
-                  const option = RATING_OPTIONS.find((opt) => opt.value === rating)
-                  const colorClass = RATING_COLORS[rating as keyof typeof RATING_COLORS]
-                  return (
-                    <div key={rating} className={`p-3 rounded-lg border ${colorClass}`}>
-                      <div className="text-2xl font-bold">{count}</div>
-                      <div className="text-xs font-medium">{option?.label}</div>
+        {selectedRole && (
+          <>
+            {/* Rating Scale Guide */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Rating Scale Guide
+                </CardTitle>
+                <CardDescription>
+                  Use this guide to understand each rating level and assess your skills accurately
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
+                  {Object.entries(RATING_DESCRIPTIONS).map(([key, info]) => (
+                    <div key={key} className={`p-4 rounded-lg border ${info.color}`}>
+                      <h4 className="font-semibold mb-2">{info.title}</h4>
+                      <p className="text-sm">{info.description}</p>
                     </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Role Information */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>{selectedRole.title}</CardTitle>
-              <CardDescription>
-                <Badge variant="outline" className="mr-2">
-                  {selectedRole.department}
-                </Badge>
-                <Badge variant="outline">{selectedRole.level}</Badge>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">{selectedRole.description}</p>
-            </CardContent>
-          </Card>
-
-          {/* Skills Assessment */}
-          {loading ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading skills...</p>
+                  ))}
+                </div>
               </CardContent>
             </Card>
-          ) : skills.length > 0 ? (
-            <>
-              {/* Group skills by category */}
-              {Object.entries(
-                skills.reduce(
-                  (acc, skill) => {
-                    if (!acc[skill.skill_category]) {
-                      acc[skill.skill_category] = []
-                    }
-                    acc[skill.skill_category].push(skill)
-                    return acc
-                  },
-                  {} as Record<string, Skill[]>,
-                ),
-              ).map(([category, categorySkills]) => (
-                <Card key={category} className="mb-6">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{category}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {categorySkills.map((skill) => {
-                      const rating = ratings.find((r) => r.skillId === skill.id)
+
+            {/* Assessment Summary */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Assessment Progress</CardTitle>
+                <CardDescription>Track your progress and see the distribution of your ratings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {Object.entries(ratingCounts).map(([key, count]) => {
+                    if (key === "unrated") {
                       return (
-                        <div key={skill.id} className="border rounded-lg p-4">
-                          <div className="mb-3">
-                            <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{skill.skill_description}</p>
-                            {skill.demonstration_text && (
-                              <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
-                                <strong>How to demonstrate:</strong> {skill.demonstration_text}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Your Rating</label>
-                              <Select
-                                value={rating?.rating || ""}
-                                onValueChange={(value) => updateRating(skill.id, "rating", value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select rating..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {RATING_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-                              <Textarea
-                                placeholder="Add any notes about your experience with this skill..."
-                                value={rating?.notes || ""}
-                                onChange={(e) => updateRating(skill.id, "notes", e.target.value)}
-                                className="min-h-[80px]"
-                              />
-                            </div>
-                          </div>
+                        <div key={key} className="text-center">
+                          <div className="text-2xl font-bold text-gray-500">{count}</div>
+                          <div className="text-sm text-gray-600">Unrated</div>
                         </div>
                       )
-                    })}
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* Export Button */}
-              <div className="flex justify-center mt-8">
-                <Button onClick={exportToPDF} className="flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Export Assessment as PDF
-                </Button>
-              </div>
-            </>
-          ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Skills Found</h3>
-                <p className="text-gray-600">
-                  No skills are currently defined for this role. Contact your administrator to add skills.
-                </p>
+                    }
+                    const info = RATING_DESCRIPTIONS[key as keyof typeof RATING_DESCRIPTIONS]
+                    return (
+                      <div key={key} className="text-center">
+                        <div className="text-2xl font-bold">{count}</div>
+                        <Badge variant="outline" className={`text-xs ${info.color}`}>
+                          {info.title}
+                        </Badge>
+                      </div>
+                    )
+                  })}
+                </div>
               </CardContent>
             </Card>
-          )}
-        </>
-      )}
+
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="assessment">Skills Assessment</TabsTrigger>
+                <TabsTrigger value="export">Export & Save</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="assessment">
+                {loading ? (
+                  <Card>
+                    <CardContent className="py-8">
+                      <div className="text-center">Loading skills...</div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-6">
+                    {Object.entries(skillsByCategory).map(([category, categorySkills]) => (
+                      <Card key={category}>
+                        <CardHeader>
+                          <CardTitle className="text-lg">{category}</CardTitle>
+                          <CardDescription>
+                            {categorySkills.length} skill{categorySkills.length !== 1 ? "s" : ""}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {categorySkills.map((skill) => {
+                              const rating = ratings.find((r) => r.skillId === skill.id)
+                              return (
+                                <div key={skill.id} className="border rounded-lg p-4">
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <h4 className="font-medium">{skill.skill_name}</h4>
+                                        <Badge variant="outline" className="text-xs">
+                                          {skill.skill_level}
+                                        </Badge>
+                                      </div>
+                                      {skill.description && (
+                                        <p className="text-sm text-gray-600">{skill.description}</p>
+                                      )}
+                                    </div>
+                                    <div className="md:w-64">
+                                      <Select
+                                        value={rating?.rating || ""}
+                                        onValueChange={(value) => handleRatingChange(skill.id, value)}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select rating..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {RATING_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="export">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Export Assessment</CardTitle>
+                    <CardDescription>
+                      Download your self-assessment report for your records or to share with your manager
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Button onClick={exportToPDF} className="flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Export as PDF
+                        </Button>
+                        <Button variant="outline" disabled>
+                          <Download className="w-4 h-4 mr-2" />
+                          Save to Profile (Coming Soon)
+                        </Button>
+                      </div>
+
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-2">
+                          <strong>PDF Export includes:</strong>
+                        </p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Complete skills assessment with ratings</li>
+                          <li>Assessment summary and statistics</li>
+                          <li>Role and department information</li>
+                          <li>Professional formatting for sharing</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+      </div>
     </div>
   )
 }
