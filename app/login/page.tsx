@@ -4,150 +4,179 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Label } from "@/components/ui/label"
 import { Eye, EyeOff } from "lucide-react"
-import Image from "next/image"
-
-const DEMO_ACCOUNTS = [
-  { email: "admin@henryscheinone.com", password: "admin123", role: "Admin" },
-  { email: "manager@henryscheinone.com", password: "manager123", role: "Manager" },
-  { email: "user@henryscheinone.com", password: "user123", role: "User" },
-]
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setIsLoading(true)
     setError("")
 
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
-
-      if (data.success) {
+      if (response.ok) {
         router.push("/")
         router.refresh()
       } else {
+        const data = await response.json()
         setError(data.error || "Login failed")
       }
     } catch (error) {
       setError("Network error. Please try again.")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const fillDemoAccount = (account: (typeof DEMO_ACCOUNTS)[0]) => {
-    setEmail(account.email)
-    setPassword(account.password)
-    setError("")
+  const fillDemoCredentials = (role: "admin" | "manager" | "user") => {
+    const credentials = {
+      admin: { email: "admin@henryscheinone.com", password: "admin123" },
+      manager: { email: "manager@henryscheinone.com", password: "manager123" },
+      user: { email: "user@henryscheinone.com", password: "user123" },
+    }
+
+    setEmail(credentials[role].email)
+    setPassword(credentials[role].password)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <Image
-            src="/images/hs1-logo.png"
-            alt="Henry Schein One"
-            width={200}
-            height={60}
-            className="mx-auto h-12 w-auto"
-          />
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Sign in to your account</h2>
-          <p className="mt-2 text-sm text-gray-600">Access the HS1 Careers Matrix platform</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center">
+          <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={60} height={60} className="h-15 w-auto" />
         </div>
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Sign in to Career Matrix</h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{" "}
+          <Link href="/" className="font-medium text-blue-600 hover:text-blue-500">
+            return to homepage
+          </Link>
+        </p>
+      </div>
 
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <Card>
           <CardHeader>
-            <CardTitle>Login</CardTitle>
-            <CardDescription>Enter your credentials to access the platform</CardDescription>
+            <CardTitle>Welcome back</CardTitle>
+            <CardDescription>Enter your credentials to access your account</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="Enter your email"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter your password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
+            <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <div className="mt-1 relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <Link href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                    Forgot your password?
+                  </Link>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Demo Accounts</CardTitle>
-            <CardDescription className="text-xs">Click to auto-fill credentials</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2">
-              {DEMO_ACCOUNTS.map((account) => (
+            {/* Demo Credentials */}
+            <div className="mt-6 border-t pt-6">
+              <p className="text-sm text-gray-600 mb-3">Demo Credentials:</p>
+              <div className="space-y-2">
                 <Button
-                  key={account.email}
+                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => fillDemoAccount(account)}
-                  className="justify-start text-xs"
+                  className="w-full text-left justify-start bg-transparent"
+                  onClick={() => fillDemoCredentials("admin")}
                 >
-                  <span className="font-medium">{account.role}:</span>
-                  <span className="ml-2 text-muted-foreground">{account.email}</span>
+                  Admin: admin@henryscheinone.com
                 </Button>
-              ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-left justify-start bg-transparent"
+                  onClick={() => fillDemoCredentials("manager")}
+                >
+                  Manager: manager@henryscheinone.com
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-left justify-start bg-transparent"
+                  onClick={() => fillDemoCredentials("user")}
+                >
+                  User: user@henryscheinone.com
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

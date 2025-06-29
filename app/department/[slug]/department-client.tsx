@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, Download, FileSpreadsheet, AlertCircle } from "lucide-react"
+import { Eye, Download, FileSpreadsheet, AlertCircle, Info, Grid3X3 } from "lucide-react"
 import jsPDF from "jspdf"
 
 interface Skill {
@@ -57,12 +57,14 @@ const skillCategories: SkillCategory[] = [
 export default function DepartmentClient({ departmentSlug, departmentName }: DepartmentClientProps) {
   const [roles, setRoles] = useState<JobRole[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
+  const [selectedRole, setSelectedRole] = useState<JobRole | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [isExporting, setIsExporting] = useState(false)
+  const [showMatrix, setShowMatrix] = useState(false)
 
   useEffect(() => {
     loadRoles()
@@ -122,6 +124,28 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
             location_type: "Hybrid",
             department_name: departmentName,
             skill_count: 18,
+          },
+          {
+            id: 4,
+            name: "Engineering Manager",
+            code: "M1",
+            level: 4,
+            salary_min: 140000,
+            salary_max: 180000,
+            location_type: "Hybrid",
+            department_name: departmentName,
+            skill_count: 20,
+          },
+          {
+            id: 5,
+            name: "Senior Engineering Manager",
+            code: "M2",
+            level: 5,
+            salary_min: 160000,
+            salary_max: 220000,
+            location_type: "Hybrid",
+            department_name: departmentName,
+            skill_count: 22,
           },
         ]
         setRoles(demoRoles)
@@ -188,7 +212,8 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
             name: "JavaScript/TypeScript",
             level: "Intermediate",
             description: "Proficient in modern JavaScript and TypeScript development",
-            full_description: "Strong understanding of ES6+ features, async/await, and TypeScript type system",
+            full_description:
+              "Strong understanding of ES6+ features, async/await, and TypeScript type system. Can build complex applications with proper type safety.",
             category_id: 1,
             category_name: "Technical Skills",
             category_color: "blue",
@@ -200,7 +225,8 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
             name: "React/Next.js",
             level: "Intermediate",
             description: "Experience building React applications with Next.js",
-            full_description: "Comfortable with React hooks, component lifecycle, and Next.js features",
+            full_description:
+              "Comfortable with React hooks, component lifecycle, and Next.js features including SSR, SSG, and API routes.",
             category_id: 1,
             category_name: "Technical Skills",
             category_color: "blue",
@@ -212,12 +238,39 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
             name: "Problem Solving",
             level: "Intermediate",
             description: "Ability to break down complex problems and find solutions",
-            full_description: "Can analyze requirements and implement effective solutions",
+            full_description:
+              "Can analyze requirements, identify edge cases, and implement effective solutions with proper testing.",
             category_id: 2,
             category_name: "Delivery",
             category_color: "green",
             job_role_id: 1,
             sort_order: 3,
+          },
+          {
+            id: 4,
+            name: "Team Collaboration",
+            level: "Advanced",
+            description: "Works effectively with cross-functional teams",
+            full_description:
+              "Excellent communication skills, provides constructive feedback, and mentors junior team members.",
+            category_id: 3,
+            category_name: "Feedback, Communication & Collaboration",
+            category_color: "purple",
+            job_role_id: 4,
+            sort_order: 1,
+          },
+          {
+            id: 5,
+            name: "Technical Leadership",
+            level: "Advanced",
+            description: "Leads technical decisions and architecture",
+            full_description:
+              "Makes strategic technical decisions, defines architecture patterns, and guides team technical direction.",
+            category_id: 4,
+            category_name: "Leadership",
+            category_color: "indigo",
+            job_role_id: 4,
+            sort_order: 2,
           },
         ]
         setSkills(demoSkills)
@@ -234,32 +287,14 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     }
   }
 
-  const getSkillsMatrix = () => {
-    const matrix: { [skillName: string]: { [roleId: number]: Skill } } = {}
-    const filteredSkills =
-      selectedCategory === "all"
-        ? skills
-        : skills.filter((skill) => skill.category_id === Number.parseInt(selectedCategory))
-
-    filteredSkills.forEach((skill) => {
-      if (!matrix[skill.name]) {
-        matrix[skill.name] = {}
-      }
-      matrix[skill.name][skill.job_role_id] = skill
-    })
-
-    return matrix
+  const getSkillsForRole = (roleId: number) => {
+    return skills.filter((skill) => skill.job_role_id === roleId)
   }
 
-  const getSkillsByCategory = () => {
-    const filteredSkills =
-      selectedCategory === "all"
-        ? skills
-        : skills.filter((skill) => skill.category_id === Number.parseInt(selectedCategory))
-
+  const getSkillsByCategory = (roleSkills: Skill[]) => {
     const categorizedSkills: { [categoryName: string]: Skill[] } = {}
 
-    filteredSkills.forEach((skill) => {
+    roleSkills.forEach((skill) => {
       if (!categorizedSkills[skill.category_name]) {
         categorizedSkills[skill.category_name] = []
       }
@@ -279,6 +314,23 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     return categorizedSkills
   }
 
+  const getSkillsMatrix = () => {
+    const matrix: { [skillName: string]: { [roleId: number]: Skill } } = {}
+    const filteredSkills =
+      selectedCategory === "all"
+        ? skills
+        : skills.filter((skill) => skill.category_id === Number.parseInt(selectedCategory))
+
+    filteredSkills.forEach((skill) => {
+      if (!matrix[skill.name]) {
+        matrix[skill.name] = {}
+      }
+      matrix[skill.name][skill.job_role_id] = skill
+    })
+
+    return matrix
+  }
+
   const getColorClasses = (color: string) => {
     const colorMap: Record<string, string> = {
       blue: "bg-blue-50 text-blue-900 border-blue-200",
@@ -289,6 +341,10 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     }
     return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
   }
+
+  // Separate IC and Manager roles
+  const icRoles = roles.filter((role) => !role.code.startsWith("M")).sort((a, b) => a.level - b.level)
+  const managerRoles = roles.filter((role) => role.code.startsWith("M")).sort((a, b) => a.level - b.level)
 
   const exportToCSV = () => {
     const matrix = getSkillsMatrix()
@@ -465,12 +521,190 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="text-center">Loading skills matrix...</div>
+        <div className="text-center">Loading roles and skills...</div>
       </div>
     )
   }
 
-  const skillsByCategory = getSkillsByCategory()
+  if (showMatrix) {
+    const skillsByCategory = getSkillsByCategory(skills)
+
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Demo Mode Alert */}
+        {isDemoMode && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Demo Mode:</strong> Skills data is simulated for demonstration purposes.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Header with Export Options */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <Button onClick={() => setShowMatrix(false)} variant="outline" className="mb-4">
+              ← Back to Roles
+            </Button>
+            <h1 className="text-2xl font-bold text-gray-900">{departmentName} Skills Matrix</h1>
+            <p className="text-gray-600 mt-1">Compare skills and levels across different roles in {departmentName}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {skillCategories.map((category) => (
+                  <SelectItem key={category.id} value={category.id.toString()}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={exportToCSV} variant="outline" size="sm">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button onClick={exportToPDF} variant="outline" size="sm" disabled={isExporting}>
+              <Download className="w-4 h-4 mr-2" />
+              {isExporting ? "Generating..." : "Export PDF"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Skills Matrix */}
+        <div className="space-y-8">
+          {Object.entries(skillsByCategory).map(([categoryName, categorySkills]) => {
+            const category = skillCategories.find((c) => c.name === categoryName)
+            const colorClasses = getColorClasses(category?.color || "gray")
+
+            return (
+              <Card key={categoryName}>
+                <CardHeader>
+                  <CardTitle className={`text-${category?.color || "gray"}-700`}>{categoryName}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium text-gray-900 min-w-[200px]">Skill</th>
+                          {roles.map((role) => (
+                            <th key={role.id} className="text-center p-3 font-medium text-gray-900 min-w-[120px]">
+                              <div className="flex flex-col">
+                                <span className="text-sm">{role.name}</span>
+                                <span className="text-xs text-gray-500 font-normal">({role.code})</span>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categorySkills
+                          .reduce((uniqueSkills: string[], skill) => {
+                            if (!uniqueSkills.includes(skill.name)) {
+                              uniqueSkills.push(skill.name)
+                            }
+                            return uniqueSkills
+                          }, [])
+                          .map((skillName) => {
+                            const skillsForThisName = categorySkills.filter((s) => s.name === skillName)
+                            const firstSkill = skillsForThisName[0]
+
+                            return (
+                              <tr key={skillName} className="border-b hover:bg-gray-50">
+                                <td className="p-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{skillName}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedSkill(firstSkill)}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </td>
+                                {roles.map((role) => {
+                                  const skill = skillsForThisName.find((s) => s.job_role_id === role.id)
+                                  return (
+                                    <td key={role.id} className="p-3 text-center">
+                                      {skill ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <Badge variant="outline" className="text-xs">
+                                            {skill.level}
+                                          </Badge>
+                                          <span className="text-xs text-gray-600 text-center leading-tight">
+                                            {skill.description.length > 50
+                                              ? `${skill.description.substring(0, 50)}...`
+                                              : skill.description}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Skill Detail Dialog */}
+        <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedSkill?.name}</DialogTitle>
+            </DialogHeader>
+            {selectedSkill && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{selectedSkill.level}</Badge>
+                  <Badge
+                    className={getColorClasses(selectedSkill.category_color)
+                      .replace("bg-", "")
+                      .replace("text-", "")
+                      .replace("border-", "")}
+                  >
+                    {selectedSkill.category_name}
+                  </Badge>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Demonstration Description</h4>
+                  <p className="text-sm text-gray-600">{selectedSkill.description}</p>
+                </div>
+                {selectedSkill.full_description && (
+                  <div>
+                    <h4 className="font-medium mb-2">Skill Description</h4>
+                    <div className="text-sm text-gray-600 whitespace-pre-wrap">{selectedSkill.full_description}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -479,7 +713,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         <Alert className="mb-6 border-blue-200 bg-blue-50">
           <AlertCircle className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Demo Mode:</strong> Skills data is simulated for demonstration purposes.
+            <strong>Demo Mode:</strong> Role and skills data is simulated for demonstration purposes.
           </AlertDescription>
         </Alert>
       )}
@@ -491,123 +725,206 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         </Alert>
       )}
 
-      {/* Header with Export Options */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{departmentName} Skills Matrix</h1>
-          <p className="text-gray-600 mt-1">Compare skills and levels across different roles in {departmentName}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{departmentName} Roles</h1>
+          <p className="text-gray-600 mt-1">Explore career paths and skill requirements in {departmentName}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {skillCategories.map((category) => (
-                <SelectItem key={category.id} value={category.id.toString()}>
-                  {category.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={exportToCSV} variant="outline" size="sm">
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button onClick={exportToPDF} variant="outline" size="sm" disabled={isExporting}>
-            <Download className="w-4 h-4 mr-2" />
-            {isExporting ? "Generating..." : "Export PDF"}
-          </Button>
-        </div>
+        <Button onClick={() => setShowMatrix(true)} className="flex items-center gap-2">
+          <Grid3X3 className="w-4 h-4" />
+          Skills Matrix
+        </Button>
       </div>
 
-      {/* Skills Matrix */}
-      <div className="space-y-8">
-        {Object.entries(skillsByCategory).map(([categoryName, categorySkills]) => {
-          const category = skillCategories.find((c) => c.name === categoryName)
-          const colorClasses = getColorClasses(category?.color || "gray")
+      {/* IC Roles Section */}
+      {icRoles.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Individual Contributor Roles</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {icRoles.map((role) => (
+              <Card
+                key={role.id}
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedRole(role)}
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{role.name}</CardTitle>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      {role.code}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>Level {role.level}</span>
+                    {role.salary_min && role.salary_max && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          ${role.salary_min.toLocaleString()} - ${role.salary_max.toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{role.skill_count} skills required</span>
+                    <Button variant="ghost" size="sm">
+                      View Details →
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
-          return (
-            <Card key={categoryName}>
-              <CardHeader>
-                <CardTitle className={`text-${category?.color || "gray"}-700`}>{categoryName}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-3 font-medium text-gray-900 min-w-[200px]">Skill</th>
-                        {roles.map((role) => (
-                          <th key={role.id} className="text-center p-3 font-medium text-gray-900 min-w-[120px]">
-                            <div className="flex flex-col">
-                              <span className="text-sm">{role.name}</span>
-                              <span className="text-xs text-gray-500 font-normal">({role.code})</span>
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {categorySkills
-                        .reduce((uniqueSkills: string[], skill) => {
-                          if (!uniqueSkills.includes(skill.name)) {
-                            uniqueSkills.push(skill.name)
-                          }
-                          return uniqueSkills
-                        }, [])
-                        .map((skillName) => {
-                          const skillsForThisName = categorySkills.filter((s) => s.name === skillName)
-                          const firstSkill = skillsForThisName[0]
+      {/* Manager Roles Section */}
+      {managerRoles.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Management Roles</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {managerRoles.map((role) => (
+              <Card
+                key={role.id}
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedRole(role)}
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{role.name}</CardTitle>
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                      {role.code}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>Level {role.level}</span>
+                    {role.salary_min && role.salary_max && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          ${role.salary_min.toLocaleString()} - ${role.salary_max.toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{role.skill_count} skills required</span>
+                    <Button variant="ghost" size="sm">
+                      View Details →
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
-                          return (
-                            <tr key={skillName} className="border-b hover:bg-gray-50">
-                              <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{skillName}</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setSelectedSkill(firstSkill)}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <Eye className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </td>
-                              {roles.map((role) => {
-                                const skill = skillsForThisName.find((s) => s.job_role_id === role.id)
-                                return (
-                                  <td key={role.id} className="p-3 text-center">
-                                    {skill ? (
-                                      <div className="flex flex-col items-center gap-1">
-                                        <Badge variant="outline" className="text-xs">
-                                          {skill.level}
-                                        </Badge>
-                                        <span className="text-xs text-gray-600 text-center leading-tight">
-                                          {skill.description.length > 50
-                                            ? `${skill.description.substring(0, 50)}...`
-                                            : skill.description}
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-400">-</span>
-                                    )}
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          )
-                        })}
-                    </tbody>
-                  </table>
+      {/* Role Detail Dialog */}
+      <Dialog open={!!selectedRole} onOpenChange={() => setSelectedRole(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedRole?.name}
+              <Badge
+                variant="outline"
+                className={
+                  selectedRole?.code.startsWith("M")
+                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                    : "bg-blue-50 text-blue-700 border-blue-200"
+                }
+              >
+                {selectedRole?.code}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+          {selectedRole && (
+            <div className="space-y-6">
+              {/* Role Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h4 className="font-medium text-gray-900">Level</h4>
+                  <p className="text-sm text-gray-600">Level {selectedRole.level}</p>
                 </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                {selectedRole.salary_min && selectedRole.salary_max && (
+                  <div>
+                    <h4 className="font-medium text-gray-900">Salary Range</h4>
+                    <p className="text-sm text-gray-600">
+                      ${selectedRole.salary_min.toLocaleString()} - ${selectedRole.salary_max.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {selectedRole.location_type && (
+                  <div>
+                    <h4 className="font-medium text-gray-900">Location</h4>
+                    <p className="text-sm text-gray-600">{selectedRole.location_type}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Skills by Category */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Required Skills</h3>
+                {(() => {
+                  const roleSkills = getSkillsForRole(selectedRole.id)
+                  const skillsByCategory = getSkillsByCategory(roleSkills)
+
+                  if (Object.keys(skillsByCategory).length === 0) {
+                    return <div className="text-center py-8 text-gray-500">No skills data available for this role</div>
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {Object.entries(skillsByCategory).map(([categoryName, categorySkills]) => {
+                        const category = skillCategories.find((c) => c.name === categoryName)
+                        const colorClasses = getColorClasses(category?.color || "gray")
+
+                        return (
+                          <div key={categoryName} className="border rounded-lg p-4">
+                            <h4 className={`font-medium mb-3 text-${category?.color || "gray"}-700`}>{categoryName}</h4>
+                            <div className="space-y-3">
+                              {categorySkills.map((skill) => (
+                                <div
+                                  key={skill.id}
+                                  className="flex items-start justify-between p-3 bg-gray-50 rounded-lg"
+                                >
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="font-medium text-gray-900">{skill.name}</h5>
+                                      <Badge variant="outline" className="text-xs">
+                                        {skill.level}
+                                      </Badge>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedSkill(skill)}
+                                        className="h-6 w-6 p-0 ml-2"
+                                        title="View skill description"
+                                      >
+                                        <Info className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                    <p className="text-sm text-gray-600">{skill.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Skill Detail Dialog */}
       <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
