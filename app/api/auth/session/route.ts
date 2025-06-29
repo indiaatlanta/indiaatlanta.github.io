@@ -37,26 +37,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null })
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any
 
-    // If database is not configured, return demo user
-    if (!isDatabaseConfigured() || !sql) {
-      const demoUser = DEMO_USERS.find((u) => u.email === decoded.email)
-      return NextResponse.json({ user: demoUser || null })
-    }
+      // If database is not configured, return demo user
+      if (!isDatabaseConfigured() || !sql) {
+        const demoUser = DEMO_USERS.find((u) => u.email === decoded.email)
+        return NextResponse.json({ user: demoUser || null })
+      }
 
-    // Get user from database
-    const users = await sql`
-      SELECT id, email, name, role, department, manager_id
-      FROM users 
-      WHERE id = ${decoded.userId} AND active = true
-    `
+      // Get user from database
+      const users = await sql`
+        SELECT id, email, name, role, department, manager_id
+        FROM users 
+        WHERE id = ${decoded.userId} AND active = true
+      `
 
-    if (users.length === 0) {
+      if (users.length === 0) {
+        return NextResponse.json({ user: null })
+      }
+
+      return NextResponse.json({ user: users[0] })
+    } catch (jwtError) {
+      // Invalid token
       return NextResponse.json({ user: null })
     }
-
-    return NextResponse.json({ user: users[0] })
   } catch (error) {
     console.error("Session error:", error)
     return NextResponse.json({ user: null })

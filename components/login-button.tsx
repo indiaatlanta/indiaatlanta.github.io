@@ -10,9 +10,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Settings, UserCircle } from "lucide-react"
+import { Settings, UserCircle, LogOut, Users } from "lucide-react"
 import Link from "next/link"
-import type { User } from "@/types/user" // Assuming User type is defined in a separate file
+
+interface User {
+  id: number
+  email: string
+  name: string
+  role: "admin" | "manager" | "user"
+  department?: string
+}
 
 export function LoginButton() {
   const [user, setUser] = useState<User | null>(null)
@@ -25,10 +32,17 @@ export function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
+
+      if (!response.ok) {
+        setUser(null)
+        return
+      }
+
       const data = await response.json()
       setUser(data.user)
     } catch (error) {
       console.error("Error checking session:", error)
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -69,9 +83,7 @@ export function LoginButton() {
     return (
       <Link href="/login">
         <Button variant="outline" size="sm">
-          <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <path d="M12 2L2 22h20L12 2z" />
-          </svg>
+          <LogOut className="w-4 h-4 mr-2" />
           Login
         </Button>
       </Link>
@@ -113,18 +125,14 @@ export function LoginButton() {
         {user.role === "manager" && (
           <DropdownMenuItem asChild>
             <Link href="/team" className="flex items-center">
-              <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path d="M12 2L2 22h20L12 2z" />
-              </svg>
+              <Users className="w-4 h-4 mr-2" />
               Team Dashboard
             </Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-          <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <path d="M12 2L2 22h20L12 2z" />
-          </svg>
+          <LogOut className="w-4 h-4 mr-2" />
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>

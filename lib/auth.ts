@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken"
 import { cookies } from "next/headers"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import bcrypt from "bcryptjs"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
@@ -42,8 +43,8 @@ const DEMO_USERS: User[] = [
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const cookieStore = cookies()
-
     const token = cookieStore.get("auth-token")
+
     if (!token) {
       return null
     }
@@ -74,26 +75,10 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-export function requireAuth(allowedRoles?: ("admin" | "manager" | "user")[]) {
-  return async (user: User | null) => {
-    if (!user) {
-      throw new Error("Authentication required")
-    }
-
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
-      throw new Error("Insufficient permissions")
-    }
-
-    return user
-  }
-}
-
 export async function hashPassword(password: string): Promise<string> {
-  const bcrypt = await import("bcryptjs")
   return bcrypt.hash(password, 10)
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const bcrypt = await import("bcryptjs")
   return bcrypt.compare(password, hash)
 }
