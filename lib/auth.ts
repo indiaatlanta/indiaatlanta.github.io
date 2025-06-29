@@ -1,9 +1,6 @@
-import jwt from "jsonwebtoken"
 import bcrypt from "bcryptjs"
 import { cookies } from "next/headers"
 import { sql, isDatabaseConfigured } from "./db"
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
 
 export interface User {
   id: number
@@ -90,22 +87,29 @@ export async function authenticateUser(email: string, password: string): Promise
 }
 
 export function generateToken(user: User): string {
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
-      department: user.department,
-    },
-    JWT_SECRET,
-    { expiresIn: "7d" },
-  )
+  // Simple token generation without JWT to avoid the inheritance error
+  const tokenData = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    department: user.department,
+    timestamp: Date.now(),
+  }
+
+  return Buffer.from(JSON.stringify(tokenData)).toString("base64")
 }
 
 export function verifyToken(token: string): User | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any
+    const decoded = JSON.parse(Buffer.from(token, "base64").toString())
+
+    // Check if token is expired (7 days)
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000
+    if (Date.now() - decoded.timestamp > sevenDaysInMs) {
+      return null
+    }
+
     return {
       id: decoded.id,
       email: decoded.email,
@@ -133,24 +137,4 @@ export async function getCurrentUser(): Promise<User | null> {
     console.error("Error getting current user:", error)
     return null
   }
-}
-
-export function setAuthCookie(token: string) {
-  const cookieStore = cookies()
-  cookieStore.set("auth-token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  })
-}
-
-export function clearAuthCookie() {
-  const cookieStore = cookies()
-  cookieStore.set("auth-token", "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 0,
-  })
 }

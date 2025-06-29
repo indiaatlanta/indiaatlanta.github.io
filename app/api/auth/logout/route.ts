@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 
 export async function POST() {
   try {
-    const cookieStore = await cookies()
-    cookieStore.set("auth-token", "", {
+    const response = NextResponse.json({ success: true })
+
+    // Clear the auth token cookie
+    response.cookies.set("auth-token", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -13,7 +13,7 @@ export async function POST() {
       path: "/",
     })
 
-    redirect("/")
+    return response
   } catch (error) {
     console.error("Logout error:", error)
     return NextResponse.json({ success: false, error: "Logout failed" }, { status: 500 })
