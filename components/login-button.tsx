@@ -1,79 +1,59 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import { getCurrentUser } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
-import { LogOut, User } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { User, LogOut, Settings } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
-interface UserSession {
-  id: number
-  email: string
-  name: string
-  role: "admin" | "manager" | "user"
-  department?: string
+async function LogoutButton() {
+  return (
+    <form action="/api/auth/logout" method="POST">
+      <button type="submit" className="flex w-full items-center px-2 py-1.5 text-sm">
+        <LogOut className="h-4 w-4 mr-2" />
+        Logout
+      </button>
+    </form>
+  )
 }
 
-export default function LoginButton() {
-  const [user, setUser] = useState<UserSession | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
+export default async function LoginButton() {
+  const user = await getCurrentUser()
 
-  useEffect(() => {
-    checkSession()
-  }, [])
-
-  const checkSession = async () => {
-    try {
-      const response = await fetch("/api/auth/session")
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-      }
-    } catch (error) {
-      console.error("Session check failed:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      setUser(null)
-      router.push("/")
-      router.refresh()
-    } catch (error) {
-      console.error("Logout failed:", error)
-    }
-  }
-
-  if (isLoading) {
+  if (!user) {
     return (
-      <Button variant="ghost" disabled>
-        Loading...
-      </Button>
-    )
-  }
-
-  if (user) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600">Welcome, {user.name}</span>
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Logout
+      <Link href="/login">
+        <Button variant="outline" size="sm">
+          Login
         </Button>
-      </div>
+      </Link>
     )
   }
 
   return (
-    <Link href="/login">
-      <Button variant="ghost" size="sm">
-        <User className="h-4 w-4 mr-2" />
-        Login
-      </Button>
-    </Link>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm">
+          <User className="h-4 w-4 mr-2" />
+          {user.name}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <Settings className="h-4 w-4 mr-2" />
+            Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <LogoutButton />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

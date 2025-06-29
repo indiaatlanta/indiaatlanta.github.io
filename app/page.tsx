@@ -79,7 +79,7 @@ async function getStats() {
   try {
     const [employeeCount, skillCount, departmentCount, reviewCount] = await Promise.all([
       sql`SELECT COUNT(*) as count FROM users WHERE active = true`,
-      sql`SELECT COUNT(DISTINCT skill_name) as count FROM skills_master`,
+      sql`SELECT COUNT(DISTINCT name) as count FROM skills_master`,
       sql`SELECT COUNT(*) as count FROM departments`,
       sql`SELECT COUNT(*) as count FROM saved_self_reviews`,
     ])

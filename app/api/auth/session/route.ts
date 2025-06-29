@@ -6,7 +6,7 @@ export async function GET() {
     const user = await getCurrentUser()
 
     if (!user) {
-      return NextResponse.json({ user: null }, { status: 200 })
+      return NextResponse.json({ user: null })
     }
 
     return NextResponse.json({
@@ -19,7 +19,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("Session error:", error)
+    console.error("Session API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
