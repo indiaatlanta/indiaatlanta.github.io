@@ -5,6 +5,7 @@ import { sql, isDatabaseConfigured } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { DepartmentClient } from "./department-client"
 import Image from "next/image"
+import { LoginButton } from "@/components/login-button"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -123,15 +124,18 @@ export default async function DepartmentPage({ params }: PageProps) {
                 <Rocket className="w-4 h-4 text-white" />
                 <span className="text-white text-sm">/ {department.name}</span>
               </div>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="ml-auto bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  Admin Panel
-                </Link>
-              )}
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Admin Panel
+                  </Link>
+                )}
+                <LoginButton />
+              </div>
             </div>
           </div>
         </div>

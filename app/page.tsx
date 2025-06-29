@@ -3,6 +3,7 @@ import { ExternalLink, Rocket, GitCompare, ClipboardCheck, Settings } from "luci
 import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
+import { LoginButton } from "@/components/login-button"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -162,6 +163,7 @@ export default async function Home() {
                 Self Review
               </Link>
               <AdminButton />
+              <LoginButton />
             </div>
           </div>
         </div>
