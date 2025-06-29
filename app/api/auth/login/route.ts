@@ -1,115 +1,124 @@
 import { type NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import jwt from "jsonwebtoken"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { verifyPassword, createSession } from "@/lib/auth"
-import { loginSchema } from "@/lib/validation"
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
+
+// Demo users for when database is not configured
+const DEMO_USERS = [
+  {
+    id: 1,
+    email: "admin@henryscheinone.com",
+    password: "admin123",
+    role: "admin",
+    name: "Admin User",
+    department: "IT",
+  },
+  {
+    id: 2,
+    email: "manager@henryscheinone.com",
+    password: "manager123",
+    role: "manager",
+    name: "Manager User",
+    department: "Engineering",
+  },
+  {
+    id: 3,
+    email: "user@henryscheinone.com",
+    password: "user123",
+    role: "user",
+    name: "Regular User",
+    department: "Engineering",
+  },
+]
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email, password } = loginSchema.parse(body)
+    const { email, password } = await request.json()
+
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+    }
+
+    let user = null
 
     // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
-      // In demo mode, allow login with demo credentials
-      if (email === "admin@henryscheinone.com" && password === "admin123") {
-        // Create a demo session
-        const sessionId = "demo-admin-session"
-        const response = NextResponse.json({
-          user: {
-            id: 1,
-            email: "admin@henryscheinone.com",
-            name: "Demo Admin",
-            role: "admin",
-          },
-        })
-
-        // Set session cookie
-        response.cookies.set("session", sessionId, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60, // 7 days
-        })
-
-        return response
-      } else if (email === "manager@henryscheinone.com" && password === "manager123") {
-        const sessionId = "demo-manager-session"
-        const response = NextResponse.json({
-          user: {
-            id: 2,
-            email: "manager@henryscheinone.com",
-            name: "Demo Manager",
-            role: "manager",
-          },
-        })
-
-        response.cookies.set("session", sessionId, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60,
-        })
-
-        return response
-      } else if (email === "user@henryscheinone.com" && password === "user123") {
-        const sessionId = "demo-user-session"
-        const response = NextResponse.json({
-          user: {
-            id: 3,
-            email: "user@henryscheinone.com",
-            name: "Demo User",
-            role: "user",
-          },
-        })
-
-        response.cookies.set("session", sessionId, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60,
-        })
-
-        return response
-      } else {
+      // Use demo users
+      const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
+      if (!demoUser) {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
+      user = demoUser
+    } else {
+      // Use database
+      try {
+        const users = await sql`
+          SELECT id, email, password_hash, role, name, department
+          FROM users 
+          WHERE email = ${email} AND active = true
+        `
+
+        if (users.length === 0) {
+          return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        }
+
+        const dbUser = users[0]
+        const isValidPassword = await bcrypt.compare(password, dbUser.password_hash)
+
+        if (!isValidPassword) {
+          return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+        }
+
+        user = {
+          id: dbUser.id,
+          email: dbUser.email,
+          role: dbUser.role,
+          name: dbUser.name,
+          department: dbUser.department,
+        }
+      } catch (error) {
+        console.error("Database error during login:", error)
+        return NextResponse.json({ error: "Authentication service unavailable" }, { status: 500 })
       }
     }
 
-    // Find user by email
-    const users = await sql`
-      SELECT id, email, password_hash, name, role, manager_id, department_id, job_title, hire_date, is_active
-      FROM users
-      WHERE email = ${email} AND is_active = true
-    `
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        department: user.department,
+      },
+      JWT_SECRET,
+      { expiresIn: "24h" },
+    )
 
-    if (users.length === 0) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-    }
-
-    const user = users[0]
-
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password_hash)
-    if (!isValidPassword) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-    }
-
-    // Create session
-    await createSession(user.id)
-
-    return NextResponse.json({
+    // Create response
+    const response = NextResponse.json({
+      success: true,
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
         role: user.role,
-        manager_id: user.manager_id,
-        department_id: user.department_id,
-        job_title: user.job_title,
-        hire_date: user.hire_date,
-        is_active: user.is_active,
+        name: user.name,
+        department: user.department,
       },
     })
+
+    // Set HTTP-only cookie
+    response.cookies.set("auth-token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 86400, // 24 hours
+      path: "/",
+    })
+
+    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

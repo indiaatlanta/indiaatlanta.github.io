@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import LoginButton from "@/components/login-button"
-import AdminButton from "@/components/admin-button"
+import { AdminButton } from "@/components/admin-button"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
 interface Department {
@@ -94,9 +94,7 @@ export default async function HomePage() {
               <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
                 <LoginButton />
               </Suspense>
-              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
-                <AdminButton />
-              </Suspense>
+              <AdminButton />
             </div>
           </div>
         </div>
@@ -177,7 +175,7 @@ export default async function HomePage() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      d="M9 12l2 2 4-4m6 12h8a2 2 0 01-2-2v-8a2 2 0 01-2-2h-8a2 2 0 01-2 2v8a2 2 0 012 2z"
                     />
                   </svg>
                 </div>

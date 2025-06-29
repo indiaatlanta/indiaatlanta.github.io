@@ -26,6 +26,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "html2canvas": "latest",
+    "jsonwebtoken": "latest",
     "jspdf": "latest",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
