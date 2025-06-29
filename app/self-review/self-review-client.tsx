@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, FileText, Info } from "lucide-react"
 import jsPDF from "jspdf"
-import html2canvas from "html2canvas"
+import { autoTable } from "jspdf-autotable"
 
 interface Role {
   id: number
@@ -143,52 +143,65 @@ export function SelfReviewClient() {
 
     setIsGeneratingPDF(true)
     try {
-      const element = document.getElementById("self-review-content")
-      if (!element) return
+      const doc = new jsPDF("p", "mm", "a4")
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
+      // Add header without logo to avoid PNG issues
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text("Henry Schein One", 20, 25)
+
+      doc.setFontSize(16)
+      doc.text(`Self Assessment: ${selectedRole.name} (${selectedRole.code})`, 20, 35)
+
+      // Add role information
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Role: ${selectedRole.name}`, 20, 50)
+      doc.text(`Department: ${selectedRole.department_name}`, 20, 60)
+      doc.text(`Level: ${selectedRole.level}`, 20, 70)
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 80)
+
+      // Add summary
+      const summary = getRatingSummary()
+      let yPos = 95
+      doc.setFont("helvetica", "bold")
+      doc.text("Assessment Summary:", 20, yPos)
+      yPos += 10
+
+      doc.setFont("helvetica", "normal")
+      Object.entries(summary).forEach(([rating, count]) => {
+        if (count > 0) {
+          const label = RATING_OPTIONS.find((opt) => opt.value === rating)?.label || rating
+          doc.text(`${label}: ${count}`, 25, yPos)
+          yPos += 8
+        }
       })
 
-      const imgData = canvas.toDataURL("image/png")
-      const pdf = new jsPDF("p", "mm", "a4")
+      // Create table data for skills
+      const tableData = skills.map((skill) => {
+        const rating = ratings.find((r) => r.skillId === skill.id)
+        const ratingLabel = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)?.label || "Not Rated"
+        return [skill.skill_name, skill.category_name, skill.level, ratingLabel]
+      })
 
-      // Add logo with correct aspect ratio (1384x216 = 6.4:1)
-      const logoImg = new Image()
-      logoImg.crossOrigin = "anonymous"
-      logoImg.onload = () => {
-        pdf.addImage(logoImg, "PNG", 10, 10, 64, 10) // 64px width, 10px height maintains 6.4:1 ratio
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: yPos + 10,
+        head: [["Skill", "Category", "Required Level", "Self Rating"]],
+        body: tableData,
+        theme: "grid",
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 50 },
+        },
+      })
 
-        // Add title
-        pdf.setFontSize(16)
-        pdf.text(`Self Review: ${selectedRole.name} (${selectedRole.code})`, 10, 30)
-
-        // Add summary
-        const summary = getRatingSummary()
-        pdf.setFontSize(12)
-        let yPos = 40
-        pdf.text("Assessment Summary:", 10, yPos)
-        yPos += 10
-        Object.entries(summary).forEach(([rating, count]) => {
-          if (count > 0) {
-            const label = RATING_OPTIONS.find((opt) => opt.value === rating)?.label || rating
-            pdf.text(`${label}: ${count}`, 15, yPos)
-            yPos += 6
-          }
-        })
-
-        // Add assessment content
-        const imgWidth = 190
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        pdf.addImage(imgData, "PNG", 10, yPos + 10, imgWidth, imgHeight)
-
-        pdf.save(`self-review-${selectedRole.code}.pdf`)
-        setIsGeneratingPDF(false)
-      }
-      logoImg.src = "/images/hs1-logo.png"
+      doc.save(`self-assessment-${selectedRole.code}.pdf`)
+      setIsGeneratingPDF(false)
     } catch (error) {
       console.error("Error generating PDF:", error)
       setIsGeneratingPDF(false)

@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, FileText } from "lucide-react"
+import { Download, FileText, CheckCircle, XCircle } from "lucide-react"
 import jsPDF from "jspdf"
-import html2canvas from "html2canvas"
+import { autoTable } from "jspdf-autotable"
 
 interface Role {
   id: number
@@ -117,38 +117,74 @@ export function CompareClient() {
 
     setIsGeneratingPDF(true)
     try {
-      const element = document.getElementById("comparison-content")
-      if (!element) return
+      const doc = new jsPDF("p", "mm", "a4")
+      const pageWidth = doc.internal.pageSize.width
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
+      // Add header without logo to avoid PNG issues
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text("Henry Schein One", 20, 25)
+
+      doc.setFontSize(16)
+      doc.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 20, 35)
+
+      // Add role information
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Role 1: ${selectedRole1.name} (${selectedRole1.code}) - ${selectedRole1.department_name}`, 20, 50)
+      doc.text(`Role 2: ${selectedRole2.name} (${selectedRole2.code}) - ${selectedRole2.department_name}`, 20, 60)
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70)
+
+      // Get all unique skills
+      const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
+
+      role1Skills.forEach((skill) => {
+        allSkills.set(skill.skill_name, {
+          skill,
+          inRole1: true,
+          inRole2: false,
+        })
       })
 
-      const imgData = canvas.toDataURL("image/png")
-      const pdf = new jsPDF("p", "mm", "a4")
+      role2Skills.forEach((skill) => {
+        const existing = allSkills.get(skill.skill_name)
+        if (existing) {
+          existing.inRole2 = true
+        } else {
+          allSkills.set(skill.skill_name, {
+            skill,
+            inRole1: false,
+            inRole2: true,
+          })
+        }
+      })
 
-      // Add logo with correct aspect ratio (1384x216 = 6.4:1)
-      const logoImg = new Image()
-      logoImg.crossOrigin = "anonymous"
-      logoImg.onload = () => {
-        pdf.addImage(logoImg, "PNG", 10, 10, 64, 10) // 64px width, 10px height maintains 6.4:1 ratio
+      // Create table data
+      const tableData = Array.from(allSkills.values()).map(({ skill, inRole1, inRole2 }) => [
+        skill.skill_name,
+        skill.category_name,
+        inRole1 ? "✓" : "✗",
+        inRole2 ? "✓" : "✗",
+      ])
 
-        // Add title
-        pdf.setFontSize(16)
-        pdf.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 10, 30)
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 85,
+        head: [["Skill", "Category", selectedRole1.code, selectedRole2.code]],
+        body: tableData,
+        theme: "grid",
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 25, halign: "center" },
+          3: { cellWidth: 25, halign: "center" },
+        },
+      })
 
-        // Add comparison content
-        const imgWidth = 190
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        pdf.addImage(imgData, "PNG", 10, 40, imgWidth, imgHeight)
-
-        pdf.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
-        setIsGeneratingPDF(false)
-      }
-      logoImg.src = "/images/hs1-logo.png"
+      doc.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
+      setIsGeneratingPDF(false)
     } catch (error) {
       console.error("Error generating PDF:", error)
       setIsGeneratingPDF(false)
@@ -347,17 +383,23 @@ export function CompareClient() {
                         <div key={skill.skill_name} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="font-semibold">{skill.skill_name}</h4>
-                            <div className="flex gap-2">
-                              {inRole1 && (
-                                <Badge variant="outline" className="text-xs">
-                                  {selectedRole1.code}
-                                </Badge>
-                              )}
-                              {inRole2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  {selectedRole2.code}
-                                </Badge>
-                              )}
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">{selectedRole1.code}</span>
+                                {inRole1 ? (
+                                  <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-500" />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">{selectedRole2.code}</span>
+                                {inRole2 ? (
+                                  <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-500" />
+                                )}
+                              </div>
                             </div>
                           </div>
 
