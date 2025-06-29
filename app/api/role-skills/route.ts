@@ -9,64 +9,107 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const roleId = searchParams.get("roleId")
-    const department = searchParams.get("department")
+    const departmentSlug = searchParams.get("departmentSlug")
 
     if (roleId) {
       // Get skills for a specific role
-      const skills = await sql`
+      const roleSkills = await sql`
         SELECT 
-          sm.id,
+          rs.id,
+          rs.required_level,
+          rs.is_required,
+          sm.id as skill_id,
           sm.name as skill_name,
-          dt.level,
-          dt.demonstration_description,
-          sm.description as skill_description,
-          sc.name as category_name,
-          sc.color as category_color,
-          sm.sort_order as skill_sort_order,
-          sc.sort_order as category_sort_order,
-          ${roleId}::integer as job_role_id
-        FROM demonstration_job_roles djr
-        JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
-        JOIN skills_master sm ON dt.skill_id = sm.id
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        WHERE djr.job_role_id = ${roleId}
-        ORDER BY sc.sort_order, sm.sort_order, sm.name
+          sm.category as skill_category,
+          sm.description as skill_description
+        FROM role_skills rs
+        JOIN skills_master sm ON rs.skill_id = sm.id
+        WHERE rs.role_id = ${roleId}
+        ORDER BY sm.category, sm.name
       `
 
-      return NextResponse.json(skills)
-    } else if (department) {
-      // Get all skills for a department
-      const skills = await sql`
+      return NextResponse.json({ roleSkills })
+    }
+
+    if (departmentSlug) {
+      // Get all skills for roles in a department (skills matrix)
+      const departmentSkills = await sql`
         SELECT DISTINCT
-          sm.id,
+          sm.id as skill_id,
           sm.name as skill_name,
-          dt.level,
-          dt.demonstration_description,
+          sm.category as skill_category,
           sm.description as skill_description,
-          sc.name as category_name,
-          sc.color as category_color,
-          sm.sort_order as skill_sort_order,
-          sc.sort_order as category_sort_order,
-          djr.job_role_id
-        FROM demonstration_job_roles djr
-        JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
-        JOIN skills_master sm ON dt.skill_id = sm.id
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        JOIN job_roles jr ON djr.job_role_id = jr.id
-        JOIN departments d ON jr.department_id = d.id
-        WHERE d.slug = ${department}
-        ORDER BY sc.sort_order, sm.sort_order, sm.name
+          jr.id as role_id,
+          jr.title as role_title,
+          jr.level as role_level,
+          rs.required_level,
+          rs.is_required
+        FROM skills_master sm
+        LEFT JOIN role_skills rs ON sm.id = rs.skill_id
+        LEFT JOIN job_roles jr ON rs.role_id = jr.id
+        LEFT JOIN departments d ON jr.department_id = d.id
+        WHERE d.slug = ${departmentSlug} OR d.slug IS NULL
+        ORDER BY sm.category, sm.name, jr.level
       `
+
+      // Group skills by category and role
+      const skillsMatrix: Record<string, any> = {}
+      const roles: Record<number, any> = {}
+
+      departmentSkills.forEach((row: any) => {
+        // Track roles
+        if (row.role_id && !roles[row.role_id]) {
+          roles[row.role_id] = {
+            id: row.role_id,
+            title: row.role_title,
+            level: row.role_level,
+          }
+        }
+
+        // Track skills by category
+        if (!skillsMatrix[row.skill_category]) {
+          skillsMatrix[row.skill_category] = {}
+        }
+
+        if (!skillsMatrix[row.skill_category][row.skill_id]) {
+          skillsMatrix[row.skill_category][row.skill_id] = {
+            id: row.skill_id,
+            name: row.skill_name,
+            category: row.skill_category,
+            description: row.skill_description,
+            roles: {},
+          }
+        }
+
+        // Add role requirement if it exists
+        if (row.role_id && row.required_level) {
+          skillsMatrix[row.skill_category][row.skill_id].roles[row.role_id] = {
+            required_level: row.required_level,
+            is_required: row.is_required,
+          }
+        }
+      })
 
       return NextResponse.json({
-        skills,
-        isDemoMode: false,
+        skillsMatrix,
+        roles: Object.values(roles),
       })
-    } else {
-      return NextResponse.json({ error: "roleId or department parameter required" }, { status: 400 })
     }
+
+    // Get all skills
+    const allSkills = await sql`
+      SELECT 
+        id,
+        name,
+        category,
+        description
+      FROM skills_master
+      ORDER BY category, name
+    `
+
+    return NextResponse.json({ skills: allSkills })
   } catch (error) {
-    console.error("Error fetching skills:", error)
-    return NextResponse.json({ error: "Failed to fetch skills" }, { status: 500 })
+    console.error("Error fetching role skills:", error)
+    return NextResponse.json({ error: "Failed to fetch role skills" }, { status: 500 })
   }
 }

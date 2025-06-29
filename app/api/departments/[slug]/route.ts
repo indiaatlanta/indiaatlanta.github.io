@@ -7,20 +7,23 @@ export async function GET(request: Request, { params }: { params: { slug: string
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    const departments = await sql`
-      SELECT id, name, slug, description, color
-      FROM departments
-      WHERE slug = ${params.slug}
+    const department = await sql`
+      SELECT 
+        d.id,
+        d.name,
+        d.slug,
+        d.description,
+        d.color
+      FROM departments d
+      WHERE d.slug = ${params.slug}
+      LIMIT 1
     `
 
-    if (departments.length === 0) {
+    if (department.length === 0) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 })
     }
 
-    return NextResponse.json({
-      department: departments[0],
-      isDemoMode: false,
-    })
+    return NextResponse.json({ department: department[0] })
   } catch (error) {
     console.error("Error fetching department:", error)
     return NextResponse.json({ error: "Failed to fetch department" }, { status: 500 })
