@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
+import bcrypt from "bcryptjs"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"

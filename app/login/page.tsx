@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import Link from "next/link"
+import { Loader2 } from "lucide-react"
 import Image from "next/image"
 
 export default function LoginPage() {
@@ -44,64 +43,24 @@ export default function LoginPage() {
         // Redirect based on role
         if (data.user.role === "admin") {
           router.push("/admin")
-        } else if (data.user.role === "manager") {
-          router.push("/team")
         } else {
           router.push("/")
         }
         router.refresh()
       } else {
-        setError(data.error || "Login failed")
+        setError("Login failed")
       }
     } catch (error) {
       console.error("Login error:", error)
-      setError(error instanceof Error ? error.message : "An error occurred during login")
+      setError(error instanceof Error ? error.message : "Login failed")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
+  const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
     setEmail(demoEmail)
     setPassword(demoPassword)
-    setError("")
-    setLoading(true)
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: demoEmail, password: demoPassword }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Login failed")
-      }
-
-      const data = await response.json()
-
-      if (data.success) {
-        // Redirect based on role
-        if (data.user.role === "admin") {
-          router.push("/admin")
-        } else if (data.user.role === "manager") {
-          router.push("/team")
-        } else {
-          router.push("/")
-        }
-        router.refresh()
-      } else {
-        setError(data.error || "Login failed")
-      }
-    } catch (error) {
-      console.error("Demo login error:", error)
-      setError(error instanceof Error ? error.message : "An error occurred during login")
-    } finally {
-      setLoading(false)
-    }
   }
 
   return (
@@ -110,13 +69,13 @@ export default function LoginPage() {
         <div className="text-center">
           <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={200} height={60} className="mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-gray-900">Sign in to your account</h2>
-          <p className="mt-2 text-sm text-gray-600">Access the HS1 Careers Matrix</p>
+          <p className="mt-2 text-sm text-gray-600">Access the Henry Schein One Careers Matrix</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Login</CardTitle>
-            <CardDescription>Enter your credentials to access the system</CardDescription>
+            <CardDescription>Enter your credentials to access the platform</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -161,66 +120,56 @@ export default function LoginPage() {
               )}
 
               <Button type="submit" className="w-full bg-brand-600 hover:bg-brand-700" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign in"
+                )}
               </Button>
             </form>
 
             <div className="mt-6">
-              <Separator className="my-4" />
-              <p className="text-sm text-gray-600 text-center mb-4">Demo Accounts (Click to login)</p>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Demo Accounts</span>
+                </div>
+              </div>
 
-              <div className="space-y-2">
+              <div className="mt-6 grid grid-cols-1 gap-3">
                 <Button
+                  type="button"
                   variant="outline"
-                  className="w-full justify-start bg-transparent"
                   onClick={() => handleDemoLogin("admin@henryscheinone.com", "admin123")}
-                  disabled={loading}
+                  className="w-full"
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span>Admin User</span>
-                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Admin</span>
-                  </div>
+                  Login as Admin
                 </Button>
-
                 <Button
+                  type="button"
                   variant="outline"
-                  className="w-full justify-start bg-transparent"
                   onClick={() => handleDemoLogin("manager@henryscheinone.com", "manager123")}
-                  disabled={loading}
+                  className="w-full"
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span>Manager User</span>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Manager</span>
-                  </div>
+                  Login as Manager
                 </Button>
-
                 <Button
+                  type="button"
                   variant="outline"
-                  className="w-full justify-start bg-transparent"
                   onClick={() => handleDemoLogin("user@henryscheinone.com", "user123")}
-                  disabled={loading}
+                  className="w-full"
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span>Regular User</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">User</span>
-                  </div>
+                  Login as User
                 </Button>
               </div>
             </div>
-
-            <div className="mt-6 text-center">
-              <Link href="/forgot-password" className="text-sm text-brand-600 hover:text-brand-500">
-                Forgot your password?
-              </Link>
-            </div>
           </CardContent>
         </Card>
-
-        <div className="text-center">
-          <Link href="/" className="text-sm text-gray-600 hover:text-gray-500">
-            ← Back to home
-          </Link>
-        </div>
       </div>
     </div>
   )

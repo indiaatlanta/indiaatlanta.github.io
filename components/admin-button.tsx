@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Settings, Users, Database, FileText } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Settings, Users, BarChart3, Database } from "lucide-react"
 import Link from "next/link"
 
 interface User {
@@ -31,23 +25,12 @@ export default function AdminButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-
-      if (!response.ok) {
-        setUser(null)
-        return
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
       }
-
-      const contentType = response.headers.get("content-type")
-      if (!contentType || !contentType.includes("application/json")) {
-        setUser(null)
-        return
-      }
-
-      const data = await response.json()
-      setUser(data.user)
     } catch (error) {
-      console.error("Admin session check error:", error)
-      setUser(null)
+      console.error("Session check error:", error)
     } finally {
       setLoading(false)
     }
@@ -70,7 +53,7 @@ export default function AdminButton() {
           <>
             <DropdownMenuItem asChild>
               <Link href="/admin" className="flex items-center">
-                <Settings className="w-4 h-4 mr-2" />
+                <Database className="w-4 h-4 mr-2" />
                 Admin Panel
               </Link>
             </DropdownMenuItem>
@@ -81,21 +64,28 @@ export default function AdminButton() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/admin/skills" className="flex items-center">
-                <Database className="w-4 h-4 mr-2" />
-                Skills Management
+              <Link href="/admin/analytics" className="flex items-center">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
           </>
         )}
-        {(user.role === "admin" || user.role === "manager") && (
-          <DropdownMenuItem asChild>
-            <Link href="/reports" className="flex items-center">
-              <FileText className="w-4 h-4 mr-2" />
-              Reports
-            </Link>
-          </DropdownMenuItem>
+        {user.role === "manager" && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/team" className="flex items-center">
+                <Users className="w-4 h-4 mr-2" />
+                Team Dashboard
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/team/reports" className="flex items-center">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Team Reports
+              </Link>
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

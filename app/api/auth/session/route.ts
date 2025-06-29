@@ -38,7 +38,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as any
+    let decoded
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as any
+    } catch (jwtError) {
+      console.error("JWT verification failed:", jwtError)
+      return NextResponse.json({ user: null })
+    }
 
     let user = null
 
