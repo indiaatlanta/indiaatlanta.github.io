@@ -12,6 +12,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Image from "next/image"
 
+const DEMO_CREDENTIALS = [
+  {
+    role: "Admin",
+    email: "admin@henryscheinone.com",
+    password: "admin123",
+    description: "Full system access, user management, skills editing",
+  },
+  {
+    role: "Manager",
+    email: "manager@henryscheinone.com",
+    password: "manager123",
+    description: "Team oversight, view team assessments and progress",
+  },
+  {
+    role: "User",
+    email: "user@henryscheinone.com",
+    password: "user123",
+    description: "Personal assessments, role comparisons, skill tracking",
+  },
+]
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -41,14 +62,16 @@ export default function LoginPage() {
         if (data.user.role === "admin") {
           router.push("/admin")
         } else if (data.user.role === "manager") {
-          router.push("/team")
+          router.push("/profile")
         } else {
           router.push("/profile")
         }
+        router.refresh()
       } else {
         setError(data.error || "Login failed")
       }
     } catch (error) {
+      console.error("Login error:", error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
@@ -58,6 +81,7 @@ export default function LoginPage() {
   const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
     setEmail(demoEmail)
     setPassword(demoPassword)
+    setError("")
   }
 
   return (
@@ -151,45 +175,23 @@ export default function LoginPage() {
               </div>
 
               <div className="mt-4 space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDemoLogin("admin@henryscheinone.com", "admin123")}
-                  className="w-full text-left justify-start"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span>Admin Demo</span>
-                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">admin@henryscheinone.com</span>
-                  </div>
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDemoLogin("manager@henryscheinone.com", "manager123")}
-                  className="w-full text-left justify-start"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span>Manager Demo</span>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      manager@henryscheinone.com
-                    </span>
-                  </div>
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDemoLogin("user@henryscheinone.com", "user123")}
-                  className="w-full text-left justify-start"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span>User Demo</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                      user@henryscheinone.com
-                    </span>
-                  </div>
-                </Button>
+                {DEMO_CREDENTIALS.map((cred) => (
+                  <Button
+                    key={cred.role}
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleDemoLogin(cred.email, cred.password)}
+                    className="w-full text-left justify-start"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div>
+                        <div className="font-medium">{cred.role} Demo</div>
+                        <div className="text-xs text-gray-500">{cred.description}</div>
+                      </div>
+                      <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Click to use</div>
+                    </div>
+                  </Button>
+                ))}
               </div>
             </div>
 

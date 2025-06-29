@@ -1,26 +1,29 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, LogIn, LogOut, Settings, BarChart3 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Settings, UserCircle, LogOut, Users } from "lucide-react"
 import Link from "next/link"
 
-interface UserData {
+interface User {
   id: number
   email: string
   name: string
-  role: string
+  role: "admin" | "manager" | "user"
+  department?: string
 }
 
 export default function LoginButton() {
-  const [user, setUser] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     checkSession()
@@ -29,16 +32,19 @@ export default function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-      if (response.ok) {
-        const data = await response.json()
-        if (data.user) {
-          setUser(data.user)
-        }
+
+      if (!response.ok) {
+        setUser(null)
+        return
       }
+
+      const data = await response.json()
+      setUser(data.user)
     } catch (error) {
       console.error("Error checking session:", error)
+      setUser(null)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -52,45 +58,78 @@ export default function LoginButton() {
     }
   }
 
-  if (isLoading) {
-    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "bg-red-100 text-red-800 hover:bg-red-200"
+      case "manager":
+        return "bg-blue-100 text-blue-800 hover:bg-blue-200"
+      case "user":
+        return "bg-green-100 text-green-800 hover:bg-green-200"
+      default:
+        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
+    }
+  }
+
+  if (loading) {
+    return (
+      <Button variant="ghost" size="sm" disabled>
+        Loading...
+      </Button>
+    )
   }
 
   if (!user) {
     return (
-      <Button asChild variant="outline" size="sm">
-        <Link href="/login" className="flex items-center">
-          <LogIn className="w-4 h-4 mr-2" />
+      <Link href="/login">
+        <Button variant="outline" size="sm">
+          <LogOut className="w-4 h-4 mr-2" />
           Login
-        </Link>
-      </Button>
+        </Button>
+      </Link>
     )
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          <User className="w-4 h-4 mr-2" />
-          {user.name}
+        <Button variant="ghost" size="sm" className="flex items-center gap-2 text-white hover:bg-brand-700">
+          <UserCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">{user.name}</span>
+          <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
+            {user.role}
+          </Badge>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <div className="px-2 py-1.5 text-sm text-gray-500">{user.email}</div>
-        <div className="px-2 py-1.5 text-xs text-gray-400 capitalize">{user.role}</div>
+      <DropdownMenuContent align="end" className="w-56">
+        <div className="px-2 py-1.5">
+          <p className="text-sm font-medium">{user.name}</p>
+          <p className="text-xs text-muted-foreground">{user.email}</p>
+          {user.department && <p className="text-xs text-muted-foreground">{user.department}</p>}
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile" className="flex items-center">
-            <BarChart3 className="w-4 h-4 mr-2" />
-            My Profile
+            <UserCircle className="w-4 h-4 mr-2" />
+            Profile
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/self-review" className="flex items-center">
-            <Settings className="w-4 h-4 mr-2" />
-            Self Assessment
-          </Link>
-        </DropdownMenuItem>
+        {user.role === "admin" && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin" className="flex items-center">
+              <Settings className="w-4 h-4 mr-2" />
+              Admin Panel
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {user.role === "manager" && (
+          <DropdownMenuItem asChild>
+            <Link href="/team" className="flex items-center">
+              <Users className="w-4 h-4 mr-2" />
+              Team Dashboard
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="text-red-600">
           <LogOut className="w-4 h-4 mr-2" />

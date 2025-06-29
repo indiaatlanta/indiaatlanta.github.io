@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
@@ -31,7 +32,8 @@ const DEMO_USERS = [
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get("auth-token")?.value
+    const cookieStore = cookies()
+    const token = cookieStore.get("auth-token")?.value
 
     if (!token) {
       return NextResponse.json({ user: null }, { status: 200 })
@@ -45,45 +47,42 @@ export async function GET(request: NextRequest) {
     // Check if database is configured
     if (isDatabaseConfigured() && sql) {
       try {
-        // Try to find user in database
+        // Try to get user from database
         const users = await sql`
-          SELECT id, email, name, role, department, job_title
+          SELECT id, email, name, role, department
           FROM users 
           WHERE id = ${decoded.userId} AND active = true
         `
 
         if (users.length > 0) {
-          const dbUser = users[0]
-          user = {
-            id: dbUser.id,
-            email: dbUser.email,
-            name: dbUser.name,
-            role: dbUser.role,
-            department: dbUser.department,
-            job_title: dbUser.job_title,
-          }
+          user = users[0]
         }
       } catch (error) {
-        console.error("Database error during session check:", error)
-        // Fall back to demo users
+        console.error("Database session error:", error)
+        // Fall back to demo mode
       }
     }
 
-    // If no database user found, check demo users
+    // If no database user found, try demo users
     if (!user) {
-      const demoUser = DEMO_USERS.find((u) => u.id === decoded.userId)
-      if (demoUser) {
-        user = demoUser
-      }
+      user = DEMO_USERS.find((u) => u.id === decoded.userId)
     }
 
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 })
     }
 
-    return NextResponse.json({ user })
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        department: user.department,
+      },
+    })
   } catch (error) {
-    console.error("Session check error:", error)
+    console.error("Session error:", error)
     return NextResponse.json({ user: null }, { status: 200 })
   }
 }
