@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
@@ -11,7 +11,7 @@ const DEMO_USERS = [
     id: 1,
     email: "admin@henryscheinone.com",
     password: "admin123",
-    name: "Demo Admin",
+    name: "Admin User",
     role: "admin",
     department: "IT",
   },
@@ -19,7 +19,7 @@ const DEMO_USERS = [
     id: 2,
     email: "manager@henryscheinone.com",
     password: "manager123",
-    name: "Demo Manager",
+    name: "Manager User",
     role: "manager",
     department: "Engineering",
   },
@@ -27,7 +27,7 @@ const DEMO_USERS = [
     id: 3,
     email: "user@henryscheinone.com",
     password: "user123",
-    name: "Demo User",
+    name: "Regular User",
     role: "user",
     department: "Engineering",
   },
@@ -43,23 +43,12 @@ export async function POST(request: NextRequest) {
 
     let user = null
 
-    if (!isDatabaseConfigured() || !sql) {
-      // Demo mode - use hardcoded users
-      const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
-      if (demoUser) {
-        user = {
-          id: demoUser.id,
-          email: demoUser.email,
-          name: demoUser.name,
-          role: demoUser.role,
-          department: demoUser.department,
-        }
-      }
-    } else {
-      // Database mode
+    // Check if database is configured
+    if (isDatabaseConfigured() && sql) {
       try {
+        // Try to authenticate with database
         const users = await sql`
-          SELECT id, email, password_hash, name, role, department
+          SELECT id, email, name, role, department, password_hash
           FROM users 
           WHERE email = ${email} AND active = true
         `
@@ -78,18 +67,22 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch (dbError) {
-        console.error("Database error during login:", dbError)
-        // Fall back to demo mode on database error
-        const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
-        if (demoUser) {
-          user = {
-            id: demoUser.id,
-            email: demoUser.email,
-            name: demoUser.name,
-            role: demoUser.role,
-            department: demoUser.department,
-          }
+      } catch (error) {
+        console.error("Database authentication error:", error)
+        // Fall back to demo mode
+      }
+    }
+
+    // If no database user found, try demo users
+    if (!user) {
+      const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
+      if (demoUser) {
+        user = {
+          id: demoUser.id,
+          email: demoUser.email,
+          name: demoUser.name,
+          role: demoUser.role,
+          department: demoUser.department,
         }
       }
     }
@@ -109,7 +102,7 @@ export async function POST(request: NextRequest) {
       { expiresIn: "7d" },
     )
 
-    // Create response with user data
+    // Create response
     const response = NextResponse.json({
       success: true,
       user: {
@@ -127,7 +120,6 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/",
     })
 
     return response

@@ -12,17 +12,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, Eye, EyeOff } from "lucide-react"
 
+const DEMO_CREDENTIALS = [
+  {
+    role: "Admin",
+    email: "admin@henryscheinone.com",
+    password: "admin123",
+    description: "Full system access, user management, skills editing",
+  },
+  {
+    role: "Manager",
+    email: "manager@henryscheinone.com",
+    password: "manager123",
+    description: "Team oversight, view team assessments and progress",
+  },
+  {
+    role: "User",
+    email: "user@henryscheinone.com",
+    password: "user123",
+    description: "Personal assessments, role comparisons, skill tracking",
+  },
+]
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setLoading(true)
     setError("")
 
     try {
@@ -47,30 +68,37 @@ export default function LoginPage() {
         setError(data.error || "Login failed")
       }
     } catch (error) {
-      console.error("Login error:", error)
-      setError("An error occurred during login")
+      setError("Network error. Please try again.")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail)
-    setPassword(demoPassword)
+  const fillCredentials = (email: string, password: string) => {
+    setEmail(email)
+    setPassword(password)
+    setError("")
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 to-white flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
+        {/* Back to Home */}
+        <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Career Matrix
+        </Link>
+
+        {/* Login Form */}
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access the career matrix</CardDescription>
+            <CardDescription>Access your HS1 Career Development account</CardDescription>
           </CardHeader>
           <CardContent>
             {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert className="mb-4 border-red-200 bg-red-50">
+                <AlertDescription className="text-red-800">{error}</AlertDescription>
               </Alert>
             )}
 
@@ -80,9 +108,9 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your.email@henryscheinone.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your.email@henryscheinone.com"
                   required
                 />
               </div>
@@ -93,9 +121,9 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
                     required
                   />
                   <Button
@@ -110,8 +138,8 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing In..." : "Sign In"}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
@@ -126,55 +154,30 @@ export default function LoginPage() {
         {/* Demo Credentials */}
         <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
-            <CardTitle className="text-lg text-blue-800">Demo Credentials</CardTitle>
+            <CardTitle className="text-lg text-blue-900">Demo Credentials</CardTitle>
+            <CardDescription className="text-blue-700">
+              Click any credential below to auto-fill the login form
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start text-left bg-transparent"
-                onClick={() => handleDemoLogin("admin@henryscheinone.com", "admin123")}
+            {DEMO_CREDENTIALS.map((cred) => (
+              <div
+                key={cred.role}
+                className="p-3 bg-white rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors"
+                onClick={() => fillCredentials(cred.email, cred.password)}
               >
-                <div>
-                  <div className="font-medium text-blue-800">Admin</div>
-                  <div className="text-xs text-blue-600">admin@henryscheinone.com / admin123</div>
+                <div className="flex justify-between items-start mb-1">
+                  <span className="font-medium text-blue-900">{cred.role}</span>
+                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">Click to use</span>
                 </div>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start text-left bg-transparent"
-                onClick={() => handleDemoLogin("manager@henryscheinone.com", "manager123")}
-              >
-                <div>
-                  <div className="font-medium text-blue-800">Manager</div>
-                  <div className="text-xs text-blue-600">manager@henryscheinone.com / manager123</div>
+                <div className="text-sm text-blue-700 mb-1">
+                  {cred.email} / {cred.password}
                 </div>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start text-left bg-transparent"
-                onClick={() => handleDemoLogin("user@henryscheinone.com", "user123")}
-              >
-                <div>
-                  <div className="font-medium text-blue-800">User</div>
-                  <div className="text-xs text-blue-600">user@henryscheinone.com / user123</div>
-                </div>
-              </Button>
-            </div>
+                <div className="text-xs text-blue-600">{cred.description}</div>
+              </div>
+            ))}
           </CardContent>
         </Card>
-
-        <div className="text-center">
-          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Career Matrix
-          </Link>
-        </div>
       </div>
     </div>
   )
