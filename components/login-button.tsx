@@ -21,7 +21,7 @@ interface User {
   department?: string
 }
 
-export function LoginButton() {
+export default function LoginButton() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
