@@ -34,10 +34,10 @@ interface SelfAssessment {
 }
 
 interface Props {
-  isDemoMode: boolean
+  isDemoMode?: boolean
 }
 
-export function SelfReviewClient({ isDemoMode }: Props) {
+export default function SelfReviewClient({ isDemoMode = false }: Props) {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
