@@ -12,15 +12,14 @@ import jsPDF from "jspdf"
 
 interface Skill {
   id: number
-  name: string
+  skill_name: string
   level: string
-  description: string
-  full_description: string
-  category_id: number
+  demonstration_description: string
+  skill_description: string
   category_name: string
   category_color: string
-  job_role_id: number
-  sort_order: number
+  skill_sort_order: number
+  category_sort_order: number
 }
 
 interface JobRole {
@@ -31,6 +30,7 @@ interface JobRole {
   salary_min?: number
   salary_max?: number
   location_type?: string
+  department_id: number
   department_name: string
   skill_count: number
 }
@@ -52,11 +52,12 @@ const skillCategories: SkillCategory[] = [
   { id: 3, name: "Feedback, Communication & Collaboration", color: "purple" },
   { id: 4, name: "Leadership", color: "indigo" },
   { id: 5, name: "Strategic Impact", color: "orange" },
+  { id: 6, name: "Language and Technologies Familiarity", color: "cyan" },
 ]
 
 export default function DepartmentClient({ departmentSlug, departmentName }: DepartmentClientProps) {
   const [roles, setRoles] = useState<JobRole[]>([])
-  const [skills, setSkills] = useState<Skill[]>([])
+  const [allSkills, setAllSkills] = useState<{ [roleId: number]: Skill[] }>({})
   const [selectedRole, setSelectedRole] = useState<JobRole | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -72,90 +73,26 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
 
   useEffect(() => {
     if (roles.length > 0) {
-      loadSkills()
+      loadAllSkills()
     }
   }, [roles])
 
   const loadRoles = async () => {
     try {
-      const response = await fetch("/api/roles")
+      const response = await fetch(`/api/departments/${departmentSlug}/roles`)
       if (!response.ok) {
         throw new Error("Failed to fetch roles")
       }
       const data = await response.json()
 
-      // Ensure roles is always an array
-      const rolesData = Array.isArray(data.roles) ? data.roles : []
-      setRoles(rolesData)
+      setRoles(data.roles || [])
       setIsDemoMode(data.isDemoMode || false)
-
-      // If no roles from API, use demo data
-      if (rolesData.length === 0) {
-        const demoRoles: JobRole[] = [
-          {
-            id: 1,
-            name: "Software Engineer I",
-            code: "SE1",
-            level: 1,
-            salary_min: 70000,
-            salary_max: 90000,
-            location_type: "Hybrid",
-            department_name: departmentName,
-            skill_count: 12,
-          },
-          {
-            id: 2,
-            name: "Software Engineer II",
-            code: "SE2",
-            level: 2,
-            salary_min: 90000,
-            salary_max: 120000,
-            location_type: "Hybrid",
-            department_name: departmentName,
-            skill_count: 15,
-          },
-          {
-            id: 3,
-            name: "Senior Software Engineer",
-            code: "SSE",
-            level: 3,
-            salary_min: 120000,
-            salary_max: 160000,
-            location_type: "Hybrid",
-            department_name: departmentName,
-            skill_count: 18,
-          },
-          {
-            id: 4,
-            name: "Engineering Manager",
-            code: "M1",
-            level: 4,
-            salary_min: 140000,
-            salary_max: 180000,
-            location_type: "Hybrid",
-            department_name: departmentName,
-            skill_count: 20,
-          },
-          {
-            id: 5,
-            name: "Senior Engineering Manager",
-            code: "M2",
-            level: 5,
-            salary_min: 160000,
-            salary_max: 220000,
-            location_type: "Hybrid",
-            department_name: departmentName,
-            skill_count: 22,
-          },
-        ]
-        setRoles(demoRoles)
-        setIsDemoMode(true)
-      }
     } catch (error) {
       console.error("Error loading roles:", error)
       setError("Failed to load roles")
+      setIsDemoMode(true)
 
-      // Fallback to demo data on error
+      // Fallback to demo data
       const demoRoles: JobRole[] = [
         {
           id: 1,
@@ -165,6 +102,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
           salary_min: 70000,
           salary_max: 90000,
           location_type: "Hybrid",
+          department_id: 1,
           department_name: departmentName,
           skill_count: 12,
         },
@@ -176,119 +114,73 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
           salary_min: 90000,
           salary_max: 120000,
           location_type: "Hybrid",
+          department_id: 1,
           department_name: departmentName,
           skill_count: 15,
         },
+        {
+          id: 3,
+          name: "Senior Software Engineer",
+          code: "SSE",
+          level: 3,
+          salary_min: 120000,
+          salary_max: 160000,
+          location_type: "Hybrid",
+          department_id: 1,
+          department_name: departmentName,
+          skill_count: 18,
+        },
+        {
+          id: 4,
+          name: "Engineering Manager",
+          code: "M1",
+          level: 4,
+          salary_min: 140000,
+          salary_max: 180000,
+          location_type: "Hybrid",
+          department_id: 1,
+          department_name: departmentName,
+          skill_count: 20,
+        },
       ]
       setRoles(demoRoles)
-      setIsDemoMode(true)
     }
   }
 
-  const loadSkills = async () => {
+  const loadAllSkills = async () => {
     try {
       const skillPromises = roles.map(async (role) => {
         try {
-          const response = await fetch(`/api/skills?jobRoleId=${role.id}`)
+          const response = await fetch(`/api/role-skills?roleId=${role.id}`)
           if (!response.ok) {
             throw new Error(`Failed to fetch skills for role ${role.id}`)
           }
           const data = await response.json()
-          return Array.isArray(data) ? data : []
+          return { roleId: role.id, skills: Array.isArray(data) ? data : [] }
         } catch (error) {
           console.error(`Error loading skills for role ${role.id}:`, error)
-          return []
+          return { roleId: role.id, skills: [] }
         }
       })
 
       const skillResults = await Promise.all(skillPromises)
-      const allSkills = skillResults.flat()
+      const skillsMap: { [roleId: number]: Skill[] } = {}
 
-      // If no skills from API, use demo data
-      if (allSkills.length === 0) {
-        const demoSkills: Skill[] = [
-          {
-            id: 1,
-            name: "JavaScript/TypeScript",
-            level: "Intermediate",
-            description: "Proficient in modern JavaScript and TypeScript development",
-            full_description:
-              "Strong understanding of ES6+ features, async/await, and TypeScript type system. Can build complex applications with proper type safety.",
-            category_id: 1,
-            category_name: "Technical Skills",
-            category_color: "blue",
-            job_role_id: 1,
-            sort_order: 1,
-          },
-          {
-            id: 2,
-            name: "React/Next.js",
-            level: "Intermediate",
-            description: "Experience building React applications with Next.js",
-            full_description:
-              "Comfortable with React hooks, component lifecycle, and Next.js features including SSR, SSG, and API routes.",
-            category_id: 1,
-            category_name: "Technical Skills",
-            category_color: "blue",
-            job_role_id: 1,
-            sort_order: 2,
-          },
-          {
-            id: 3,
-            name: "Problem Solving",
-            level: "Intermediate",
-            description: "Ability to break down complex problems and find solutions",
-            full_description:
-              "Can analyze requirements, identify edge cases, and implement effective solutions with proper testing.",
-            category_id: 2,
-            category_name: "Delivery",
-            category_color: "green",
-            job_role_id: 1,
-            sort_order: 3,
-          },
-          {
-            id: 4,
-            name: "Team Collaboration",
-            level: "Advanced",
-            description: "Works effectively with cross-functional teams",
-            full_description:
-              "Excellent communication skills, provides constructive feedback, and mentors junior team members.",
-            category_id: 3,
-            category_name: "Feedback, Communication & Collaboration",
-            category_color: "purple",
-            job_role_id: 4,
-            sort_order: 1,
-          },
-          {
-            id: 5,
-            name: "Technical Leadership",
-            level: "Advanced",
-            description: "Leads technical decisions and architecture",
-            full_description:
-              "Makes strategic technical decisions, defines architecture patterns, and guides team technical direction.",
-            category_id: 4,
-            category_name: "Leadership",
-            category_color: "indigo",
-            job_role_id: 4,
-            sort_order: 2,
-          },
-        ]
-        setSkills(demoSkills)
-        setIsDemoMode(true)
-      } else {
-        setSkills(allSkills)
-      }
+      skillResults.forEach(({ roleId, skills }) => {
+        skillsMap[roleId] = skills
+      })
+
+      setAllSkills(skillsMap)
     } catch (error) {
       console.error("Error loading skills:", error)
       setError("Failed to load skills")
-      setSkills([])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const getSkillsForRole = (roleId: number) => {
-    return skills.filter((skill) => skill.job_role_id === roleId)
+  const getSkillsForRole = (roleId: number): Skill[] => {
+    return allSkills[roleId] || []
   }
 
   const getSkillsByCategory = (roleSkills: Skill[]) => {
@@ -304,28 +196,39 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     // Sort skills within each category
     Object.keys(categorizedSkills).forEach((category) => {
       categorizedSkills[category].sort((a, b) => {
-        if (a.sort_order !== b.sort_order) {
-          return a.sort_order - b.sort_order
+        if (a.skill_sort_order !== b.skill_sort_order) {
+          return a.skill_sort_order - b.skill_sort_order
         }
-        return a.name.localeCompare(b.name)
+        return a.skill_name.localeCompare(b.skill_name)
       })
     })
 
     return categorizedSkills
   }
 
+  const getAllSkillsFlat = (): Skill[] => {
+    return Object.values(allSkills).flat()
+  }
+
   const getSkillsMatrix = () => {
     const matrix: { [skillName: string]: { [roleId: number]: Skill } } = {}
+    const allSkillsFlat = getAllSkillsFlat()
     const filteredSkills =
       selectedCategory === "all"
-        ? skills
-        : skills.filter((skill) => skill.category_id === Number.parseInt(selectedCategory))
+        ? allSkillsFlat
+        : allSkillsFlat.filter((skill) => {
+            const category = skillCategories.find((c) => c.name === skill.category_name)
+            return category?.id === Number.parseInt(selectedCategory)
+          })
 
     filteredSkills.forEach((skill) => {
-      if (!matrix[skill.name]) {
-        matrix[skill.name] = {}
+      if (!matrix[skill.skill_name]) {
+        matrix[skill.skill_name] = {}
       }
-      matrix[skill.name][skill.job_role_id] = skill
+      const roleId = Object.keys(allSkills).find((roleId) => allSkills[Number(roleId)].some((s) => s.id === skill.id))
+      if (roleId) {
+        matrix[skill.skill_name][Number(roleId)] = skill
+      }
     })
 
     return matrix
@@ -338,6 +241,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
       purple: "bg-purple-50 text-purple-900 border-purple-200",
       indigo: "bg-indigo-50 text-indigo-900 border-indigo-200",
       orange: "bg-orange-50 text-orange-900 border-orange-200",
+      cyan: "bg-cyan-50 text-cyan-900 border-cyan-200",
     }
     return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
   }
@@ -367,7 +271,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         ...roles.map((role) => {
           const skill = matrix[skillName][role.id]
           if (skill) {
-            return `"${skill.level} - ${skill.description.replace(/"/g, '""')}"`
+            return `"${skill.level} - ${skill.demonstration_description.replace(/"/g, '""')}"`
           }
           return '""'
         }),
@@ -414,11 +318,10 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         format: "a3",
       })
 
-      // Add logo and title
+      // Add title
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
 
-      // Title
       pdf.setFontSize(20)
       pdf.setFont("helvetica", "bold")
       const categoryName =
@@ -527,7 +430,8 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
   }
 
   if (showMatrix) {
-    const skillsByCategory = getSkillsByCategory(skills)
+    const allSkillsFlat = getAllSkillsFlat()
+    const skillsByCategory = getSkillsByCategory(allSkillsFlat)
 
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -586,7 +490,6 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         <div className="space-y-8">
           {Object.entries(skillsByCategory).map(([categoryName, categorySkills]) => {
             const category = skillCategories.find((c) => c.name === categoryName)
-            const colorClasses = getColorClasses(category?.color || "gray")
 
             return (
               <Card key={categoryName}>
@@ -612,13 +515,13 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                       <tbody>
                         {categorySkills
                           .reduce((uniqueSkills: string[], skill) => {
-                            if (!uniqueSkills.includes(skill.name)) {
-                              uniqueSkills.push(skill.name)
+                            if (!uniqueSkills.includes(skill.skill_name)) {
+                              uniqueSkills.push(skill.skill_name)
                             }
                             return uniqueSkills
                           }, [])
                           .map((skillName) => {
-                            const skillsForThisName = categorySkills.filter((s) => s.name === skillName)
+                            const skillsForThisName = categorySkills.filter((s) => s.skill_name === skillName)
                             const firstSkill = skillsForThisName[0]
 
                             return (
@@ -637,7 +540,10 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                                   </div>
                                 </td>
                                 {roles.map((role) => {
-                                  const skill = skillsForThisName.find((s) => s.job_role_id === role.id)
+                                  const skill = skillsForThisName.find((s) => {
+                                    const roleSkills = getSkillsForRole(role.id)
+                                    return roleSkills.some((rs) => rs.id === s.id)
+                                  })
                                   return (
                                     <td key={role.id} className="p-3 text-center">
                                       {skill ? (
@@ -646,9 +552,9 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                                             {skill.level}
                                           </Badge>
                                           <span className="text-xs text-gray-600 text-center leading-tight">
-                                            {skill.description.length > 50
-                                              ? `${skill.description.substring(0, 50)}...`
-                                              : skill.description}
+                                            {skill.demonstration_description.length > 50
+                                              ? `${skill.demonstration_description.substring(0, 50)}...`
+                                              : skill.demonstration_description}
                                           </span>
                                         </div>
                                       ) : (
@@ -673,7 +579,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{selectedSkill?.name}</DialogTitle>
+              <DialogTitle>{selectedSkill?.skill_name}</DialogTitle>
             </DialogHeader>
             {selectedSkill && (
               <div className="space-y-4">
@@ -690,12 +596,12 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Demonstration Description</h4>
-                  <p className="text-sm text-gray-600">{selectedSkill.description}</p>
+                  <p className="text-sm text-gray-600">{selectedSkill.demonstration_description}</p>
                 </div>
-                {selectedSkill.full_description && (
+                {selectedSkill.skill_description && (
                   <div>
                     <h4 className="font-medium mb-2">Skill Description</h4>
-                    <div className="text-sm text-gray-600 whitespace-pre-wrap">{selectedSkill.full_description}</div>
+                    <div className="text-sm text-gray-600 whitespace-pre-wrap">{selectedSkill.skill_description}</div>
                   </div>
                 )}
               </div>
@@ -882,7 +788,6 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                     <div className="space-y-6">
                       {Object.entries(skillsByCategory).map(([categoryName, categorySkills]) => {
                         const category = skillCategories.find((c) => c.name === categoryName)
-                        const colorClasses = getColorClasses(category?.color || "gray")
 
                         return (
                           <div key={categoryName} className="border rounded-lg p-4">
@@ -895,7 +800,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                                 >
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <h5 className="font-medium text-gray-900">{skill.name}</h5>
+                                      <h5 className="font-medium text-gray-900">{skill.skill_name}</h5>
                                       <Badge variant="outline" className="text-xs">
                                         {skill.level}
                                       </Badge>
@@ -909,7 +814,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                                         <Info className="w-3 h-3" />
                                       </Button>
                                     </div>
-                                    <p className="text-sm text-gray-600">{skill.description}</p>
+                                    <p className="text-sm text-gray-600">{skill.demonstration_description}</p>
                                   </div>
                                 </div>
                               ))}
@@ -930,7 +835,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
       <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedSkill?.name}</DialogTitle>
+            <DialogTitle>{selectedSkill?.skill_name}</DialogTitle>
           </DialogHeader>
           {selectedSkill && (
             <div className="space-y-4">
@@ -947,12 +852,12 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
               </div>
               <div>
                 <h4 className="font-medium mb-2">Demonstration Description</h4>
-                <p className="text-sm text-gray-600">{selectedSkill.description}</p>
+                <p className="text-sm text-gray-600">{selectedSkill.demonstration_description}</p>
               </div>
-              {selectedSkill.full_description && (
+              {selectedSkill.skill_description && (
                 <div>
                   <h4 className="font-medium mb-2">Skill Description</h4>
-                  <div className="text-sm text-gray-600 whitespace-pre-wrap">{selectedSkill.full_description}</div>
+                  <div className="text-sm text-gray-600 whitespace-pre-wrap">{selectedSkill.skill_description}</div>
                 </div>
               )}
             </div>

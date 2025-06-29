@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
           skill_name: "Security",
           level: "L1",
           demonstration_description: "Understands the importance of security.",
-          skill_description: "Security is a fundamental aspect of software engineering...",
+          skill_description:
+            "Security is a fundamental aspect of software engineering that involves protecting applications, data, and systems from threats and vulnerabilities.",
           category_name: "Technical Skills",
           category_color: "blue",
           skill_sort_order: 1,
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
           skill_name: "Work Breakdown",
           level: "L1",
           demonstration_description: "Understands value of rightsizing pieces of work.",
-          skill_description: "Work Breakdown is the practice of decomposing large, complex work items...",
+          skill_description:
+            "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable tasks that can be estimated and completed efficiently.",
           category_name: "Delivery",
           category_color: "green",
           skill_sort_order: 1,
@@ -40,7 +42,8 @@ export async function GET(request: NextRequest) {
           skill_name: "Communication",
           level: "L1",
           demonstration_description: "Communicates effectively with team members.",
-          skill_description: "Effective communication is essential for collaboration...",
+          skill_description:
+            "Effective communication is essential for collaboration, ensuring clear understanding of requirements, and building strong working relationships.",
           category_name: "Feedback, Communication & Collaboration",
           category_color: "purple",
           skill_sort_order: 1,
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
           level: "L1",
           demonstration_description: "Has basic understanding of JavaScript fundamentals.",
           skill_description:
-            "JavaScript is a programming language that is one of the core technologies of the World Wide Web...",
+            "JavaScript is a programming language that is one of the core technologies of the World Wide Web, alongside HTML and CSS.",
           category_name: "Language and Technologies Familiarity",
           category_color: "orange",
           skill_sort_order: 1,
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
           level: "L1",
           demonstration_description: "Can build simple React components.",
           skill_description:
-            "React is a free and open-source front-end JavaScript library for building user interfaces...",
+            "React is a free and open-source front-end JavaScript library for building user interfaces based on components.",
           category_name: "Language and Technologies Familiarity",
           category_color: "orange",
           skill_sort_order: 2,
@@ -88,8 +91,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // First try the new many-to-many structure
-      const newStructureSkills = await sql`
+      // Use the new many-to-many structure with skills_master and demonstration_templates
+      const skills = await sql`
         SELECT 
           dt.id,
           sm.name as skill_name,
@@ -109,15 +112,15 @@ export async function GET(request: NextRequest) {
         ORDER BY sc.sort_order, sm.sort_order, djr.sort_order, sm.name
       `
 
-      if (newStructureSkills.length > 0) {
-        return NextResponse.json(newStructureSkills)
+      if (skills.length > 0) {
+        return NextResponse.json(skills)
       }
     } catch (newStructureError) {
       console.log("New structure not available, trying current structure...")
     }
 
     try {
-      // Use the current skill demonstrations structure with proper sort orders
+      // Fallback to current skill demonstrations structure
       const skills = await sql`
         SELECT 
           sd.id,
@@ -141,7 +144,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Error fetching role skills:", error)
 
-      // Fallback to old structure
+      // Final fallback to old structure
       try {
         const fallbackSkills = await sql`
           SELECT 

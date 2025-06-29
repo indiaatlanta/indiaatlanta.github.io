@@ -12,6 +12,7 @@ interface Department {
   name: string
   slug: string
   description: string
+  color?: string
 }
 
 async function getDepartment(slug: string): Promise<Department | null> {
@@ -23,24 +24,28 @@ async function getDepartment(slug: string): Promise<Department | null> {
         name: "Engineering",
         slug: "engineering",
         description: "Software development and technical roles",
+        color: "#3B82F6",
       },
       product: {
         id: 2,
         name: "Product",
         slug: "product",
         description: "Product management and design roles",
+        color: "#10B981",
       },
       sales: {
         id: 3,
         name: "Sales",
         slug: "sales",
         description: "Sales and business development roles",
+        color: "#EF4444",
       },
       marketing: {
         id: 4,
         name: "Marketing",
         slug: "marketing",
         description: "Marketing and communications roles",
+        color: "#F59E0B",
       },
     }
     return mockDepartments[slug] || null
@@ -48,14 +53,25 @@ async function getDepartment(slug: string): Promise<Department | null> {
 
   try {
     const departments = await sql`
-      SELECT id, name, slug, description
+      SELECT id, name, slug, description, color
       FROM departments
       WHERE slug = ${slug}
     `
     return departments[0] || null
   } catch (error) {
     console.error("Error fetching department:", error)
-    return null
+
+    // Fallback to mock data
+    const mockDepartments: Record<string, Department> = {
+      engineering: {
+        id: 1,
+        name: "Engineering",
+        slug: "engineering",
+        description: "Software development and technical roles",
+        color: "#3B82F6",
+      },
+    }
+    return mockDepartments[slug] || null
   }
 }
 
@@ -120,11 +136,6 @@ export default async function DepartmentPage({ params }: { params: { slug: strin
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">{department.name} Skills Matrix</h2>
-          <p className="text-lg text-gray-600 mb-6">{department.description}</p>
-        </div>
-
         <Suspense
           fallback={
             <div className="space-y-4">
