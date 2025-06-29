@@ -1,60 +1,12 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Settings, Users, Database, FileText, BarChart3, Shield } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Settings, Users, BarChart3, ChevronDown } from "lucide-react"
 
-interface User {
-  id: number
-  email: string
-  name: string
-  role: string
-  department?: string
-}
+export default async function AdminButton() {
+  const user = await getCurrentUser()
 
-export default function AdminButton() {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
-
-  useEffect(() => {
-    checkSession()
-  }, [])
-
-  const checkSession = async () => {
-    try {
-      const response = await fetch("/api/auth/session", {
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-      } else {
-        setUser(null)
-      }
-    } catch (error) {
-      console.error("Session check error:", error)
-      setUser(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (isLoading) {
-    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
-  }
-
-  // Only show for admin and manager users
   if (!user || (user.role !== "admin" && user.role !== "manager")) {
     return null
   }
@@ -62,48 +14,35 @@ export default function AdminButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
-          <Shield className="h-4 w-4" />
+        <Button variant="outline" size="sm">
+          <Settings className="h-4 w-4 mr-2" />
           {user.role === "admin" ? "Admin" : "Manager"}
+          <ChevronDown className="h-4 w-4 ml-2" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>{user.role === "admin" ? "Admin Tools" : "Manager Tools"}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-
+      <DropdownMenuContent align="end">
         {user.role === "admin" && (
           <>
-            <DropdownMenuItem onClick={() => router.push("/admin")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Admin Dashboard
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <Settings className="h-4 w-4 mr-2" />
+                Admin Panel
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
-              <Users className="mr-2 h-4 w-4" />
-              User Management
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin/skills")}>
-              <Database className="mr-2 h-4 w-4" />
-              Skills Management
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin/audit")}>
-              <FileText className="mr-2 h-4 w-4" />
-              Audit Logs
+            <DropdownMenuItem asChild>
+              <Link href="/admin/users">
+                <Users className="h-4 w-4 mr-2" />
+                Manage Users
+              </Link>
             </DropdownMenuItem>
           </>
         )}
-
-        {user.role === "manager" && (
-          <>
-            <DropdownMenuItem onClick={() => router.push("/manager")}>
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Team Dashboard
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/manager/reviews")}>
-              <FileText className="mr-2 h-4 w-4" />
-              Team Reviews
-            </DropdownMenuItem>
-          </>
-        )}
+        <DropdownMenuItem asChild>
+          <Link href="/reports">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Reports
+          </Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

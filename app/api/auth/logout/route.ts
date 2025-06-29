@@ -1,12 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    // Create response
-    const response = NextResponse.json({ success: true })
-
-    // Clear the auth token cookie
-    response.cookies.set("auth-token", "", {
+    const cookieStore = await cookies()
+    cookieStore.set("auth-token", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -14,9 +13,9 @@ export async function POST(request: NextRequest) {
       path: "/",
     })
 
-    return response
+    redirect("/")
   } catch (error) {
     console.error("Logout error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ success: false, error: "Logout failed" }, { status: 500 })
   }
 }

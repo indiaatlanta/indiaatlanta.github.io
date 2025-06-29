@@ -20,6 +20,18 @@ import {
   Globe,
 } from "lucide-react"
 
+// Default colors for departments
+const DEPARTMENT_COLORS = [
+  "#3B82F6", // blue
+  "#10B981", // green
+  "#8B5CF6", // purple
+  "#F59E0B", // amber
+  "#EF4444", // red
+  "#06B6D4", // cyan
+  "#84CC16", // lime
+  "#F97316", // orange
+]
+
 async function getDepartments() {
   if (!isDatabaseConfigured() || !sql) {
     return DEMO_DEPARTMENTS
@@ -27,11 +39,16 @@ async function getDepartments() {
 
   try {
     const departments = await sql`
-      SELECT id, name, slug, description, color
+      SELECT id, name, slug, description
       FROM departments
       ORDER BY name
     `
-    return departments
+
+    // Add colors to departments since they don't exist in the database
+    return departments.map((dept, index) => ({
+      ...dept,
+      color: DEPARTMENT_COLORS[index % DEPARTMENT_COLORS.length],
+    }))
   } catch (error) {
     console.error("Error fetching departments:", error)
     return DEMO_DEPARTMENTS
@@ -57,10 +74,10 @@ async function getStats() {
     ])
 
     return {
-      totalRoles: rolesResult[0]?.count || 0,
-      totalSkills: skillsResult[0]?.count || 0,
-      totalDepartments: departmentsResult[0]?.count || 0,
-      activeUsers: usersResult[0]?.count || 0,
+      totalRoles: Number(rolesResult[0]?.count) || 0,
+      totalSkills: Number(skillsResult[0]?.count) || 0,
+      totalDepartments: Number(departmentsResult[0]?.count) || 0,
+      activeUsers: Number(usersResult[0]?.count) || 0,
     }
   } catch (error) {
     console.error("Error fetching stats:", error)
@@ -112,18 +129,22 @@ export default async function HomePage() {
               platform.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
-                <Target className="mr-2 h-5 w-5" />
-                Explore Roles
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white text-white hover:bg-white hover:text-blue-600 bg-transparent"
-              >
-                <FileText className="mr-2 h-5 w-5" />
-                Start Self Review
-              </Button>
+              <Link href="/self-review">
+                <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                  <Target className="mr-2 h-5 w-5" />
+                  Start Self Review
+                </Button>
+              </Link>
+              <Link href="/compare">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white text-white hover:bg-white hover:text-blue-600 bg-transparent"
+                >
+                  <BarChart3 className="mr-2 h-5 w-5" />
+                  Compare Roles
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
