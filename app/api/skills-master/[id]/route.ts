@@ -1,22 +1,60 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
-import { z } from "zod"
+import { logAuditEvent } from "@/lib/audit"
 
-const skillMasterSchema = z.object({
-  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
-  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
-  categoryId: z.number().int().positive("Invalid category"),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireAdmin()
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
+    const skillId = Number.parseInt(params.id)
+
+    const skill = await sql`
+      SELECT 
+        sm.*,
+        sc.name as category_name,
+        sc.color as category_color
+      FROM skills_master sm
+      LEFT JOIN skill_categories sc ON sm.category_id = sc.id
+      WHERE sm.id = ${skillId}
+    `
+
+    if (skill.length === 0) {
+      return NextResponse.json({ error: "Skill not found" }, { status: 404 })
+    }
+
+    // Get demonstration templates for this skill
+    const demonstrations = await sql`
+      SELECT 
+        dt.*,
+        COUNT(djr.job_role_id) as role_count
+      FROM demonstration_templates dt
+      LEFT JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
+      WHERE dt.skill_id = ${skillId}
+      GROUP BY dt.id
+      ORDER BY dt.level
+    `
+
+    return NextResponse.json({
+      skill: skill[0],
+      demonstrations,
+    })
+  } catch (error) {
+    console.error("Get skill error:", error)
+    return NextResponse.json({ error: "Failed to get skill" }, { status: 500 })
+  }
+}
+
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  try {
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
     const skillId = Number.parseInt(params.id)
     const body = await request.json()
-    const skillData = skillMasterSchema.parse(body)
+    const { name, category_id, description, sort_order } = body
 
     // Get old values for audit
     const oldSkill = await sql`
@@ -27,43 +65,44 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Skill not found" }, { status: 404 })
     }
 
-    const result = await sql`
+    // Update skill
+    const updatedSkill = await sql`
       UPDATE skills_master 
       SET 
-        name = ${skillData.name},
-        category_id = ${skillData.categoryId},
-        description = ${skillData.description},
-        sort_order = ${skillData.sortOrder || 0},
+        name = ${name},
+        category_id = ${category_id},
+        description = ${description || null},
+        sort_order = ${sort_order || 0},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${skillId}
       RETURNING *
     `
 
-    const updatedSkill = result[0]
-
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: skillId,
+    // Log audit event
+    await logAuditEvent({
       action: "UPDATE",
-      oldValues: oldSkill[0],
-      newValues: skillData,
+      table_name: "skills_master",
+      record_id: skillId,
+      old_values: oldSkill[0],
+      new_values: updatedSkill[0],
     })
 
-    return NextResponse.json(updatedSkill)
+    return NextResponse.json({ skill: updatedSkill[0] })
   } catch (error) {
-    console.error("Update master skill error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Update skill error:", error)
+    return NextResponse.json({ error: "Failed to update skill" }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireAdmin()
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
     const skillId = Number.parseInt(params.id)
 
-    // Get skill data for audit
+    // Get skill for audit
     const skill = await sql`
       SELECT * FROM skills_master WHERE id = ${skillId}
     `
@@ -72,34 +111,22 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Skill not found" }, { status: 404 })
     }
 
-    // Check if skill has demonstrations
-    const demonstrations = await sql`
-      SELECT COUNT(*) as count FROM skill_demonstrations WHERE skill_master_id = ${skillId}
+    // Delete skill (this will cascade to related records)
+    await sql`
+      DELETE FROM skills_master WHERE id = ${skillId}
     `
 
-    if (demonstrations[0].count > 0) {
-      return NextResponse.json(
-        {
-          error: "Cannot delete skill with existing demonstrations. Delete demonstrations first.",
-        },
-        { status: 400 },
-      )
-    }
-
-    await sql`DELETE FROM skills_master WHERE id = ${skillId}`
-
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: skillId,
+    // Log audit event
+    await logAuditEvent({
       action: "DELETE",
-      oldValues: skill[0],
+      table_name: "skills_master",
+      record_id: skillId,
+      old_values: skill[0],
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ message: "Skill deleted successfully" })
   } catch (error) {
-    console.error("Delete master skill error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Delete skill error:", error)
+    return NextResponse.json({ error: "Failed to delete skill" }, { status: 500 })
   }
 }

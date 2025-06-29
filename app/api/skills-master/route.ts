@@ -1,100 +1,80 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
-import { z } from "zod"
+import { logAuditEvent } from "@/lib/audit"
 
-const skillMasterSchema = z.object({
-  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
-  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
-  categoryId: z.number().int().positive("Invalid category"),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-const skillDemonstrationSchema = z.object({
-  skillMasterId: z.number().int().positive("Invalid skill"),
-  jobRoleId: z.number().int().positive("Invalid job role"),
-  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
-  demonstrationDescription: z
-    .string()
-    .min(1, "Demonstration description is required")
-    .max(2000, "Description too long"),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-// Get all master skills
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    await requireAdmin()
-
-    const { searchParams } = new URL(request.url)
-    const categoryId = searchParams.get("categoryId")
-
-    let query
-    if (categoryId) {
-      query = sql`
-        SELECT 
-          sm.*,
-          sc.name as category_name,
-          sc.color as category_color,
-          COUNT(sd.id) as demonstration_count
-        FROM skills_master sm
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        LEFT JOIN skill_demonstrations sd ON sm.id = sd.skill_master_id
-        WHERE sm.category_id = ${Number.parseInt(categoryId)}
-        GROUP BY sm.id, sc.name, sc.color
-        ORDER BY sm.sort_order, sm.name
-      `
-    } else {
-      query = sql`
-        SELECT 
-          sm.*,
-          sc.name as category_name,
-          sc.color as category_color,
-          COUNT(sd.id) as demonstration_count
-        FROM skills_master sm
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        LEFT JOIN skill_demonstrations sd ON sm.id = sd.skill_master_id
-        GROUP BY sm.id, sc.name, sc.color
-        ORDER BY sc.sort_order, sm.sort_order, sm.name
-      `
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const category_id = searchParams.get("category_id")
+    const search = searchParams.get("search")
+
+    let query = sql`
+      SELECT 
+        sm.*,
+        sc.name as category_name,
+        sc.color as category_color,
+        sc.sort_order as category_sort_order
+      FROM skills_master sm
+      LEFT JOIN skill_categories sc ON sm.category_id = sc.id
+    `
+
+    const conditions = []
+    if (category_id) {
+      conditions.push(sql`sm.category_id = ${category_id}`)
+    }
+    if (search) {
+      conditions.push(sql`sm.name ILIKE ${"%" + search + "%"}`)
+    }
+
+    if (conditions.length > 0) {
+      query = sql`${query} WHERE ${sql.join(conditions, sql` AND `)}`
+    }
+
+    query = sql`${query} ORDER BY sc.sort_order, sm.sort_order, sm.name`
+
     const skills = await query
-    return NextResponse.json(skills)
+
+    return NextResponse.json({ skills })
   } catch (error) {
-    console.error("Get master skills error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Get skills error:", error)
+    return NextResponse.json({ error: "Failed to get skills" }, { status: 500 })
   }
 }
 
-// Create new master skill
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const user = await requireAdmin()
-    const body = await request.json()
-    const skillData = skillMasterSchema.parse(body)
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
 
-    const result = await sql`
+    const body = await request.json()
+    const { name, category_id, description, sort_order } = body
+
+    if (!name || !category_id) {
+      return NextResponse.json({ error: "Name and category_id are required" }, { status: 400 })
+    }
+
+    const newSkill = await sql`
       INSERT INTO skills_master (name, category_id, description, sort_order)
-      VALUES (${skillData.name}, ${skillData.categoryId}, ${skillData.description}, ${skillData.sortOrder || 0})
+      VALUES (${name}, ${category_id}, ${description || null}, ${sort_order || 0})
       RETURNING *
     `
 
-    const newSkill = result[0]
-
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: newSkill.id,
+    // Log audit event
+    await logAuditEvent({
       action: "CREATE",
-      newValues: skillData,
+      table_name: "skills_master",
+      record_id: newSkill[0].id,
+      new_values: newSkill[0],
     })
 
-    return NextResponse.json(newSkill, { status: 201 })
+    return NextResponse.json({ skill: newSkill[0] })
   } catch (error) {
-    console.error("Create master skill error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Create skill error:", error)
+    return NextResponse.json({ error: "Failed to create skill" }, { status: 500 })
   }
 }

@@ -1,34 +1,79 @@
--- Update skills table to allow flexible level formats
--- First, update any existing N/A values to L1 as a default
-UPDATE skills SET level = 'L1' WHERE level = 'N/A' OR level IS NULL;
+-- Update demonstration_templates to have more realistic skill levels
+UPDATE demonstration_templates 
+SET level = CASE 
+    WHEN level = 'Intermediate' AND skill_id IN (
+        SELECT id FROM skills_master WHERE name LIKE '%JavaScript%'
+    ) THEN 'Intermediate'
+    WHEN level = 'Advanced' AND skill_id IN (
+        SELECT id FROM skills_master WHERE name LIKE '%JavaScript%'
+    ) THEN 'Advanced'
+    ELSE level
+END;
 
--- Add a check constraint to ensure level follows the pattern (Letter + Number)
-ALTER TABLE skills DROP CONSTRAINT IF EXISTS skills_level_check;
-ALTER TABLE skills ADD CONSTRAINT skills_level_check CHECK (level ~ '^[A-Z][0-9]+$');
+-- Add more demonstration templates for different skill levels
+INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
+SELECT 
+    sm.id,
+    'Beginner',
+    'Basic understanding of JavaScript fundamentals',
+    'Understands basic syntax, variables, functions, and can write simple scripts with guidance'
+FROM skills_master sm 
+WHERE sm.name = 'JavaScript/TypeScript'
+AND NOT EXISTS (
+    SELECT 1 FROM demonstration_templates dt 
+    WHERE dt.skill_id = sm.id AND dt.level = 'Beginner'
+);
 
--- Make level column NOT NULL
-ALTER TABLE skills ALTER COLUMN level SET NOT NULL;
+-- Add React skill demonstrations
+INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
+SELECT 
+    sm.id,
+    'Intermediate',
+    'Proficient in React development',
+    'Can build complex React applications using hooks, context, and modern patterns'
+FROM skills_master sm 
+WHERE sm.name = 'React/Next.js'
+AND NOT EXISTS (
+    SELECT 1 FROM demonstration_templates dt 
+    WHERE dt.skill_id = sm.id AND dt.level = 'Intermediate'
+);
 
--- Update the skill categories table to add a description for better admin UX
-ALTER TABLE skill_categories ADD COLUMN IF NOT EXISTS description TEXT;
+INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
+SELECT 
+    sm.id,
+    'Advanced',
+    'Expert React developer',
+    'Architects scalable React applications, optimizes performance, and mentors others'
+FROM skills_master sm 
+WHERE sm.name = 'React/Next.js'
+AND NOT EXISTS (
+    SELECT 1 FROM demonstration_templates dt 
+    WHERE dt.skill_id = sm.id AND dt.level = 'Advanced'
+);
 
--- Update skill categories with descriptions
-UPDATE skill_categories SET description = 
-  CASE 
-    WHEN slug = 'technical' THEN 'Core technical competencies and domain expertise required for the role'
-    WHEN slug = 'delivery' THEN 'Skills related to planning, executing, and delivering work effectively'
-    WHEN slug = 'communication' THEN 'Interpersonal skills including feedback, collaboration, and communication'
-    WHEN slug = 'leadership' THEN 'Leadership capabilities and people management skills'
-    WHEN slug = 'strategic' THEN 'Strategic thinking and organizational impact abilities'
-    ELSE 'General skill category'
-  END
-WHERE description IS NULL;
+-- Add Problem Solving demonstrations
+INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
+SELECT 
+    sm.id,
+    'Intermediate',
+    'Strong analytical and problem-solving abilities',
+    'Can break down complex problems, identify root causes, and implement effective solutions'
+FROM skills_master sm 
+WHERE sm.name = 'Problem Solving'
+AND NOT EXISTS (
+    SELECT 1 FROM demonstration_templates dt 
+    WHERE dt.skill_id = sm.id AND dt.level = 'Intermediate'
+);
 
--- Add some example skills with different level types for demonstration
-INSERT INTO skills (job_role_id, category_id, name, level, description, full_description, sort_order) 
-SELECT 1, 1, 'Advanced Security', 'L3', 'Implements advanced security measures', 'Advanced security implementation and threat analysis', 10
-WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Advanced Security');
-
-INSERT INTO skills (job_role_id, category_id, name, level, description, full_description, sort_order) 
-SELECT 1, 4, 'Team Leadership', 'M2', 'Leads small development teams', 'Manages and mentors junior developers, coordinates team activities', 20
-WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Team Leadership');
+INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
+SELECT 
+    sm.id,
+    'Advanced',
+    'Expert problem solver and strategic thinker',
+    'Tackles ambiguous challenges, designs innovative solutions, and guides others in problem-solving approaches'
+FROM skills_master sm 
+WHERE sm.name = 'Problem Solving'
+AND NOT EXISTS (
+    SELECT 1 FROM demonstration_templates dt 
+    WHERE dt.skill_id = sm.id AND dt.level = 'Advanced'
+);
