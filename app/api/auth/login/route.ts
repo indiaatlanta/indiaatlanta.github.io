@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
@@ -11,28 +11,25 @@ const DEMO_USERS = [
     id: 1,
     email: "admin@henryscheinone.com",
     password: "admin123",
-    name: "Admin User",
+    name: "Demo Admin",
     role: "admin",
     department: "IT",
-    job_title: "System Administrator",
   },
   {
     id: 2,
     email: "manager@henryscheinone.com",
     password: "manager123",
-    name: "Manager User",
+    name: "Demo Manager",
     role: "manager",
     department: "Engineering",
-    job_title: "Engineering Manager",
   },
   {
     id: 3,
     email: "user@henryscheinone.com",
     password: "user123",
-    name: "Regular User",
+    name: "Demo User",
     role: "user",
     department: "Engineering",
-    job_title: "Software Developer",
   },
 ]
 
@@ -47,16 +44,22 @@ export async function POST(request: NextRequest) {
     let user = null
 
     if (!isDatabaseConfigured() || !sql) {
-      // Demo mode - check against demo users
-      const demoUser = DEMO_USERS.find((u) => u.email === email)
-      if (demoUser && demoUser.password === password) {
-        user = demoUser
+      // Demo mode - use hardcoded users
+      const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
+      if (demoUser) {
+        user = {
+          id: demoUser.id,
+          email: demoUser.email,
+          name: demoUser.name,
+          role: demoUser.role,
+          department: demoUser.department,
+        }
       }
     } else {
-      // Database mode - check against database
+      // Database mode
       try {
         const users = await sql`
-          SELECT id, email, password_hash, name, role, department, job_title
+          SELECT id, email, password_hash, name, role, department
           FROM users 
           WHERE email = ${email} AND active = true
         `
@@ -72,13 +75,22 @@ export async function POST(request: NextRequest) {
               name: dbUser.name,
               role: dbUser.role,
               department: dbUser.department,
-              job_title: dbUser.job_title,
             }
           }
         }
       } catch (dbError) {
         console.error("Database error during login:", dbError)
-        return NextResponse.json({ error: "Authentication service temporarily unavailable" }, { status: 503 })
+        // Fall back to demo mode on database error
+        const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
+        if (demoUser) {
+          user = {
+            id: demoUser.id,
+            email: demoUser.email,
+            name: demoUser.name,
+            role: demoUser.role,
+            department: demoUser.department,
+          }
+        }
       }
     }
 
@@ -91,18 +103,13 @@ export async function POST(request: NextRequest) {
       {
         userId: user.id,
         email: user.email,
-        name: user.name,
         role: user.role,
-        department: user.department,
-        job_title: user.job_title,
       },
       JWT_SECRET,
       { expiresIn: "7d" },
     )
 
-    // Create response with redirect based on role
-    const redirectUrl = user.role === "admin" ? "/admin" : "/profile"
-
+    // Create response with user data
     const response = NextResponse.json({
       success: true,
       user: {
@@ -111,9 +118,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
         department: user.department,
-        job_title: user.job_title,
       },
-      redirectUrl,
     })
 
     // Set HTTP-only cookie
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
     })
 
     return response

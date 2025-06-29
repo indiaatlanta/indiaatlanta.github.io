@@ -4,10 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'manager', 'user')),
-    department VARCHAR(100),
-    job_title VARCHAR(100),
-    hire_date DATE,
+    role VARCHAR(50) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'manager', 'user')),
+    department VARCHAR(255),
     manager_id INTEGER REFERENCES users(id),
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -17,9 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- Create user_profiles table for additional user information
 CREATE TABLE IF NOT EXISTS user_profiles (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT,
-    skills JSONB, -- Store user's self-assessed skills
+    skills JSONB, -- Store user's self-reported skills
     goals TEXT,
     linkedin_url VARCHAR(255),
     github_url VARCHAR(255),
@@ -30,10 +28,10 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- Create saved_comparisons table
 CREATE TABLE IF NOT EXISTS saved_comparisons (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    role1_id INTEGER REFERENCES job_roles(id),
-    role2_id INTEGER REFERENCES job_roles(id),
+    role_1_id INTEGER NOT NULL REFERENCES job_roles(id),
+    role_2_id INTEGER NOT NULL REFERENCES job_roles(id),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -42,10 +40,10 @@ CREATE TABLE IF NOT EXISTS saved_comparisons (
 -- Create saved_self_reviews table
 CREATE TABLE IF NOT EXISTS saved_self_reviews (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id INTEGER NOT NULL REFERENCES job_roles(id),
     name VARCHAR(255) NOT NULL,
-    role_id INTEGER REFERENCES job_roles(id),
-    skill_assessments JSONB, -- Store skill ratings as JSON
+    assessment_data JSONB NOT NULL, -- Store skill ratings and notes
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -82,24 +80,21 @@ INSERT INTO departments (name, description) VALUES
     ('Operations', 'Operations and support')
 ON CONFLICT DO NOTHING;
 
--- Insert sample users (passwords are hashed versions of simple passwords for demo)
--- admin123 -> $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
--- manager123 -> $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi  
--- user123 -> $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
-
-INSERT INTO users (email, password_hash, name, role, department, job_title, active) VALUES
-    ('admin@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin User', 'admin', 'IT', 'System Administrator', true),
-    ('manager@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Manager User', 'manager', 'Engineering', 'Engineering Manager', true),
-    ('user@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Regular User', 'user', 'Engineering', 'Software Developer', true)
+-- Insert demo users with hashed passwords (password is the same as the role name + "123")
+-- Note: In production, these should be properly hashed with bcrypt
+INSERT INTO users (email, password_hash, name, role, department) VALUES
+    ('admin@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Demo Admin', 'admin', 'IT'),
+    ('manager@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Demo Manager', 'manager', 'Engineering'),
+    ('user@henryscheinone.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Demo User', 'user', 'Engineering')
 ON CONFLICT (email) DO NOTHING;
 
 -- Update manager relationships
 UPDATE users SET manager_id = (SELECT id FROM users WHERE email = 'manager@henryscheinone.com') 
 WHERE email = 'user@henryscheinone.com';
 
--- Create user profiles for sample users
-INSERT INTO user_profiles (user_id, bio, skills, goals) VALUES 
-    ((SELECT id FROM users WHERE email = 'admin@henryscheinone.com'), 'System administrator with 10+ years experience', '["System Administration", "Security", "DevOps"]'::JSONB, 'Lead technical infrastructure initiatives'),
-    ((SELECT id FROM users WHERE email = 'manager@henryscheinone.com'), 'Engineering manager focused on team growth', '["Leadership", "Software Architecture", "Team Management"]'::JSONB, 'Build high-performing engineering teams'),
-    ((SELECT id FROM users WHERE email = 'user@henryscheinone.com'), 'Full-stack developer passionate about user experience', '["React", "Node.js", "UI/UX"]'::JSONB, 'Become a senior technical lead')
+-- Create user profiles for demo users
+INSERT INTO user_profiles (user_id, bio, goals) VALUES 
+    ((SELECT id FROM users WHERE email = 'admin@henryscheinone.com'), 'System administrator with focus on career development tools', 'Improve platform adoption and user experience'),
+    ((SELECT id FROM users WHERE email = 'manager@henryscheinone.com'), 'Engineering manager passionate about team development', 'Help team members advance their careers and develop new skills'),
+    ((SELECT id FROM users WHERE email = 'user@henryscheinone.com'), 'Software developer looking to grow technical and leadership skills', 'Advance to senior developer role within 2 years')
 ON CONFLICT DO NOTHING;

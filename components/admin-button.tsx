@@ -11,21 +11,6 @@ export function AdminButton() {
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
-        // Check for demo session cookie
-        const demoSession = document.cookie.includes("demo-session=true")
-        if (demoSession) {
-          setIsAdmin(true)
-          setIsLoading(false)
-          return
-        }
-
-        // In demo mode (development or no database), always show admin button
-        if (process.env.NODE_ENV === "development") {
-          setIsAdmin(true)
-          setIsLoading(false)
-          return
-        }
-
         // Check if database is configured by trying to fetch roles
         try {
           const rolesResponse = await fetch("/api/roles")
