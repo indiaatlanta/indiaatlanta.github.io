@@ -36,6 +36,20 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
           description: "Marketing and growth roles",
           color: "#F59E0B",
         },
+        sales: {
+          id: 5,
+          name: "Sales",
+          slug: "sales",
+          description: "Sales and business development roles",
+          color: "#EF4444",
+        },
+        operations: {
+          id: 6,
+          name: "Operations",
+          slug: "operations",
+          description: "Operations and support roles",
+          color: "#6B7280",
+        },
       }
 
       const department = mockDepartments[slug]

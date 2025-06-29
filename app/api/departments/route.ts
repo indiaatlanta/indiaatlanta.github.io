@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     if (!isDatabaseConfigured() || !sql) {
       // Return mock departments for demo mode
@@ -75,6 +75,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ departments, isDemoMode: false })
   } catch (error) {
     console.error("Get departments error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+
+    // Fallback to demo data on error
+    const mockDepartments = [
+      {
+        id: 1,
+        name: "Engineering",
+        slug: "engineering",
+        description: "Software development and technical roles",
+        color: "#3B82F6",
+        role_count: 8,
+      },
+      {
+        id: 2,
+        name: "Product",
+        slug: "product",
+        description: "Product management and strategy roles",
+        color: "#10B981",
+        role_count: 5,
+      },
+    ]
+    return NextResponse.json({ departments: mockDepartments, isDemoMode: true })
   }
 }

@@ -1,14 +1,13 @@
-import { Button } from "@/components/ui/button"
 import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Users, TrendingUp, Award } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import LoginButton from "@/components/login-button"
 import AdminButton from "@/components/admin-button"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { sql, isDatabaseConfigured, DEMO_DEPARTMENTS } from "@/lib/db"
+import { Users, Building2, Target, TrendingUp } from "lucide-react"
 
 interface Department {
   id: number
@@ -21,57 +20,7 @@ interface Department {
 
 async function getDepartments(): Promise<{ departments: Department[]; isDemoMode: boolean }> {
   if (!isDatabaseConfigured() || !sql) {
-    const mockDepartments: Department[] = [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        color: "#3B82F6",
-        role_count: 8,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and strategy roles",
-        color: "#10B981",
-        role_count: 5,
-      },
-      {
-        id: 3,
-        name: "Design",
-        slug: "design",
-        description: "User experience and visual design roles",
-        color: "#8B5CF6",
-        role_count: 4,
-      },
-      {
-        id: 4,
-        name: "Marketing",
-        slug: "marketing",
-        description: "Marketing and growth roles",
-        color: "#F59E0B",
-        role_count: 6,
-      },
-      {
-        id: 5,
-        name: "Sales",
-        slug: "sales",
-        description: "Sales and business development roles",
-        color: "#EF4444",
-        role_count: 7,
-      },
-      {
-        id: 6,
-        name: "Operations",
-        slug: "operations",
-        description: "Operations and support roles",
-        color: "#6B7280",
-        role_count: 5,
-      },
-    ]
-    return { departments: mockDepartments, isDemoMode: true }
+    return { departments: DEMO_DEPARTMENTS, isDemoMode: true }
   }
 
   try {
@@ -92,27 +41,7 @@ async function getDepartments(): Promise<{ departments: Department[]; isDemoMode
     return { departments, isDemoMode: false }
   } catch (error) {
     console.error("Error fetching departments:", error)
-
-    // Fallback to demo data
-    const mockDepartments: Department[] = [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        color: "#3B82F6",
-        role_count: 8,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and strategy roles",
-        color: "#10B981",
-        role_count: 5,
-      },
-    ]
-    return { departments: mockDepartments, isDemoMode: true }
+    return { departments: DEMO_DEPARTMENTS, isDemoMode: true }
   }
 }
 
@@ -129,7 +58,7 @@ export default async function HomePage() {
               <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-auto" />
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Career Matrix</h1>
-                <p className="text-sm text-gray-500">Henry Schein One</p>
+                <p className="text-sm text-gray-500">Skills & Career Development</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -160,107 +89,82 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Demo Mode Alert */}
-        {isDemoMode && (
-          <Alert className="mb-6 border-blue-200 bg-blue-50">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>Demo Mode:</strong> Department and role data is simulated for demonstration purposes.
-            </AlertDescription>
-          </Alert>
-        )}
+      {/* Hero Section */}
+      <div className="bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">Explore Your Career Path at Henry Schein One</h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              Discover roles, understand skill requirements, and plan your professional development across our
+              departments.
+            </p>
+            <div className="flex items-center justify-center space-x-8 text-sm text-gray-500">
+              <div className="flex items-center space-x-2">
+                <Building2 className="w-5 h-5" />
+                <span>{departments.length} Departments</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span>{departments.reduce((sum, dept) => sum + (dept.role_count || 0), 0)} Roles</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Target className="w-5 h-5" />
+                <span>Skills Matrix</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="w-5 h-5" />
+                <span>Career Growth</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Career Development Matrix</h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Explore career paths, understand skill requirements, and plan your professional growth across different
-            departments at Henry Schein One.
+      {/* Departments Grid */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Choose Your Department</h2>
+          <p className="text-gray-600">
+            Select a department to explore career paths, role requirements, and skills matrices.
           </p>
-          <div className="flex items-center justify-center space-x-8 text-sm text-gray-500">
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {departments.map((department) => (
+            <Link key={department.id} href={`/department/${department.slug}`}>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: department.color }} />
+                    <Badge variant="outline" className="text-xs">
+                      {department.role_count || 0} roles
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-xl">{department.name}</CardTitle>
+                  <CardDescription className="text-sm">{department.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button variant="ghost" className="w-full justify-between p-0">
+                    <span>Explore Roles</span>
+                    <span>→</span>
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* Demo Mode Notice */}
+        {isDemoMode && (
+          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5" />
-              <span>{departments.reduce((sum, dept) => sum + (dept.role_count || 0), 0)} Roles</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5" />
-              <span>Career Progression</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Award className="w-5 h-5" />
-              <span>Skills Assessment</span>
+              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <p className="text-blue-800 text-sm">
+                <strong>Demo Mode:</strong> Showing sample departments and roles for demonstration purposes.
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* Departments Grid */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Explore Departments</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {departments.map((department) => (
-              <Link key={department.id} href={`/department/${department.slug}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{department.name}</CardTitle>
-                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: department.color }} />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 mb-4">{department.description}</p>
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {department.role_count || 0} roles
-                      </Badge>
-                      <span className="text-sm text-blue-600 font-medium">Explore →</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-blue-600" />
-                <span>Compare Roles</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Compare different roles side-by-side to understand skill requirements and career progression paths.
-              </p>
-              <Link href="/compare">
-                <Button className="w-full">Start Comparison</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Award className="w-5 h-5 text-green-600" />
-                <span>Self Assessment</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Assess your current skills against role requirements and identify areas for development.
-              </p>
-              <Link href="/self-review">
-                <Button variant="outline" className="w-full bg-transparent">
-                  Start Assessment
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
+        )}
       </main>
     </div>
   )
