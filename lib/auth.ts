@@ -75,19 +75,49 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
       const sessionId = cookieStore.get("session")?.value
 
       if (sessionId) {
-        // Return mock admin session for demo mode
-        return {
-          user: {
-            id: 1,
-            email: "admin@henryscheinone.com",
-            name: "Demo Admin",
-            role: "admin",
-          },
-          session: {
-            id: sessionId,
-            userId: 1,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
+        // Return appropriate mock session based on session ID
+        if (sessionId === "demo-admin-session") {
+          return {
+            user: {
+              id: 1,
+              email: "admin@henryscheinone.com",
+              name: "Demo Admin",
+              role: "admin",
+            },
+            session: {
+              id: sessionId,
+              userId: 1,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          }
+        } else if (sessionId === "demo-manager-session") {
+          return {
+            user: {
+              id: 2,
+              email: "manager@henryscheinone.com",
+              name: "Demo Manager",
+              role: "manager",
+            },
+            session: {
+              id: sessionId,
+              userId: 2,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          }
+        } else if (sessionId === "demo-user-session") {
+          return {
+            user: {
+              id: 3,
+              email: "user@henryscheinone.com",
+              name: "Demo User",
+              role: "user",
+            },
+            session: {
+              id: sessionId,
+              userId: 3,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          }
         }
       }
     } catch (error) {

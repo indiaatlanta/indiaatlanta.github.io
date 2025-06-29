@@ -12,8 +12,9 @@ export async function POST(request: NextRequest) {
     if (!isDatabaseConfigured() || !sql) {
       // In demo mode, allow login with demo credentials
       if (email === "admin@henryscheinone.com" && password === "admin123") {
-        // Return success for demo mode
-        return NextResponse.json({
+        // Create a demo session
+        const sessionId = "demo-admin-session"
+        const response = NextResponse.json({
           user: {
             id: 1,
             email: "admin@henryscheinone.com",
@@ -21,8 +22,19 @@ export async function POST(request: NextRequest) {
             role: "admin",
           },
         })
+
+        // Set session cookie
+        response.cookies.set("session", sessionId, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 7 * 24 * 60 * 60, // 7 days
+        })
+
+        return response
       } else if (email === "manager@henryscheinone.com" && password === "manager123") {
-        return NextResponse.json({
+        const sessionId = "demo-manager-session"
+        const response = NextResponse.json({
           user: {
             id: 2,
             email: "manager@henryscheinone.com",
@@ -30,8 +42,18 @@ export async function POST(request: NextRequest) {
             role: "manager",
           },
         })
+
+        response.cookies.set("session", sessionId, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 7 * 24 * 60 * 60,
+        })
+
+        return response
       } else if (email === "user@henryscheinone.com" && password === "user123") {
-        return NextResponse.json({
+        const sessionId = "demo-user-session"
+        const response = NextResponse.json({
           user: {
             id: 3,
             email: "user@henryscheinone.com",
@@ -39,6 +61,15 @@ export async function POST(request: NextRequest) {
             role: "user",
           },
         })
+
+        response.cookies.set("session", sessionId, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 7 * 24 * 60 * 60,
+        })
+
+        return response
       } else {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
