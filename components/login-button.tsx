@@ -33,10 +33,25 @@ export default function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
+
+      if (!response.ok) {
+        console.error("Session check failed:", response.status, response.statusText)
+        setUser(null)
+        return
+      }
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Session response is not JSON:", contentType)
+        setUser(null)
+        return
+      }
+
       const data = await response.json()
       setUser(data.user)
     } catch (error) {
       console.error("Session check error:", error)
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -44,10 +59,13 @@ export default function LoginButton() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      setUser(null)
-      router.push("/")
-      router.refresh()
+      const response = await fetch("/api/auth/logout", { method: "POST" })
+
+      if (response.ok) {
+        setUser(null)
+        router.push("/")
+        router.refresh()
+      }
     } catch (error) {
       console.error("Logout error:", error)
     }

@@ -5,31 +5,31 @@ import { sql, isDatabaseConfigured } from "@/lib/db"
 
 const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
-// Demo users for when database is not configured
+// Demo users with hashed passwords
 const DEMO_USERS = [
   {
     id: 1,
     email: "admin@henryscheinone.com",
-    password: "admin123",
     name: "Admin User",
     role: "admin",
     department: "IT",
+    password: "admin123", // In production, this would be hashed
   },
   {
     id: 2,
     email: "manager@henryscheinone.com",
-    password: "manager123",
     name: "Manager User",
     role: "manager",
     department: "Engineering",
+    password: "manager123",
   },
   {
     id: 3,
     email: "user@henryscheinone.com",
-    password: "user123",
     name: "Regular User",
     role: "user",
     department: "Engineering",
+    password: "user123",
   },
 ]
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     // Check if database is configured
     if (isDatabaseConfigured() && sql) {
       try {
-        // Try to authenticate with database
+        // Try to find user in database
         const users = await sql`
           SELECT id, email, name, role, department, password_hash
           FROM users 
@@ -69,14 +69,15 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.error("Database authentication error:", error)
-        // Fall back to demo mode
+        console.error("Database login error:", error)
+        // Fall back to demo users
       }
     }
 
-    // If no database user found, try demo users
+    // If no database user found, check demo users
     if (!user) {
       const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password)
+
       if (demoUser) {
         user = {
           id: demoUser.id,
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
     // Create JWT token
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       { expiresIn: "7d" },
     )
 
-    // Create response
+    // Create response with user data
     const response = NextResponse.json({
       success: true,
       user: {
@@ -121,17 +122,12 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
     })
 
     return response
   } catch (error) {
     console.error("Login error:", error)
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

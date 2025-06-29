@@ -1,17 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Settings, Users, Database, BarChart3, Shield } from "lucide-react"
+import { Settings, Users, Database, FileText } from "lucide-react"
+import Link from "next/link"
 
 interface User {
   id: number
@@ -24,7 +23,6 @@ interface User {
 export default function AdminButton() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
 
   useEffect(() => {
     checkSession()
@@ -33,10 +31,23 @@ export default function AdminButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
+
+      if (!response.ok) {
+        setUser(null)
+        return
+      }
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        setUser(null)
+        return
+      }
+
       const data = await response.json()
       setUser(data.user)
     } catch (error) {
-      console.error("Session check error:", error)
+      console.error("Admin session check error:", error)
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -49,43 +60,42 @@ export default function AdminButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
-          <Shield className="w-4 h-4" />
+        <Button variant="outline" size="sm">
+          <Settings className="w-4 h-4 mr-2" />
           {user.role === "admin" ? "Admin" : "Manager"}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>{user.role === "admin" ? "Admin Tools" : "Manager Tools"}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-
+      <DropdownMenuContent align="end" className="w-48">
         {user.role === "admin" && (
           <>
-            <DropdownMenuItem onClick={() => router.push("/admin")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Admin Dashboard
+            <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center">
+                <Settings className="w-4 h-4 mr-2" />
+                Admin Panel
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
-              <Users className="mr-2 h-4 w-4" />
-              User Management
+            <DropdownMenuItem asChild>
+              <Link href="/admin/users" className="flex items-center">
+                <Users className="w-4 h-4 mr-2" />
+                User Management
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin/skills")}>
-              <Database className="mr-2 h-4 w-4" />
-              Skills Management
+            <DropdownMenuItem asChild>
+              <Link href="/admin/skills" className="flex items-center">
+                <Database className="w-4 h-4 mr-2" />
+                Skills Management
+              </Link>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
           </>
         )}
-
-        {user.role === "manager" && (
-          <>
-            <DropdownMenuItem onClick={() => router.push("/team")}>
-              <Users className="mr-2 h-4 w-4" />
-              Team Dashboard
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/team/reports")}>
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Team Reports
-            </DropdownMenuItem>
-          </>
+        {(user.role === "admin" || user.role === "manager") && (
+          <DropdownMenuItem asChild>
+            <Link href="/reports" className="flex items-center">
+              <FileText className="w-4 h-4 mr-2" />
+              Reports
+            </Link>
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

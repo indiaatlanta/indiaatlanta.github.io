@@ -1,10 +1,10 @@
 import { neon } from "@neondatabase/serverless"
 
-export const isDatabaseConfigured = () => {
-  return !!process.env.DATABASE_URL
-}
+export const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
-export const sql = isDatabaseConfigured() ? neon(process.env.DATABASE_URL!) : null
+export function isDatabaseConfigured(): boolean {
+  return !!process.env.DATABASE_URL && !!sql
+}
 
 // Test database connection
 export async function testDatabaseConnection() {
