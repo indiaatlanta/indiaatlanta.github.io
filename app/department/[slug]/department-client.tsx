@@ -25,7 +25,7 @@ interface Skill {
 
 interface JobRole {
   id: number
-  name: string
+  title: string
   code: string
   level: number
   salary_min?: number
@@ -34,6 +34,7 @@ interface JobRole {
   department_id: number
   department_name: string
   skill_count: number
+  is_manager: boolean
 }
 
 interface SkillCategory {
@@ -63,7 +64,6 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-  const [isDemoMode, setIsDemoMode] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [isExporting, setIsExporting] = useState(false)
   const [showMatrix, setShowMatrix] = useState(false)
@@ -86,65 +86,14 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
       }
       const data = await response.json()
 
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
       setRoles(data.roles || [])
-      setIsDemoMode(data.isDemoMode || false)
     } catch (error) {
       console.error("Error loading roles:", error)
-      setError("Failed to load roles")
-      setIsDemoMode(true)
-
-      // Fallback to demo data
-      const demoRoles: JobRole[] = [
-        {
-          id: 1,
-          name: "Software Engineer I",
-          code: "SE1",
-          level: 1,
-          salary_min: 70000,
-          salary_max: 90000,
-          location_type: "Hybrid",
-          department_id: 1,
-          department_name: departmentName,
-          skill_count: 12,
-        },
-        {
-          id: 2,
-          name: "Software Engineer II",
-          code: "SE2",
-          level: 2,
-          salary_min: 90000,
-          salary_max: 120000,
-          location_type: "Hybrid",
-          department_id: 1,
-          department_name: departmentName,
-          skill_count: 15,
-        },
-        {
-          id: 3,
-          name: "Senior Software Engineer",
-          code: "SSE",
-          level: 3,
-          salary_min: 120000,
-          salary_max: 160000,
-          location_type: "Hybrid",
-          department_id: 1,
-          department_name: departmentName,
-          skill_count: 18,
-        },
-        {
-          id: 4,
-          name: "Engineering Manager",
-          code: "M1",
-          level: 4,
-          salary_min: 140000,
-          salary_max: 180000,
-          location_type: "Hybrid",
-          department_id: 1,
-          department_name: departmentName,
-          skill_count: 20,
-        },
-      ]
-      setRoles(demoRoles)
+      setError(`Failed to load roles: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -248,8 +197,8 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
   }
 
   // Separate IC and Manager roles
-  const icRoles = roles.filter((role) => !role.code.startsWith("M")).sort((a, b) => a.level - b.level)
-  const managerRoles = roles.filter((role) => role.code.startsWith("M")).sort((a, b) => a.level - b.level)
+  const icRoles = roles.filter((role) => !role.is_manager).sort((a, b) => a.level - b.level)
+  const managerRoles = roles.filter((role) => role.is_manager).sort((a, b) => a.level - b.level)
 
   const exportToCSV = () => {
     const matrix = getSkillsMatrix()
@@ -261,7 +210,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     }
 
     // Create CSV header
-    const headers = ["Skill", "Category", ...roles.map((role) => role.name)]
+    const headers = ["Skill", "Category", ...roles.map((role) => role.title)]
 
     // Create CSV rows
     const rows = skillNames.map((skillName) => {
@@ -360,7 +309,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
 
       roles.forEach((role, index) => {
         const x = 12 + skillNameWidth + categoryWidth + index * roleWidth
-        const roleText = role.name.length > 12 ? role.name.substring(0, 12) + "..." : role.name
+        const roleText = role.title.length > 12 ? role.title.substring(0, 12) + "..." : role.title
         pdf.text(roleText, x, startY + 5)
       })
 
@@ -430,29 +379,23 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
     )
   }
 
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   if (showMatrix) {
     const allSkillsFlat = getAllSkillsFlat()
     const skillsByCategory = getSkillsByCategory(allSkillsFlat)
 
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Demo Mode Alert */}
-        {isDemoMode && (
-          <Alert className="mb-6 border-blue-200 bg-blue-50">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>Demo Mode:</strong> Skills data is simulated for demonstration purposes.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Error Alert */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         {/* Header with Export Options */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -506,7 +449,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
                           {roles.map((role) => (
                             <th key={role.id} className="text-center p-3 font-medium text-gray-900 min-w-[120px]">
                               <div className="flex flex-col">
-                                <span className="text-sm">{role.name}</span>
+                                <span className="text-sm">{role.title}</span>
                                 <span className="text-xs text-gray-500 font-normal">({role.code})</span>
                               </div>
                             </th>
@@ -615,23 +558,6 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Demo Mode Alert */}
-      {isDemoMode && (
-        <Alert className="mb-6 border-blue-200 bg-blue-50">
-          <AlertCircle className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            <strong>Demo Mode:</strong> Role and skills data is simulated for demonstration purposes.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -657,7 +583,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{role.name}</CardTitle>
+                    <CardTitle className="text-lg">{role.title}</CardTitle>
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                       {role.code}
                     </Badge>
@@ -701,7 +627,7 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{role.name}</CardTitle>
+                    <CardTitle className="text-lg">{role.title}</CardTitle>
                     <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                       {role.code}
                     </Badge>
@@ -732,16 +658,24 @@ export default function DepartmentClient({ departmentSlug, departmentName }: Dep
         </div>
       )}
 
+      {/* No Roles Message */}
+      {roles.length === 0 && (
+        <div className="text-center py-12">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Roles Found</h3>
+          <p className="text-gray-600">No roles are currently available for the {departmentName} department.</p>
+        </div>
+      )}
+
       {/* Role Detail Dialog */}
       <Dialog open={!!selectedRole} onOpenChange={() => setSelectedRole(null)}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {selectedRole?.name}
+              {selectedRole?.title}
               <Badge
                 variant="outline"
                 className={
-                  selectedRole?.code.startsWith("M")
+                  selectedRole?.is_manager
                     ? "bg-purple-50 text-purple-700 border-purple-200"
                     : "bg-blue-50 text-blue-700 border-blue-200"
                 }

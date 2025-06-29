@@ -17,38 +17,7 @@ interface Department {
 
 async function getDepartment(slug: string): Promise<Department | null> {
   if (!isDatabaseConfigured() || !sql) {
-    // Return mock data for preview
-    const mockDepartments: Record<string, Department> = {
-      engineering: {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        color: "#3B82F6",
-      },
-      product: {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and design roles",
-        color: "#10B981",
-      },
-      sales: {
-        id: 3,
-        name: "Sales",
-        slug: "sales",
-        description: "Sales and business development roles",
-        color: "#EF4444",
-      },
-      marketing: {
-        id: 4,
-        name: "Marketing",
-        slug: "marketing",
-        description: "Marketing and communications roles",
-        color: "#F59E0B",
-      },
-    }
-    return mockDepartments[slug] || null
+    return null
   }
 
   try {
@@ -60,18 +29,7 @@ async function getDepartment(slug: string): Promise<Department | null> {
     return departments[0] || null
   } catch (error) {
     console.error("Error fetching department:", error)
-
-    // Fallback to mock data
-    const mockDepartments: Record<string, Department> = {
-      engineering: {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        color: "#3B82F6",
-      },
-    }
-    return mockDepartments[slug] || null
+    return null
   }
 }
 

@@ -4,10 +4,11 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import LoginButton from "@/components/login-button"
 import AdminButton from "@/components/admin-button"
-import { sql, isDatabaseConfigured, DEMO_DEPARTMENTS } from "@/lib/db"
-import { Users, Building2, Target, TrendingUp } from "lucide-react"
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { Users, Building2, Target, TrendingUp, AlertCircle } from "lucide-react"
 
 interface Department {
   id: number
@@ -18,9 +19,12 @@ interface Department {
   role_count?: number
 }
 
-async function getDepartments(): Promise<{ departments: Department[]; isDemoMode: boolean }> {
+async function getDepartments(): Promise<{ departments: Department[]; error?: string }> {
   if (!isDatabaseConfigured() || !sql) {
-    return { departments: DEMO_DEPARTMENTS, isDemoMode: true }
+    return {
+      departments: [],
+      error: "Database not configured. Please set DATABASE_URL environment variable.",
+    }
   }
 
   try {
@@ -38,15 +42,18 @@ async function getDepartments(): Promise<{ departments: Department[]; isDemoMode
       ORDER BY d.sort_order, d.name
     `
 
-    return { departments, isDemoMode: false }
+    return { departments }
   } catch (error) {
     console.error("Error fetching departments:", error)
-    return { departments: DEMO_DEPARTMENTS, isDemoMode: true }
+    return {
+      departments: [],
+      error: "Failed to connect to database. Please check your database configuration.",
+    }
   }
 }
 
 export default async function HomePage() {
-  const { departments, isDemoMode } = await getDepartments()
+  const { departments, error } = await getDepartments()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -120,48 +127,64 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* Departments Grid */}
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Choose Your Department</h2>
-          <p className="text-gray-600">
-            Select a department to explore career paths, role requirements, and skills matrices.
-          </p>
-        </div>
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="mb-8">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Database Connection Error:</strong> {error}
+            </AlertDescription>
+          </Alert>
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {departments.map((department) => (
-            <Link key={department.id} href={`/department/${department.slug}`}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: department.color }} />
-                    <Badge variant="outline" className="text-xs">
-                      {department.role_count || 0} roles
-                    </Badge>
-                  </div>
-                  <CardTitle className="text-xl">{department.name}</CardTitle>
-                  <CardDescription className="text-sm">{department.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="ghost" className="w-full justify-between p-0">
-                    <span>Explore Roles</span>
-                    <span>→</span>
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        {/* Demo Mode Notice */}
-        {isDemoMode && (
-          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <p className="text-blue-800 text-sm">
-                <strong>Demo Mode:</strong> Showing sample departments and roles for demonstration purposes.
+        {/* Departments Grid */}
+        {departments.length > 0 ? (
+          <>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Choose Your Department</h2>
+              <p className="text-gray-600">
+                Select a department to explore career paths, role requirements, and skills matrices.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {departments.map((department) => (
+                <Link key={department.id} href={`/department/${department.slug}`}>
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: department.color }} />
+                        <Badge variant="outline" className="text-xs">
+                          {department.role_count || 0} roles
+                        </Badge>
+                      </div>
+                      <CardTitle className="text-xl">{department.name}</CardTitle>
+                      <CardDescription className="text-sm">{department.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="ghost" className="w-full justify-between p-0">
+                        <span>Explore Roles</span>
+                        <span>→</span>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-12">
+            <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Departments Available</h3>
+            <p className="text-gray-600 mb-6">
+              Please ensure your database is properly configured and contains department data.
+            </p>
+            <div className="space-y-2 text-sm text-gray-500">
+              <p>1. Set your DATABASE_URL environment variable</p>
+              <p>2. Run the database setup scripts</p>
+              <p>3. Ensure departments table has data</p>
             </div>
           </div>
         )}

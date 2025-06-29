@@ -1,61 +1,10 @@
 import { NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { sql } from "@/lib/db"
 
 export async function GET() {
   try {
-    if (!isDatabaseConfigured() || !sql) {
-      // Return mock departments for demo mode
-      const mockDepartments = [
-        {
-          id: 1,
-          name: "Engineering",
-          slug: "engineering",
-          description: "Software development and technical roles",
-          color: "#3B82F6",
-          role_count: 8,
-        },
-        {
-          id: 2,
-          name: "Product",
-          slug: "product",
-          description: "Product management and strategy roles",
-          color: "#10B981",
-          role_count: 5,
-        },
-        {
-          id: 3,
-          name: "Design",
-          slug: "design",
-          description: "User experience and visual design roles",
-          color: "#8B5CF6",
-          role_count: 4,
-        },
-        {
-          id: 4,
-          name: "Marketing",
-          slug: "marketing",
-          description: "Marketing and growth roles",
-          color: "#F59E0B",
-          role_count: 6,
-        },
-        {
-          id: 5,
-          name: "Sales",
-          slug: "sales",
-          description: "Sales and business development roles",
-          color: "#EF4444",
-          role_count: 7,
-        },
-        {
-          id: 6,
-          name: "Operations",
-          slug: "operations",
-          description: "Operations and support roles",
-          color: "#6B7280",
-          role_count: 5,
-        },
-      ]
-      return NextResponse.json({ departments: mockDepartments, isDemoMode: true })
+    if (!sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
     const departments = await sql`
@@ -72,29 +21,12 @@ export async function GET() {
       ORDER BY d.sort_order, d.name
     `
 
-    return NextResponse.json({ departments, isDemoMode: false })
+    return NextResponse.json({
+      departments,
+      isDemoMode: false,
+    })
   } catch (error) {
-    console.error("Get departments error:", error)
-
-    // Fallback to demo data on error
-    const mockDepartments = [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        color: "#3B82F6",
-        role_count: 8,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and strategy roles",
-        color: "#10B981",
-        role_count: 5,
-      },
-    ]
-    return NextResponse.json({ departments: mockDepartments, isDemoMode: true })
+    console.error("Error fetching departments:", error)
+    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
   }
 }

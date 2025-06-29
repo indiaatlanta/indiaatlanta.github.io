@@ -256,20 +256,20 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 
     // Get department first
     const departments = await sql`
-      SELECT id, name FROM departments WHERE slug = ${slug}
+      SELECT id FROM departments WHERE slug = ${slug}
     `
 
     if (departments.length === 0) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 })
     }
 
-    const department = departments[0]
+    const departmentId = departments[0].id
 
     // Get roles for this department with skill counts
     const roles = await sql`
       SELECT 
         jr.id,
-        jr.title as name,
+        jr.name as title,
         jr.code,
         jr.level,
         jr.salary_min,
@@ -277,16 +277,18 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
         jr.location_type,
         jr.department_id,
         d.name as department_name,
-        COUNT(DISTINCT djr.demonstration_template_id) as skill_count
+        CASE 
+          WHEN jr.code LIKE 'M%' OR LOWER(jr.name) LIKE '%manager%' OR LOWER(jr.name) LIKE '%director%' OR LOWER(jr.name) LIKE '%lead%'
+          THEN true 
+          ELSE false 
+        END as is_manager,
+        COUNT(djr.demonstration_template_id) as skill_count
       FROM job_roles jr
-      JOIN departments d ON jr.department_id = d.id
+      LEFT JOIN departments d ON jr.department_id = d.id
       LEFT JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
-      WHERE jr.department_id = ${department.id}
-      GROUP BY jr.id, jr.title, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type, jr.department_id, d.name, jr.sort_order
-      ORDER BY 
-        CASE WHEN jr.code LIKE 'M%' THEN 1 ELSE 0 END,
-        jr.sort_order,
-        jr.level
+      WHERE jr.department_id = ${departmentId}
+      GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type, jr.department_id, d.name
+      ORDER BY jr.level, jr.name
     `
 
     return NextResponse.json({ roles, isDemoMode: false })

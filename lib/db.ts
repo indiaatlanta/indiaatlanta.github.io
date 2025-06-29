@@ -6,6 +6,19 @@ export function isDatabaseConfigured(): boolean {
   return !!process.env.DATABASE_URL && !!sql
 }
 
+// Test database connection
+export async function testDatabaseConnection(): Promise<boolean> {
+  if (!sql) return false
+
+  try {
+    await sql`SELECT 1`
+    return true
+  } catch (error) {
+    console.error("Database connection test failed:", error)
+    return false
+  }
+}
+
 // Demo data for when database is not configured
 export const DEMO_DEPARTMENTS = [
   {
