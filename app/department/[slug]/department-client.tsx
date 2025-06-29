@@ -54,7 +54,7 @@ const skillCategories: SkillCategory[] = [
   { id: 5, name: "Strategic Impact", color: "orange" },
 ]
 
-export function DepartmentClient({ departmentSlug, departmentName }: DepartmentClientProps) {
+export default function DepartmentClient({ departmentSlug, departmentName }: DepartmentClientProps) {
   const [roles, setRoles] = useState<JobRole[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
@@ -77,24 +77,158 @@ export function DepartmentClient({ departmentSlug, departmentName }: DepartmentC
   const loadRoles = async () => {
     try {
       const response = await fetch("/api/roles")
+      if (!response.ok) {
+        throw new Error("Failed to fetch roles")
+      }
       const data = await response.json()
-      setRoles(data.roles || [])
-      setIsDemoMode(data.isDemoMode)
+
+      // Ensure roles is always an array
+      const rolesData = Array.isArray(data.roles) ? data.roles : []
+      setRoles(rolesData)
+      setIsDemoMode(data.isDemoMode || false)
+
+      // If no roles from API, use demo data
+      if (rolesData.length === 0) {
+        const demoRoles: JobRole[] = [
+          {
+            id: 1,
+            name: "Software Engineer I",
+            code: "SE1",
+            level: 1,
+            salary_min: 70000,
+            salary_max: 90000,
+            location_type: "Hybrid",
+            department_name: departmentName,
+            skill_count: 12,
+          },
+          {
+            id: 2,
+            name: "Software Engineer II",
+            code: "SE2",
+            level: 2,
+            salary_min: 90000,
+            salary_max: 120000,
+            location_type: "Hybrid",
+            department_name: departmentName,
+            skill_count: 15,
+          },
+          {
+            id: 3,
+            name: "Senior Software Engineer",
+            code: "SSE",
+            level: 3,
+            salary_min: 120000,
+            salary_max: 160000,
+            location_type: "Hybrid",
+            department_name: departmentName,
+            skill_count: 18,
+          },
+        ]
+        setRoles(demoRoles)
+        setIsDemoMode(true)
+      }
     } catch (error) {
       console.error("Error loading roles:", error)
       setError("Failed to load roles")
+
+      // Fallback to demo data on error
+      const demoRoles: JobRole[] = [
+        {
+          id: 1,
+          name: "Software Engineer I",
+          code: "SE1",
+          level: 1,
+          salary_min: 70000,
+          salary_max: 90000,
+          location_type: "Hybrid",
+          department_name: departmentName,
+          skill_count: 12,
+        },
+        {
+          id: 2,
+          name: "Software Engineer II",
+          code: "SE2",
+          level: 2,
+          salary_min: 90000,
+          salary_max: 120000,
+          location_type: "Hybrid",
+          department_name: departmentName,
+          skill_count: 15,
+        },
+      ]
+      setRoles(demoRoles)
+      setIsDemoMode(true)
     }
   }
 
   const loadSkills = async () => {
     try {
-      const skillPromises = roles.map((role) => fetch(`/api/skills?jobRoleId=${role.id}`).then((res) => res.json()))
+      const skillPromises = roles.map(async (role) => {
+        try {
+          const response = await fetch(`/api/skills?jobRoleId=${role.id}`)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch skills for role ${role.id}`)
+          }
+          const data = await response.json()
+          return Array.isArray(data) ? data : []
+        } catch (error) {
+          console.error(`Error loading skills for role ${role.id}:`, error)
+          return []
+        }
+      })
+
       const skillResults = await Promise.all(skillPromises)
       const allSkills = skillResults.flat()
-      setSkills(allSkills)
+
+      // If no skills from API, use demo data
+      if (allSkills.length === 0) {
+        const demoSkills: Skill[] = [
+          {
+            id: 1,
+            name: "JavaScript/TypeScript",
+            level: "Intermediate",
+            description: "Proficient in modern JavaScript and TypeScript development",
+            full_description: "Strong understanding of ES6+ features, async/await, and TypeScript type system",
+            category_id: 1,
+            category_name: "Technical Skills",
+            category_color: "blue",
+            job_role_id: 1,
+            sort_order: 1,
+          },
+          {
+            id: 2,
+            name: "React/Next.js",
+            level: "Intermediate",
+            description: "Experience building React applications with Next.js",
+            full_description: "Comfortable with React hooks, component lifecycle, and Next.js features",
+            category_id: 1,
+            category_name: "Technical Skills",
+            category_color: "blue",
+            job_role_id: 1,
+            sort_order: 2,
+          },
+          {
+            id: 3,
+            name: "Problem Solving",
+            level: "Intermediate",
+            description: "Ability to break down complex problems and find solutions",
+            full_description: "Can analyze requirements and implement effective solutions",
+            category_id: 2,
+            category_name: "Delivery",
+            category_color: "green",
+            job_role_id: 1,
+            sort_order: 3,
+          },
+        ]
+        setSkills(demoSkills)
+        setIsDemoMode(true)
+      } else {
+        setSkills(allSkills)
+      }
     } catch (error) {
       console.error("Error loading skills:", error)
       setError("Failed to load skills")
+      setSkills([])
     } finally {
       setIsLoading(false)
     }

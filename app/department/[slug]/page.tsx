@@ -133,7 +133,7 @@ export default async function DepartmentPage({ params }: { params: { slug: strin
             </div>
           }
         >
-          <DepartmentClient departmentId={department.id} />
+          <DepartmentClient departmentSlug={department.slug} departmentName={department.name} />
         </Suspense>
       </main>
     </div>

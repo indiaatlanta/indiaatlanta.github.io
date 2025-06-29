@@ -9,19 +9,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+import { LogOut, Settings, FileText, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-interface UserData {
+interface UserInterface {
   id: number
   email: string
-  role: string
   name: string
+  role: string
 }
 
 export default function LoginButton() {
-  const [user, setUser] = useState<UserData | null>(null)
+  const [user, setUser] = useState<UserInterface | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
@@ -33,8 +33,8 @@ export default function LoginButton() {
     try {
       const response = await fetch("/api/auth/session")
       if (response.ok) {
-        const userData = await response.json()
-        setUser(userData)
+        const data = await response.json()
+        setUser(data.user || null)
       }
     } catch (error) {
       console.error("Error checking session:", error)
@@ -64,8 +64,11 @@ export default function LoginButton() {
 
   if (!user) {
     return (
-      <Button asChild variant="default" size="sm">
-        <Link href="/login">Login</Link>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/login">
+          <LogOut className="w-4 h-4 mr-2" />
+          Login
+        </Link>
       </Button>
     )
   }
@@ -74,60 +77,36 @@ export default function LoginButton() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm">
-          <div className="w-4 h-4 mr-2" /> {/* Placeholder for User icon */}
-          {user.name || user.email}
-          <ChevronDown className="w-4 h-4 ml-2" />
+          <LogOut className="w-4 h-4 mr-2" />
+          {user.name}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        <div className="px-2 py-1.5 text-sm font-medium">{user.name}</div>
+        <div className="px-2 py-1.5 text-xs text-gray-500">{user.email}</div>
+        <div className="px-2 py-1.5 text-xs text-gray-500 capitalize">Role: {user.role}</div>
+        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile" className="flex items-center">
-            <div className="w-4 h-4 mr-2" /> {/* Placeholder for User icon */}
+            <Settings className="w-4 h-4 mr-2" />
             Profile
           </Link>
         </DropdownMenuItem>
-
         <DropdownMenuItem asChild>
           <Link href="/self-review" className="flex items-center">
-            <div className="w-4 h-4 mr-2" /> {/* Placeholder for FileText icon */}
+            <FileText className="w-4 h-4 mr-2" />
             Self Assessment
           </Link>
         </DropdownMenuItem>
-
         <DropdownMenuItem asChild>
           <Link href="/compare" className="flex items-center">
-            <div className="w-4 h-4 mr-2" /> {/* Placeholder for BarChart3 icon */}
+            <BarChart3 className="w-4 h-4 mr-2" />
             Compare Roles
           </Link>
         </DropdownMenuItem>
-
-        {user.role === "manager" && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/manager/dashboard" className="flex items-center">
-                <div className="w-4 h-4 mr-2" /> {/* Placeholder for BarChart3 icon */}
-                Team Dashboard
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-
-        {user.role === "admin" && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/admin" className="flex items-center">
-                <div className="w-4 h-4 mr-2" /> {/* Placeholder for Settings icon */}
-                Admin Panel
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
-          <div className="w-4 h-4 mr-2" /> {/* Placeholder for LogOut icon */}
+          <LogOut className="w-4 h-4 mr-2" />
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
