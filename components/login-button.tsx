@@ -1,10 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,135 +9,122 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, Settings, FileText } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Settings, UserCircle } from "lucide-react"
+import Link from "next/link"
+import type { User } from "@/types/user" // Assuming User type is defined in a separate file
 
-interface User {
-  id: number
-  email: string
-  name: string
-  role: "admin" | "manager" | "user"
-  department?: string
-}
-
-export default function LoginButton() {
+export function LoginButton() {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isDemoMode, setIsDemoMode] = useState(false)
-  const router = useRouter()
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    checkAuthStatus()
+    checkSession()
   }, [])
 
-  const checkAuthStatus = async () => {
+  const checkSession = async () => {
     try {
-      // Check if we're in demo mode
-      const rolesResponse = await fetch("/api/roles")
-      const rolesData = await rolesResponse.json()
-      setIsDemoMode(rolesData.isDemoMode)
-
-      // Check authentication status
       const response = await fetch("/api/auth/session")
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-      } else {
-        setUser(null)
-      }
+      const data = await response.json()
+      setUser(data.user)
     } catch (error) {
-      console.error("Auth check error:", error)
-      setUser(null)
+      console.error("Error checking session:", error)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" })
-      // Clear demo session cookie if it exists
-      document.cookie = "demo-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       setUser(null)
-      router.push("/")
-      router.refresh()
+      window.location.href = "/"
     } catch (error) {
-      console.error("Logout error:", error)
+      console.error("Error logging out:", error)
     }
   }
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 text-red-800 hover:bg-red-200"
       case "manager":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800 hover:bg-blue-200"
       case "user":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800 hover:bg-green-200"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 hover:bg-gray-200"
     }
   }
 
-  if (isLoading) {
-    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
+  if (loading) {
+    return (
+      <Button variant="ghost" size="sm" disabled>
+        Loading...
+      </Button>
+    )
   }
 
   if (!user) {
-    if (isDemoMode) {
-      return (
-        <Button asChild variant="outline">
-          <Link href="/login">Demo Login</Link>
-        </Button>
-      )
-    }
     return (
-      <Button asChild>
-        <Link href="/login">Login</Link>
-      </Button>
+      <Link href="/login">
+        <Button variant="outline" size="sm">
+          <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 2L2 22h20L12 2z" />
+          </svg>
+          Login
+        </Button>
+      </Link>
     )
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2 bg-transparent">
-          <LogOut className="w-4 h-4" />
+        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+          <UserCircle className="w-4 h-4" />
           <span className="hidden sm:inline">{user.name}</span>
-          <Badge className={`text-xs ${getRoleBadgeColor(user.role)}`}>{user.role}</Badge>
+          <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
+            {user.role}
+          </Badge>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-2 py-1.5">
           <p className="text-sm font-medium">{user.name}</p>
-          <p className="text-xs text-gray-500">{user.email}</p>
-          {user.department && <p className="text-xs text-gray-500">{user.department}</p>}
+          <p className="text-xs text-muted-foreground">{user.email}</p>
+          {user.department && <p className="text-xs text-muted-foreground">{user.department}</p>}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center gap-2">
-            <LogOut className="w-4 h-4" />
+          <Link href="/profile" className="flex items-center">
+            <UserCircle className="w-4 h-4 mr-2" />
             Profile
           </Link>
         </DropdownMenuItem>
-        {user.role === "manager" && (
-          <DropdownMenuItem asChild>
-            <Link href="/team" className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              Team Dashboard
-            </Link>
-          </DropdownMenuItem>
-        )}
         {user.role === "admin" && (
           <DropdownMenuItem asChild>
-            <Link href="/admin" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
+            <Link href="/admin" className="flex items-center">
+              <Settings className="w-4 h-4 mr-2" />
               Admin Panel
             </Link>
           </DropdownMenuItem>
         )}
+        {user.role === "manager" && (
+          <DropdownMenuItem asChild>
+            <Link href="/team" className="flex items-center">
+              <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M12 2L2 22h20L12 2z" />
+              </svg>
+              Team Dashboard
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 text-red-600">
-          <LogOut className="w-4 h-4" />
+        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+          <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 2L2 22h20L12 2z" />
+          </svg>
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>

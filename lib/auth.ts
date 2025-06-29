@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken"
 import { cookies } from "next/headers"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
+const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
 export interface User {
   id: number
@@ -42,18 +42,6 @@ const DEMO_USERS: User[] = [
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const cookieStore = cookies()
-
-    // Check for demo session first
-    const demoSession = cookieStore.get("demo-session")
-    if (demoSession?.value === "true") {
-      return {
-        id: 1,
-        email: "demo@henryscheinone.com",
-        name: "Demo Admin",
-        role: "admin",
-        department: "Demo",
-      }
-    }
 
     const token = cookieStore.get("auth-token")
     if (!token) {

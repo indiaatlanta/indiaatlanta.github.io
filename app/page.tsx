@@ -1,231 +1,275 @@
-import { Suspense } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import LoginButton from "@/components/login-button"
-import { AdminButton } from "@/components/admin-button"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { Badge } from "@/components/ui/badge"
+import { Building2, Users, TrendingUp, BookOpen, ArrowRight } from "lucide-react"
+import { LoginButton } from "@/components/login-button"
 
-interface Department {
-  id: number
-  name: string
-  slug: string
-  description: string
-  role_count: number
-}
+export default function HomePage() {
+  const departments = [
+    {
+      name: "Engineering",
+      slug: "engineering",
+      description: "Software development, DevOps, and technical architecture roles",
+      roleCount: 12,
+      color: "bg-blue-50 border-blue-200",
+      icon: "💻",
+    },
+    {
+      name: "Product",
+      slug: "product",
+      description: "Product management, design, and user experience roles",
+      roleCount: 8,
+      color: "bg-purple-50 border-purple-200",
+      icon: "🎯",
+    },
+    {
+      name: "Sales",
+      slug: "sales",
+      description: "Sales, business development, and customer success roles",
+      roleCount: 10,
+      color: "bg-green-50 border-green-200",
+      icon: "📈",
+    },
+    {
+      name: "Marketing",
+      slug: "marketing",
+      description: "Digital marketing, content, and brand management roles",
+      roleCount: 6,
+      color: "bg-orange-50 border-orange-200",
+      icon: "📢",
+    },
+  ]
 
-async function getDepartments(): Promise<Department[]> {
-  if (!isDatabaseConfigured() || !sql) {
-    // Return mock data for preview
-    return [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical roles",
-        role_count: 8,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and design roles",
-        role_count: 5,
-      },
-      {
-        id: 3,
-        name: "Sales",
-        slug: "sales",
-        description: "Sales and business development roles",
-        role_count: 6,
-      },
-      {
-        id: 4,
-        name: "Marketing",
-        slug: "marketing",
-        description: "Marketing and communications roles",
-        role_count: 4,
-      },
-    ]
-  }
-
-  try {
-    const departments = await sql`
-      SELECT 
-        d.id,
-        d.name,
-        d.slug,
-        d.description,
-        COUNT(DISTINCT jr.id) as role_count
-      FROM departments d
-      LEFT JOIN job_roles jr ON d.id = jr.department_id
-      GROUP BY d.id, d.name, d.slug, d.description
-      ORDER BY d.name
-    `
-    return departments.map((dept: any) => ({
-      ...dept,
-      role_count: Number(dept.role_count),
-    }))
-  } catch (error) {
-    console.error("Error fetching departments:", error)
-    return []
-  }
-}
-
-export default async function HomePage() {
-  const departments = await getDepartments()
+  const features = [
+    {
+      icon: <Users className="h-6 w-6" />,
+      title: "Role Comparison",
+      description: "Compare skills and requirements between different career paths",
+      href: "/compare",
+    },
+    {
+      icon: <TrendingUp className="h-6 w-6" />,
+      title: "Self Assessment",
+      description: "Evaluate your current skills against role requirements",
+      href: "/self-review",
+    },
+    {
+      icon: <BookOpen className="h-6 w-6" />,
+      title: "Skills Matrix",
+      description: "Explore detailed skill requirements for each department",
+      href: "#departments",
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-auto" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Career Matrix</h1>
-                <p className="text-sm text-gray-500">Skills and career development framework</p>
+              <div className="flex items-center space-x-2">
+                <Building2 className="h-8 w-8 text-blue-600" />
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Henry Schein One</h1>
+                  <p className="text-sm text-gray-600">Career Development Matrix</p>
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
-                <LoginButton />
-              </Suspense>
-              <AdminButton />
+              <LoginButton />
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Welcome to the HS1 Career Matrix</h2>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto mb-8">
-            Explore career paths, understand skill requirements, and plan your professional development journey within
-            Henry Schein One. Our comprehensive career matrix helps you identify opportunities and the skills needed to
-            advance in your career.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg">
-              <Link href="/compare">Compare Roles</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/self-review">Self Assessment</Link>
-            </Button>
+      {/* Hero Section */}
+      <section className="py-20">
+        <div className="container mx-auto px-4 text-center">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-5xl font-bold text-gray-900 mb-6">
+              Navigate Your Career Journey with <span className="text-blue-600">Confidence</span>
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              Discover career paths, compare roles, and assess your skills with our comprehensive career development
+              matrix. Built specifically for Henry Schein One team members.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/compare">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+                  Compare Roles
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+              <Link href="/self-review">
+                <Button size="lg" variant="outline">
+                  Start Self Assessment
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* Departments Grid */}
-        <div className="mb-12">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">Explore by Department</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {departments.map((department) => (
-              <Card key={department.id} className="hover:shadow-lg transition-shadow">
+      {/* Features Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Everything You Need for Career Growth</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Our platform provides comprehensive tools to help you understand, compare, and plan your career
+              development within Henry Schein One.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <Card key={index} className="text-center hover:shadow-lg transition-shadow">
                 <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{department.name}</CardTitle>
-                    <Badge variant="secondary">{department.role_count} roles</Badge>
+                  <div className="mx-auto w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
+                    {feature.icon}
                   </div>
-                  <CardDescription>{department.description}</CardDescription>
+                  <CardTitle className="text-xl">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild className="w-full">
-                    <Link href={`/department/${department.slug}`}>View Skills Matrix</Link>
-                  </Button>
+                  <CardDescription className="text-base mb-4">{feature.description}</CardDescription>
+                  <Link href={feature.href}>
+                    <Button variant="outline" size="sm">
+                      Learn More
+                    </Button>
+                  </Link>
                 </CardContent>
               </Card>
             ))}
           </div>
         </div>
+      </section>
 
-        {/* Features Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                    />
-                  </svg>
-                </div>
-                Skills Matrix
-              </CardTitle>
-              <CardDescription>
-                Comprehensive view of skills required for each role, organized by department and seniority level.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 12h8a2 2 0 01-2-2v-8a2 2 0 01-2-2h-8a2 2 0 01-2 2v8a2 2 0 012 2z"
-                    />
-                  </svg>
-                </div>
-                Self Assessment
-              </CardTitle>
-              <CardDescription>
-                Evaluate your current skills and identify areas for development to advance your career.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                Role Comparison
-              </CardTitle>
-              <CardDescription>
-                Compare different roles to understand career progression paths and skill requirements.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+      {/* Departments Section */}
+      <section id="departments" className="py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore Career Paths</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Browse our comprehensive skills matrices organized by department. Each department contains detailed role
+              requirements and career progression paths.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {departments.map((dept) => (
+              <Link key={dept.slug} href={`/department/${dept.slug}`}>
+                <Card className={`${dept.color} hover:shadow-lg transition-all duration-200 cursor-pointer h-full`}>
+                  <CardHeader className="text-center">
+                    <div className="text-4xl mb-2">{dept.icon}</div>
+                    <CardTitle className="text-xl">{dept.name}</CardTitle>
+                    <Badge variant="secondary" className="w-fit mx-auto">
+                      {dept.roleCount} roles
+                    </Badge>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-center text-sm">{dept.description}</CardDescription>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
-      </main>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 bg-blue-600 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-4">Ready to Advance Your Career?</h2>
+          <p className="text-xl mb-8 opacity-90">
+            Start exploring opportunities and planning your professional development today.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/compare">
+              <Button size="lg" variant="secondary">
+                Compare Roles
+              </Button>
+            </Link>
+            <Link href="/self-review">
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-white border-white hover:bg-white hover:text-blue-600 bg-transparent"
+              >
+                Self Assessment
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-4 mb-4 md:mb-0">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
-              <span className="text-gray-600">© 2024 Henry Schein One. All rights reserved.</span>
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Building2 className="h-6 w-6" />
+                <span className="font-bold">Henry Schein One</span>
+              </div>
+              <p className="text-gray-400 text-sm">
+                Empowering dental professionals with innovative technology solutions.
+              </p>
             </div>
-            <div className="flex space-x-6">
-              <Link href="/compare" className="text-gray-600 hover:text-gray-900">
-                Compare Roles
-              </Link>
-              <Link href="/self-review" className="text-gray-600 hover:text-gray-900">
-                Self Assessment
-              </Link>
+            <div>
+              <h3 className="font-semibold mb-4">Career Tools</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li>
+                  <Link href="/compare" className="hover:text-white">
+                    Role Comparison
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/self-review" className="hover:text-white">
+                    Self Assessment
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#departments" className="hover:text-white">
+                    Skills Matrix
+                  </Link>
+                </li>
+              </ul>
             </div>
+            <div>
+              <h3 className="font-semibold mb-4">Departments</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                {departments.map((dept) => (
+                  <li key={dept.slug}>
+                    <Link href={`/department/${dept.slug}`} className="hover:text-white">
+                      {dept.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Support</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li>
+                  <Link href="/help" className="hover:text-white">
+                    Help Center
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="hover:text-white">
+                    Contact HR
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/feedback" className="hover:text-white">
+                    Feedback
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
+            <p>&copy; 2024 Henry Schein One. All rights reserved.</p>
           </div>
         </div>
       </footer>

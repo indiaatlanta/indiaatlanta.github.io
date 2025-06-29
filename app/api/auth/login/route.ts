@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
+// Generate a secure JWT secret - in production, this should be set as an environment variable
+const JWT_SECRET = process.env.JWT_SECRET || "hs1-careers-matrix-secret-key-2024-change-in-production"
 
 // Demo users for when database is not configured
 const DEMO_USERS = [
