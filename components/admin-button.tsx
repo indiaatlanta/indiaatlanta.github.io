@@ -14,7 +14,7 @@ interface User {
   department?: string
 }
 
-export function AdminButton() {
+export default function AdminButton() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -25,8 +25,10 @@ export function AdminButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-      const data = await response.json()
-      setUser(data.user)
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      }
     } catch (error) {
       console.error("Session check failed:", error)
     } finally {

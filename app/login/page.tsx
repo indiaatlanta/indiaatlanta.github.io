@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, LogIn } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -35,69 +36,119 @@ export default function LoginPage() {
 
       const data = await response.json()
 
-      if (data.success) {
+      if (response.ok) {
         router.push("/")
         router.refresh()
       } else {
         setError(data.error || "Login failed")
       }
     } catch (error) {
-      setError("An error occurred during login")
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const fillDemoCredentials = (role: "admin" | "manager" | "user") => {
+    const credentials = {
+      admin: { email: "admin@henryscheinone.com", password: "admin123" },
+      manager: { email: "manager@henryscheinone.com", password: "manager123" },
+      user: { email: "user@henryscheinone.com", password: "user123" },
+    }
+
+    setEmail(credentials[role].email)
+    setPassword(credentials[role].password)
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-6">
+        {/* Header */}
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Sign in to your account</h2>
-          <p className="mt-2 text-sm text-gray-600">Access the HS1 Careers Matrix platform</p>
+          <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={60} height={60} className="mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
+          <p className="text-gray-600">Sign in to your HS1 Careers Matrix account</p>
         </div>
 
+        {/* Demo Credentials */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-blue-800">Demo Credentials</CardTitle>
+            <CardDescription className="text-xs text-blue-600">Click to auto-fill login credentials</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs bg-white hover:bg-blue-100"
+                onClick={() => fillDemoCredentials("admin")}
+              >
+                Admin
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs bg-white hover:bg-blue-100"
+                onClick={() => fillDemoCredentials("manager")}
+              >
+                Manager
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs bg-white hover:bg-blue-100"
+                onClick={() => fillDemoCredentials("user")}
+              >
+                User
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Login Form */}
         <Card>
           <CardHeader>
-            <CardTitle>Login</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardTitle>Sign In</CardTitle>
+            <CardDescription>Enter your email and password to continue</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium">
+                  Email
                 </label>
                 <Input
                   id="email"
-                  name="email"
                   type="email"
-                  autoComplete="email"
-                  required
+                  placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
-                  placeholder="Enter your email"
+                  required
                 />
               </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm font-medium">
                   Password
                 </label>
-                <div className="relative mt-1">
+                <div className="relative">
                   <Input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    required
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    required
                   />
-                  <button
+                  <Button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -105,7 +156,7 @@ export default function LoginPage() {
                     ) : (
                       <Eye className="h-4 w-4 text-gray-400" />
                     )}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -117,48 +168,30 @@ export default function LoginPage() {
 
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
+                  "Signing in..."
                 ) : (
-                  "Sign in"
+                  <>
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
+                  </>
                 )}
               </Button>
             </form>
 
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Demo Accounts</span>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div>
-                    <strong>Admin:</strong> admin@henryscheinone.com / admin123
-                  </div>
-                  <div>
-                    <strong>Manager:</strong> manager@henryscheinone.com / manager123
-                  </div>
-                  <div>
-                    <strong>User:</strong> user@henryscheinone.com / user123
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 text-center">
-              <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+            <div className="mt-4 text-center">
+              <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
                 Forgot your password?
               </Link>
             </div>
           </CardContent>
         </Card>
+
+        {/* Back to Home */}
+        <div className="text-center">
+          <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
+            ← Back to Home
+          </Link>
+        </div>
       </div>
     </div>
   )

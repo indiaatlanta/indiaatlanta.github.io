@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { LogOut } from "lucide-react"
+import { LogOut, User } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -14,7 +14,7 @@ interface UserSession {
   department?: string
 }
 
-export function LoginButton() {
+export default function LoginButton() {
   const [user, setUser] = useState<UserSession | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
@@ -26,8 +26,10 @@ export function LoginButton() {
   const checkSession = async () => {
     try {
       const response = await fetch("/api/auth/session")
-      const data = await response.json()
-      setUser(data.user)
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      }
     } catch (error) {
       console.error("Session check failed:", error)
     } finally {
@@ -69,7 +71,7 @@ export function LoginButton() {
   return (
     <Link href="/login">
       <Button variant="ghost" size="sm">
-        <LogOut className="h-4 w-4 mr-2" />
+        <User className="h-4 w-4 mr-2" />
         Login
       </Button>
     </Link>
