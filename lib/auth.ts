@@ -1,143 +1,205 @@
 import { cookies } from "next/headers"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { redirect } from "next/navigation"
 import bcrypt from "bcryptjs"
+import { v4 as uuidv4 } from "uuid"
+import { sql, isDatabaseConfigured } from "./db"
 
-interface User {
+export interface User {
   id: number
   email: string
   name: string
-  role: string
+  role: "admin" | "user"
 }
 
-interface LoginCredentials {
-  email: string
-  password: string
+export interface Session {
+  id: string
+  userId: number
+  expiresAt: Date
 }
 
-// Demo users for when database is not configured
-const DEMO_USERS = [
-  {
-    id: 1,
-    email: "admin@henryscheinone.com",
-    name: "Admin User",
-    role: "admin",
-    password: "admin123",
-  },
-  {
-    id: 2,
-    email: "manager@henryscheinone.com",
-    name: "Manager User",
-    role: "manager",
-    password: "manager123",
-  },
-  {
-    id: 3,
-    email: "user@henryscheinone.com",
-    name: "Regular User",
-    role: "user",
-    password: "user123",
-  },
-]
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10)
+}
 
-export async function authenticateUser(credentials: LoginCredentials): Promise<User | null> {
-  try {
-    if (!isDatabaseConfigured() || !sql) {
-      // Use demo authentication
-      const demoUser = DEMO_USERS.find((u) => u.email === credentials.email && u.password === credentials.password)
-      if (demoUser) {
-        const { password, ...userWithoutPassword } = demoUser
-        return userWithoutPassword
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash)
+}
+
+export async function createSession(userId: number): Promise<string> {
+  if (!isDatabaseConfigured() || !sql) {
+    // In demo mode, just set a cookie without database storage
+    const sessionId = uuidv4()
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+    const cookieStore = cookies()
+    cookieStore.set("session", sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      expires: expiresAt,
+    })
+
+    return sessionId
+  }
+
+  const sessionId = uuidv4()
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+  await sql`
+    INSERT INTO sessions (id, user_id, expires_at)
+    VALUES (${sessionId}, ${userId}, ${expiresAt})
+  `
+
+  const cookieStore = cookies()
+  cookieStore.set("session", sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    expires: expiresAt,
+  })
+
+  return sessionId
+}
+
+export async function getSession(): Promise<{ user: User; session: Session } | null> {
+  // Return null if database is not configured (preview mode)
+  if (!isDatabaseConfigured() || !sql) {
+    // Check for demo session cookie
+    try {
+      const cookieStore = cookies()
+      const sessionId = cookieStore.get("session")?.value
+
+      if (sessionId) {
+        // Return mock admin session for demo mode
+        return {
+          user: {
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          },
+          session: {
+            id: sessionId,
+            userId: 1,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        }
       }
-      return null
+    } catch (error) {
+      console.error("Error checking demo session:", error)
     }
-
-    // Database authentication
-    const users = await sql`
-      SELECT id, email, name, role, password_hash
-      FROM users
-      WHERE email = ${credentials.email}
-    `
-
-    if (users.length === 0) {
-      return null
-    }
-
-    const user = users[0]
-    const isValidPassword = await bcrypt.compare(credentials.password, user.password_hash)
-
-    if (!isValidPassword) {
-      return null
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    }
-  } catch (error) {
-    console.error("Authentication error:", error)
     return null
   }
-}
 
-export function createToken(user: User): string {
-  const payload = {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-  }
-  return Buffer.from(JSON.stringify(payload)).toString("base64")
-}
-
-export function verifyToken(token: string): User | null {
-  try {
-    const payload = JSON.parse(Buffer.from(token, "base64").toString())
-
-    if (payload.exp < Date.now()) {
-      return null
-    }
-
-    return {
-      id: payload.id,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role,
-    }
-  } catch (error) {
-    return null
-  }
-}
-
-export async function getCurrentUser(): Promise<User | null> {
   try {
     const cookieStore = cookies()
-    const token = cookieStore.get("auth-token")?.value
+    const sessionId = cookieStore.get("session")?.value
 
-    if (!token) {
+    if (!sessionId) {
       return null
     }
 
-    return verifyToken(token)
+    const result = await sql`
+      SELECT 
+        s.id as session_id,
+        s.user_id,
+        s.expires_at,
+        u.id,
+        u.email,
+        u.name,
+        u.role
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.id = ${sessionId} AND s.expires_at > NOW()
+    `
+
+    if (result.length === 0) {
+      return null
+    }
+
+    const row = result[0]
+    return {
+      session: {
+        id: row.session_id,
+        userId: row.user_id,
+        expiresAt: row.expires_at,
+      },
+      user: {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        role: row.role,
+      },
+    }
   } catch (error) {
+    console.error("Error getting session:", error)
     return null
+  }
+}
+
+export async function deleteSession(): Promise<void> {
+  if (!isDatabaseConfigured() || !sql) {
+    // Just clear the cookie if database is not configured
+    try {
+      const cookieStore = cookies()
+      cookieStore.delete("session")
+    } catch (error) {
+      console.error("Error clearing cookie:", error)
+    }
+    return
+  }
+
+  try {
+    const cookieStore = cookies()
+    const sessionId = cookieStore.get("session")?.value
+
+    if (sessionId) {
+      try {
+        await sql`DELETE FROM sessions WHERE id = ${sessionId}`
+      } catch (error) {
+        console.error("Error deleting session:", error)
+      }
+    }
+
+    cookieStore.delete("session")
+  } catch (error) {
+    console.error("Error in deleteSession:", error)
   }
 }
 
 export async function requireAuth(): Promise<User> {
-  const user = await getCurrentUser()
-  if (!user) {
-    throw new Error("Authentication required")
+  const session = await getSession()
+  if (!session) {
+    redirect("/login")
   }
-  return user
+  return session.user
 }
 
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth()
   if (user.role !== "admin") {
-    throw new Error("Admin access required")
+    redirect("/")
   }
   return user
+}
+
+// Mock functions for preview/demo mode
+export function getMockSession(): { user: User; session: Session } | null {
+  // Return a mock admin session for demo purposes when database is not configured
+  if (process.env.NODE_ENV === "development" && !isDatabaseConfigured()) {
+    return {
+      user: {
+        id: 1,
+        email: "admin@henryscheinone.com",
+        name: "Demo Admin",
+        role: "admin",
+      },
+      session: {
+        id: "mock-session",
+        userId: 1,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    }
+  }
+  return null
 }

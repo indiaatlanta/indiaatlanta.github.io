@@ -1,24 +1,36 @@
 "use client"
-
+import { useState, useEffect } from "react"
 import type React from "react"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff } from "lucide-react"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    // Check if we're in demo mode
+    const checkDemoMode = async () => {
+      try {
+        const response = await fetch("/api/roles")
+        const data = await response.json()
+        setIsDemoMode(data.isDemoMode)
+      } catch (error) {
+        setIsDemoMode(true)
+      }
+    }
+    checkDemoMode()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,53 +47,61 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        router.push("/")
+        router.push("/admin")
         router.refresh()
       } else {
         const data = await response.json()
         setError(data.error || "Login failed")
       }
     } catch (error) {
-      setError("Network error. Please try again.")
+      setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const fillDemoCredentials = (role: "admin" | "manager" | "user") => {
-    const credentials = {
-      admin: { email: "admin@henryscheinone.com", password: "admin123" },
-      manager: { email: "manager@henryscheinone.com", password: "manager123" },
-      user: { email: "user@henryscheinone.com", password: "user123" },
-    }
-
-    setEmail(credentials[role].email)
-    setPassword(credentials[role].password)
+  const handleDemoLogin = () => {
+    // Set a demo session cookie and redirect
+    document.cookie = "demo-session=true; path=/; max-age=86400" // 24 hours
+    router.push("/admin")
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={60} height={60} className="h-15 w-auto" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="max-w-md w-full space-y-8 px-4">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={48} height={48} className="h-12 w-auto" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900">Admin Login</h2>
+          <p className="mt-2 text-gray-600">Sign in to manage the career matrix</p>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Sign in to Career Matrix</h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{" "}
-          <Link href="/" className="font-medium text-blue-600 hover:text-blue-500">
-            return to homepage
-          </Link>
-        </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Demo Mode Alert */}
+        {isDemoMode && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <h3 className="font-medium text-blue-900 mb-2">Demo Mode Active</h3>
+                <p className="text-sm text-blue-800 mb-4">
+                  Database is not configured. You can access the admin panel directly in demo mode.
+                </p>
+                <Button onClick={handleDemoLogin} className="w-full bg-blue-600 hover:bg-blue-700">
+                  Access Admin Panel (Demo)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Login Form */}
         <Card>
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardTitle>Sign In</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -89,97 +109,70 @@ export default function LoginPage() {
               )}
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
                 </label>
                 <Input
                   id="email"
-                  name="email"
                   type="email"
-                  autoComplete="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
+                  required
+                  placeholder="admin@henryscheinone.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                   Password
                 </label>
-                <div className="mt-1 relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Enter your password"
+                />
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <Link href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
-                    Forgot your password?
-                  </Link>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign in"}
+              <Button
+                type="submit"
+                className="w-full bg-brand-600 hover:bg-brand-700"
+                disabled={isLoading || isDemoMode}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 border-t pt-6">
-              <p className="text-sm text-gray-600 mb-3">Demo Credentials:</p>
-              <div className="space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-left justify-start bg-transparent"
-                  onClick={() => fillDemoCredentials("admin")}
-                >
-                  Admin: admin@henryscheinone.com
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-left justify-start bg-transparent"
-                  onClick={() => fillDemoCredentials("manager")}
-                >
-                  Manager: manager@henryscheinone.com
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-left justify-start bg-transparent"
-                  onClick={() => fillDemoCredentials("user")}
-                >
-                  User: user@henryscheinone.com
-                </Button>
+            <div className="mt-4 text-center space-y-2">
+              {!isDemoMode && (
+                <Link href="/forgot-password" className="text-brand-600 hover:text-brand-700 text-sm">
+                  Forgot your password?
+                </Link>
+              )}
+              <div>
+                <Link href="/" className="text-gray-600 hover:text-gray-800 text-sm">
+                  ← Back to Career Matrix
+                </Link>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Demo Credentials - only show if not in demo mode */}
+        {!isDemoMode && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <h3 className="font-medium text-blue-900 mb-2">Demo Credentials</h3>
+              <p className="text-sm text-blue-800">
+                Email: admin@henryscheinone.com
+                <br />
+                Password: admin123
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

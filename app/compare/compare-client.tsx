@@ -1,10 +1,11 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, FileText, CheckCircle, XCircle } from "lucide-react"
+import { Download, FileText } from "lucide-react"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 
@@ -27,62 +28,39 @@ interface Skill {
 }
 
 interface Props {
-  isDemoMode?: boolean
+  isDemoMode: boolean
 }
 
-export default function CompareClient({ isDemoMode = false }: Props) {
+export function CompareClient({ isDemoMode }: Props) {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole1, setSelectedRole1] = useState<Role | null>(null)
   const [selectedRole2, setSelectedRole2] = useState<Role | null>(null)
-  const [skills1, setSkills1] = useState<Skill[]>([])
-  const [skills2, setSkills2] = useState<Skill[]>([])
+  const [role1Skills, setRole1Skills] = useState<Skill[]>([])
+  const [role2Skills, setRole2Skills] = useState<Skill[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
 
   useEffect(() => {
     fetchRoles()
   }, [])
 
   const fetchRoles = async () => {
+    setIsLoadingRoles(true)
     try {
       const response = await fetch("/api/roles")
       if (response.ok) {
         const data = await response.json()
-        // Ensure we always have an array
-        if (data && Array.isArray(data.roles)) {
-          setRoles(data.roles)
-        } else if (Array.isArray(data)) {
-          setRoles(data)
-        } else {
-          // Fallback to demo data
-          setRoles([
-            { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering" },
-            { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering" },
-            { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering" },
-            { id: 4, name: "Lead Engineer", code: "E4", level: 4, department_name: "Engineering" },
-            { id: 5, name: "Principal Engineer", code: "E5", level: 5, department_name: "Engineering" },
-          ])
-        }
+        setRoles(data.roles || [])
       } else {
-        // Fallback to demo data on error
-        setRoles([
-          { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering" },
-          { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering" },
-          { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering" },
-          { id: 4, name: "Lead Engineer", code: "E4", level: 4, department_name: "Engineering" },
-          { id: 5, name: "Principal Engineer", code: "E5", level: 5, department_name: "Engineering" },
-        ])
+        console.error("Failed to fetch roles")
+        setRoles([])
       }
     } catch (error) {
       console.error("Error fetching roles:", error)
-      // Fallback to demo data on error
-      setRoles([
-        { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering" },
-        { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering" },
-        { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering" },
-        { id: 4, name: "Lead Engineer", code: "E4", level: 4, department_name: "Engineering" },
-        { id: 5, name: "Principal Engineer", code: "E5", level: 5, department_name: "Engineering" },
-      ])
+      setRoles([])
+    } finally {
+      setIsLoadingRoles(false)
     }
   }
 
@@ -90,40 +68,9 @@ export default function CompareClient({ isDemoMode = false }: Props) {
     try {
       const response = await fetch(`/api/role-skills?roleId=${roleId}`)
       if (response.ok) {
-        const data = await response.json()
-        return Array.isArray(data) ? data : []
+        return await response.json()
       }
-      // Return demo skills for demo mode
-      return [
-        {
-          id: 1,
-          skill_name: "JavaScript Programming",
-          level: "Intermediate",
-          demonstration_description:
-            "Demonstrate ability to write clean, maintainable JavaScript code with ES6+ features",
-          skill_description: "Core programming language for web development",
-          category_name: "Technical Skills",
-          category_color: "blue",
-        },
-        {
-          id: 2,
-          skill_name: "React Development",
-          level: "Intermediate",
-          demonstration_description: "Build responsive web applications using React hooks and component patterns",
-          skill_description: "Modern frontend framework for building user interfaces",
-          category_name: "Technical Skills",
-          category_color: "blue",
-        },
-        {
-          id: 3,
-          skill_name: "Problem Solving",
-          level: "Advanced",
-          demonstration_description: "Analyze complex problems and develop effective solutions",
-          skill_description: "Critical thinking and analytical skills",
-          category_name: "Soft Skills",
-          category_color: "green",
-        },
-      ]
+      return []
     } catch (error) {
       console.error("Error fetching skills:", error)
       return []
@@ -135,8 +82,8 @@ export default function CompareClient({ isDemoMode = false }: Props) {
     if (role) {
       setSelectedRole1(role)
       setIsLoading(true)
-      const roleSkills = await fetchSkills(role.id)
-      setSkills1(roleSkills)
+      const skills = await fetchSkills(role.id)
+      setRole1Skills(skills)
       setIsLoading(false)
     }
   }
@@ -146,8 +93,8 @@ export default function CompareClient({ isDemoMode = false }: Props) {
     if (role) {
       setSelectedRole2(role)
       setIsLoading(true)
-      const roleSkills = await fetchSkills(role.id)
-      setSkills2(roleSkills)
+      const skills = await fetchSkills(role.id)
+      setRole2Skills(skills)
       setIsLoading(false)
     }
   }
@@ -178,7 +125,7 @@ export default function CompareClient({ isDemoMode = false }: Props) {
 
         // Add title
         pdf.setFontSize(16)
-        pdf.text(`Role Comparison: ${selectedRole1.code} vs ${selectedRole2.code}`, 10, 30)
+        pdf.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 10, 30)
 
         // Add comparison content
         const imgWidth = 190
@@ -195,33 +142,6 @@ export default function CompareClient({ isDemoMode = false }: Props) {
     }
   }
 
-  // Get all unique skills from both roles
-  const allSkills = [...skills1, ...skills2].reduce((acc, skill) => {
-    if (!acc.find((s) => s.skill_name === skill.skill_name)) {
-      acc.push(skill)
-    }
-    return acc
-  }, [] as Skill[])
-
-  // Group skills by category
-  const skillsByCategory = allSkills.reduce(
-    (acc, skill) => {
-      if (!acc[skill.category_name]) {
-        acc[skill.category_name] = {
-          color: skill.category_color,
-          skills: [],
-        }
-      }
-      acc[skill.category_name].skills.push(skill)
-      return acc
-    },
-    {} as Record<string, { color: string; skills: Skill[] }>,
-  )
-
-  const getSkillStatus = (skillName: string, roleSkills: Skill[]) => {
-    return roleSkills.find((s) => s.skill_name === skillName)
-  }
-
   const getColorClasses = (color: string) => {
     const colorMap: Record<string, string> = {
       blue: "bg-blue-50 text-blue-900 border-blue-200",
@@ -232,6 +152,49 @@ export default function CompareClient({ isDemoMode = false }: Props) {
     }
     return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
   }
+
+  // Get all unique skills from both roles
+  const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
+
+  role1Skills.forEach((skill) => {
+    allSkills.set(skill.skill_name, {
+      skill,
+      inRole1: true,
+      inRole2: false,
+    })
+  })
+
+  role2Skills.forEach((skill) => {
+    const existing = allSkills.get(skill.skill_name)
+    if (existing) {
+      existing.inRole2 = true
+      // Use the skill from role2 if it has more complete data
+      if (skill.skill_description && !existing.skill.skill_description) {
+        existing.skill = skill
+      }
+    } else {
+      allSkills.set(skill.skill_name, {
+        skill,
+        inRole1: false,
+        inRole2: true,
+      })
+    }
+  })
+
+  // Group skills by category
+  const skillsByCategory = Array.from(allSkills.values()).reduce(
+    (acc, { skill, inRole1, inRole2 }) => {
+      if (!acc[skill.category_name]) {
+        acc[skill.category_name] = {
+          color: skill.category_color,
+          skills: [],
+        }
+      }
+      acc[skill.category_name].skills.push({ skill, inRole1, inRole2 })
+      return acc
+    },
+    {} as Record<string, { color: string; skills: Array<{ skill: Skill; inRole1: boolean; inRole2: boolean }> }>,
+  )
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -249,27 +212,37 @@ export default function CompareClient({ isDemoMode = false }: Props) {
       )}
 
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Role Comparison</h1>
-        <p className="text-gray-600">Compare skills and requirements between different job roles.</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Compare Roles</h1>
+        <p className="text-gray-600">Compare skills and requirements between different roles.</p>
       </div>
 
       {/* Role Selection */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card>
           <CardHeader>
-            <CardTitle>First Role</CardTitle>
+            <CardTitle>Role 1</CardTitle>
           </CardHeader>
           <CardContent>
             <Select onValueChange={handleRole1Change}>
               <SelectTrigger>
-                <SelectValue placeholder="Choose first role" />
+                <SelectValue placeholder="Select first role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.department_name} - {role.name} ({role.code})
+                {isLoadingRoles ? (
+                  <SelectItem value="loading" disabled>
+                    Loading roles...
                   </SelectItem>
-                ))}
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-roles" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
             {selectedRole1 && (
@@ -285,19 +258,29 @@ export default function CompareClient({ isDemoMode = false }: Props) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Second Role</CardTitle>
+            <CardTitle>Role 2</CardTitle>
           </CardHeader>
           <CardContent>
             <Select onValueChange={handleRole2Change}>
               <SelectTrigger>
-                <SelectValue placeholder="Choose second role" />
+                <SelectValue placeholder="Select second role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.department_name} - {role.name} ({role.code})
+                {isLoadingRoles ? (
+                  <SelectItem value="loading" disabled>
+                    Loading roles...
                   </SelectItem>
-                ))}
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-roles" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
             {selectedRole2 && (
@@ -313,7 +296,7 @@ export default function CompareClient({ isDemoMode = false }: Props) {
       </div>
 
       {/* Export Button */}
-      {selectedRole1 && selectedRole2 && allSkills.length > 0 && (
+      {selectedRole1 && selectedRole2 && (
         <div className="mb-6 flex justify-end">
           <Button onClick={generatePDF} disabled={isGeneratingPDF} className="flex items-center gap-2">
             {isGeneratingPDF ? (
@@ -338,7 +321,7 @@ export default function CompareClient({ isDemoMode = false }: Props) {
             <div className="text-center py-8">
               <div className="text-gray-500">Loading comparison...</div>
             </div>
-          ) : allSkills.length > 0 ? (
+          ) : (
             <div className="space-y-8">
               {Object.entries(skillsByCategory).map(([categoryName, categoryData]) => (
                 <Card key={categoryName}>
@@ -347,82 +330,73 @@ export default function CompareClient({ isDemoMode = false }: Props) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {categoryData.skills.map((skill) => {
-                        const skill1 = getSkillStatus(skill.skill_name, skills1)
-                        const skill2 = getSkillStatus(skill.skill_name, skills2)
-
-                        return (
-                          <div
-                            key={skill.skill_name}
-                            className={`p-4 rounded-lg border ${getColorClasses(categoryData.color)}`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="font-semibold">{skill.skill_name}</h4>
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-600">{selectedRole1.code}</span>
-                                  {skill1 ? (
-                                    <CheckCircle className="w-5 h-5 text-green-500" />
-                                  ) : (
-                                    <XCircle className="w-5 h-5 text-red-500" />
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-600">{selectedRole2.code}</span>
-                                  {skill2 ? (
-                                    <CheckCircle className="w-5 h-5 text-green-500" />
-                                  ) : (
-                                    <XCircle className="w-5 h-5 text-red-500" />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid md:grid-cols-2 gap-4">
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-2">
-                                  {selectedRole1.name} ({selectedRole1.code})
-                                </h5>
-                                {skill1 ? (
-                                  <div>
-                                    <Badge variant="outline" className="text-xs mb-2">
-                                      {skill1.level}
-                                    </Badge>
-                                    <p className="text-sm text-gray-600">{skill1.demonstration_description}</p>
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-gray-500 italic">Not required for this role</p>
-                                )}
-                              </div>
-
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-2">
-                                  {selectedRole2.name} ({selectedRole2.code})
-                                </h5>
-                                {skill2 ? (
-                                  <div>
-                                    <Badge variant="outline" className="text-xs mb-2">
-                                      {skill2.level}
-                                    </Badge>
-                                    <p className="text-sm text-gray-600">{skill2.demonstration_description}</p>
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-gray-500 italic">Not required for this role</p>
-                                )}
-                              </div>
+                      {categoryData.skills.map(({ skill, inRole1, inRole2 }) => (
+                        <div key={skill.skill_name} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold">{skill.skill_name}</h4>
+                            <div className="flex gap-2">
+                              {inRole1 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {selectedRole1.code}
+                                </Badge>
+                              )}
+                              {inRole2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {selectedRole2.code}
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                        )
-                      })}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div
+                              className={`p-3 rounded ${inRole1 ? getColorClasses(categoryData.color) : "bg-gray-50"}`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-medium text-sm">{selectedRole1.name}</span>
+                                {inRole1 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {role1Skills.find((s) => s.skill_name === skill.skill_name)?.level || "N/A"}
+                                  </Badge>
+                                )}
+                              </div>
+                              {inRole1 ? (
+                                <p className="text-sm">
+                                  {role1Skills.find((s) => s.skill_name === skill.skill_name)
+                                    ?.demonstration_description || "No description available"}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 italic">Not required for this role</p>
+                              )}
+                            </div>
+
+                            <div
+                              className={`p-3 rounded ${inRole2 ? getColorClasses(categoryData.color) : "bg-gray-50"}`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-medium text-sm">{selectedRole2.name}</span>
+                                {inRole2 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {role2Skills.find((s) => s.skill_name === skill.skill_name)?.level || "N/A"}
+                                  </Badge>
+                                )}
+                              </div>
+                              {inRole2 ? (
+                                <p className="text-sm">
+                                  {role2Skills.find((s) => s.skill_name === skill.skill_name)
+                                    ?.demonstration_description || "No description available"}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 italic">Not required for this role</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-gray-400 text-lg mb-2">No skills to compare</div>
-              <div className="text-gray-500 text-sm">These roles currently have no skills defined.</div>
             </div>
           )}
         </div>
@@ -434,7 +408,7 @@ export default function CompareClient({ isDemoMode = false }: Props) {
           <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <div className="text-gray-400 text-lg mb-2">Select two roles to compare</div>
           <div className="text-gray-500 text-sm">
-            Choose roles from the dropdowns above to see their skill differences.
+            Choose roles from the dropdowns above to see their skill comparison.
           </div>
         </div>
       )}

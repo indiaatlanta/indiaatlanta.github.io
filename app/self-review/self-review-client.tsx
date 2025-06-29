@@ -37,13 +37,14 @@ interface Props {
   isDemoMode?: boolean
 }
 
-export default function SelfReviewClient({ isDemoMode = false }: Props) {
+export function SelfReviewClient({ isDemoMode: propIsDemoMode }: Props) {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
   const [assessments, setAssessments] = useState<Record<number, SelfAssessment>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isDemoMode, setIsDemoMode] = useState(false)
 
   useEffect(() => {
     fetchRoles()
@@ -54,7 +55,7 @@ export default function SelfReviewClient({ isDemoMode = false }: Props) {
       const response = await fetch("/api/roles")
       if (response.ok) {
         const data = await response.json()
-        // Ensure we always have an array
+        // Extract roles array from the response object
         if (data && Array.isArray(data.roles)) {
           setRoles(data.roles)
         } else if (Array.isArray(data)) {
@@ -68,6 +69,9 @@ export default function SelfReviewClient({ isDemoMode = false }: Props) {
             { id: 4, name: "Lead Engineer", code: "E4", level: 4, department_name: "Engineering" },
             { id: 5, name: "Principal Engineer", code: "E5", level: 5, department_name: "Engineering" },
           ])
+        }
+        if (data && typeof data.isDemoMode === "boolean") {
+          setIsDemoMode(data.isDemoMode)
         }
       } else {
         // Fallback to demo data on error
@@ -96,40 +100,9 @@ export default function SelfReviewClient({ isDemoMode = false }: Props) {
     try {
       const response = await fetch(`/api/role-skills?roleId=${roleId}`)
       if (response.ok) {
-        const data = await response.json()
-        return Array.isArray(data) ? data : []
+        return await response.json()
       }
-      // Return demo skills for demo mode
-      return [
-        {
-          id: 1,
-          skill_name: "JavaScript Programming",
-          level: "Intermediate",
-          demonstration_description:
-            "Demonstrate ability to write clean, maintainable JavaScript code with ES6+ features",
-          skill_description: "Core programming language for web development",
-          category_name: "Technical Skills",
-          category_color: "blue",
-        },
-        {
-          id: 2,
-          skill_name: "React Development",
-          level: "Intermediate",
-          demonstration_description: "Build responsive web applications using React hooks and component patterns",
-          skill_description: "Modern frontend framework for building user interfaces",
-          category_name: "Technical Skills",
-          category_color: "blue",
-        },
-        {
-          id: 3,
-          skill_name: "Problem Solving",
-          level: "Advanced",
-          demonstration_description: "Analyze complex problems and develop effective solutions",
-          skill_description: "Critical thinking and analytical skills",
-          category_name: "Soft Skills",
-          category_color: "green",
-        },
-      ]
+      return []
     } catch (error) {
       console.error("Error fetching skills:", error)
       return []

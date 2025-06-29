@@ -1,278 +1,638 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Building2, Target, Activity, Plus, Edit, Trash2, AlertCircle } from "lucide-react"
+"use client"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { ArrowLeft, Save, Plus, Trash2, Download, Upload, History, LogOut, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 
+interface Skill {
+  id: number
+  name: string
+  level: string
+  description: string
+  full_description: string
+  category_id: number
+  category_name: string
+  category_color: string
+  job_role_id: number
+  sort_order: number
+}
+
+interface AuditLog {
+  id: number
+  user_name: string
+  user_email: string
+  action: string
+  table_name: string
+  record_id: number
+  old_values: any
+  new_values: any
+  created_at: string
+}
+
+const skillCategories = [
+  { id: 1, name: "Technical Skills", color: "blue" },
+  { id: 2, name: "Delivery", color: "green" },
+  { id: 3, name: "Feedback, Communication & Collaboration", color: "purple" },
+  { id: 4, name: "Leadership", color: "indigo" },
+  { id: 5, name: "Strategic Impact", color: "orange" },
+]
+
+const skillLevels = ["L1", "L2", "L3", "L4", "L5", "M1", "M2", "M3", "M4", "M5"]
+
+// Mock data for demo mode
+const mockSkills: Skill[] = [
+  {
+    id: 1,
+    name: "Security",
+    level: "L1",
+    description: "Understands the importance of security.",
+    full_description:
+      "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices.",
+    category_id: 1,
+    category_name: "Technical Skills",
+    category_color: "blue",
+    job_role_id: 1,
+    sort_order: 0,
+  },
+  {
+    id: 2,
+    name: "Work Breakdown",
+    level: "L2",
+    description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
+    full_description:
+      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L2 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
+    category_id: 2,
+    category_name: "Delivery",
+    category_color: "green",
+    job_role_id: 1,
+    sort_order: 0,
+  },
+]
+
+const mockAuditLogs: AuditLog[] = [
+  {
+    id: 1,
+    user_name: "Demo Admin",
+    user_email: "admin@henryscheinone.com",
+    action: "CREATE",
+    table_name: "skills",
+    record_id: 1,
+    old_values: null,
+    new_values: { name: "Security", level: "L1" },
+    created_at: new Date().toISOString(),
+  },
+]
+
 export default function AdminPage() {
+  const [selectedJobRoleId, setSelectedJobRoleId] = useState<number | null>(null)
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
+  const [isAddingSkill, setIsAddingSkill] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [bulkFile, setBulkFile] = useState<File | null>(null)
+  const [isDemoMode, setIsDemoMode] = useState(false)
+  const router = useRouter()
+
+  const [newSkill, setNewSkill] = useState({
+    name: "",
+    level: "L1",
+    description: "",
+    fullDescription: "",
+    category_id: 1,
+    sort_order: 0,
+  })
+
+  useEffect(() => {
+    // Check if we're in demo mode (no database configured)
+    const checkDemoMode = async () => {
+      try {
+        const response = await fetch("/api/skills?jobRoleId=1")
+        if (response.status === 500) {
+          setIsDemoMode(true)
+          setSkills(mockSkills)
+          setAuditLogs(mockAuditLogs)
+        }
+      } catch (error) {
+        setIsDemoMode(true)
+        setSkills(mockSkills)
+        setAuditLogs(mockAuditLogs)
+      }
+    }
+
+    checkDemoMode()
+  }, [])
+
+  useEffect(() => {
+    if (selectedJobRoleId && !isDemoMode) {
+      loadSkills()
+      loadAuditLogs()
+    } else if (selectedJobRoleId && isDemoMode) {
+      setSkills(mockSkills)
+      setAuditLogs(mockAuditLogs)
+    }
+  }, [selectedJobRoleId, isDemoMode])
+
+  const loadSkills = async () => {
+    if (!selectedJobRoleId) return
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/skills?jobRoleId=${selectedJobRoleId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setSkills(data)
+      } else {
+        setError("Failed to load skills")
+      }
+    } catch (error) {
+      setError("Failed to load skills")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadAuditLogs = async () => {
+    try {
+      const response = await fetch(`/api/audit?tableName=skills&limit=50`)
+      if (response.ok) {
+        const data = await response.json()
+        setAuditLogs(data)
+      }
+    } catch (error) {
+      console.error("Failed to load audit logs:", error)
+    }
+  }
+
+  const handleSaveSkill = async (skill: Partial<Skill>) => {
+    if (isDemoMode) {
+      // Simulate saving in demo mode
+      setSuccess("Skill saved successfully (Demo Mode)")
+      setEditingSkill(null)
+      setIsAddingSkill(false)
+      setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
+      return
+    }
+
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const skillData = {
+        ...skill,
+        jobRoleId: selectedJobRoleId,
+        categoryId: skill.category_id,
+      }
+
+      let response
+      if (editingSkill) {
+        response = await fetch(`/api/skills/${editingSkill.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(skillData),
+        })
+      } else {
+        response = await fetch("/api/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(skillData),
+        })
+      }
+
+      if (response.ok) {
+        setSuccess(editingSkill ? "Skill updated successfully" : "Skill created successfully")
+        setEditingSkill(null)
+        setIsAddingSkill(false)
+        setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
+        loadSkills()
+        loadAuditLogs()
+      } else {
+        const data = await response.json()
+        setError(data.error || "Failed to save skill")
+      }
+    } catch (error) {
+      setError("Failed to save skill")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteSkill = async (skillId: number) => {
+    if (!confirm("Are you sure you want to delete this skill?")) return
+
+    if (isDemoMode) {
+      setSuccess("Skill deleted successfully (Demo Mode)")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/skills/${skillId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setSuccess("Skill deleted successfully")
+        loadSkills()
+        loadAuditLogs()
+      } else {
+        setError("Failed to delete skill")
+      }
+    } catch (error) {
+      setError("Failed to delete skill")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleExport = async (format: "json" | "csv") => {
+    if (isDemoMode) {
+      // Create mock export data
+      const mockData =
+        format === "json"
+          ? JSON.stringify(mockSkills, null, 2)
+          : "name,level,description,full_description\nSecurity,L1,Understands the importance of security.,Security is a fundamental aspect..."
+      const blob = new Blob([mockData], { type: format === "json" ? "application/json" : "text/csv" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `skills-export-demo.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      return
+    }
+
+    try {
+      const url = selectedJobRoleId
+        ? `/api/skills/export?jobRoleId=${selectedJobRoleId}&format=${format}`
+        : `/api/skills/export?format=${format}`
+
+      const response = await fetch(url)
+      if (response.ok) {
+        const blob = await response.blob()
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = downloadUrl
+        a.download = `skills-export-${new Date().toISOString().split("T")[0]}.${format}`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(downloadUrl)
+      }
+    } catch (error) {
+      setError("Failed to export skills")
+    }
+  }
+
+  const handleBulkImport = async () => {
+    if (!bulkFile || !selectedJobRoleId) return
+
+    if (isDemoMode) {
+      setSuccess("Bulk import completed successfully (Demo Mode)")
+      setBulkFile(null)
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const text = await bulkFile.text()
+      let skillsData
+
+      if (bulkFile.name.endsWith(".json")) {
+        skillsData = JSON.parse(text)
+      } else if (bulkFile.name.endsWith(".csv")) {
+        // Simple CSV parsing (in production, use a proper CSV parser)
+        const lines = text.split("\n")
+        const headers = lines[0].split(",")
+        skillsData = lines
+          .slice(1)
+          .map((line) => {
+            const values = line.split(",")
+            return {
+              name: values[4]?.replace(/"/g, ""),
+              level: values[5]?.replace(/"/g, "") || "L1", // Default to L1 if no level specified
+              description: values[6]?.replace(/"/g, ""),
+              fullDescription: values[7]?.replace(/"/g, "") || values[6]?.replace(/"/g, ""),
+              categoryId: skillCategories.find((c) => c.name === values[3]?.replace(/"/g, ""))?.id || 1,
+              jobRoleId: selectedJobRoleId,
+              sortOrder: Number.parseInt(values[8]) || 0,
+            }
+          })
+          .filter((skill) => skill.name)
+      }
+
+      const response = await fetch("/api/skills/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skills: skillsData }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setSuccess(`Successfully imported ${result.count} skills`)
+        setBulkFile(null)
+        loadSkills()
+        loadAuditLogs()
+      } else {
+        setError("Failed to import skills")
+      }
+    } catch (error) {
+      setError("Failed to import skills")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    if (isDemoMode) {
+      router.push("/")
+      return
+    }
+
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      router.push("/login")
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
+  }
+
+  const getCategoryColor = (categoryId: number) => {
+    const category = skillCategories.find((c) => c.id === categoryId)
+    return category?.color || "gray"
+  }
+
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, string> = {
+      blue: "bg-blue-50 text-blue-900 border-blue-200",
+      green: "bg-green-50 text-green-900 border-green-200",
+      purple: "bg-purple-50 text-purple-900 border-purple-200",
+      indigo: "bg-indigo-50 text-indigo-900 border-indigo-200",
+      orange: "bg-orange-50 text-orange-900 border-orange-200",
+    }
+    return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center space-x-4">
-                <Image
-                  src="/images/hs1-logo.png"
-                  alt="Henry Schein One"
-                  width={40}
-                  height={40}
-                  className="h-10 w-auto"
-                />
-                <div>
-                  <h1 className="text-xl font-semibold text-gray-900">Admin Dashboard</h1>
-                  <p className="text-sm text-gray-500">Career Matrix Management</p>
-                </div>
-              </Link>
+      <div className="bg-brand-800 px-4 py-3">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <span className="text-white text-sm">Admin Panel</span>
+              {isDemoMode && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-900">
+                  Demo Mode
+                </Badge>
+              )}
             </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/">
-                <Button variant="outline">← Back to Site</Button>
-              </Link>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="bg-brand-100 text-brand-800">
+                Admin
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700">
+                <LogOut className="w-4 h-4 mr-2" />
+                {isDemoMode ? "Exit Demo" : "Logout"}
+              </Button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Departments</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">6</div>
-              <p className="text-xs text-muted-foreground">Active departments</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">Across all departments</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Skills</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-muted-foreground">Skill definitions</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">Changes this week</p>
-            </CardContent>
-          </Card>
+      {/* Navigation */}
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center gap-6 py-3">
+            <Link href="/" className="text-gray-600 hover:text-gray-800 flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Site
+            </Link>
+            <h1 className="text-lg font-semibold text-gray-900">Skills Management</h1>
+          </div>
         </div>
+      </div>
 
-        {/* Management Tabs */}
-        <Tabs defaultValue="departments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="departments">Departments</TabsTrigger>
-            <TabsTrigger value="roles">Job Roles</TabsTrigger>
-            <TabsTrigger value="skills">Skills</TabsTrigger>
-            <TabsTrigger value="audit">Audit Log</TabsTrigger>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Demo Mode Alert */}
+        {isDemoMode && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Demo Mode:</strong> Database is not configured. All operations are simulated for demonstration
+              purposes. To enable full functionality, configure the DATABASE_URL environment variable.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Alerts */}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mb-6 border-green-200 bg-green-50">
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs defaultValue="skills" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="skills">Skills Management</TabsTrigger>
+            <TabsTrigger value="bulk">Bulk Operations</TabsTrigger>
+            <TabsTrigger value="audit">Audit Trail</TabsTrigger>
           </TabsList>
 
-          {/* Departments Tab */}
-          <TabsContent value="departments" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Departments</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Department
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                { name: "Engineering", slug: "engineering", color: "#3B82F6", roles: 8 },
-                { name: "Product", slug: "product", color: "#10B981", roles: 5 },
-                { name: "Design", slug: "design", color: "#8B5CF6", roles: 4 },
-                { name: "Marketing", slug: "marketing", color: "#F59E0B", roles: 6 },
-                { name: "Sales", slug: "sales", color: "#EF4444", roles: 7 },
-                { name: "Operations", slug: "operations", color: "#6B7280", roles: 5 },
-              ].map((dept) => (
-                <Card key={dept.slug}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: dept.color }} />
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <CardTitle>{dept.name}</CardTitle>
-                    <CardDescription>{dept.roles} roles</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Link href={`/department/${dept.slug}`}>
-                      <Button variant="outline" className="w-full bg-transparent">
-                        View Department
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Job Roles Tab */}
-          <TabsContent value="roles" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Job Roles</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Role
-              </Button>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Roles</CardTitle>
-                <CardDescription>Manage job roles across all departments</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { title: "Senior Software Engineer", department: "Engineering", level: "Senior", skills: 18 },
-                    { title: "Product Manager II", department: "Product", level: "Mid", skills: 15 },
-                    { title: "UX Designer", department: "Design", level: "Mid", skills: 12 },
-                    { title: "Marketing Manager", department: "Marketing", level: "Mid", skills: 14 },
-                  ].map((role, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex-1">
-                        <h3 className="font-medium">{role.title}</h3>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>{role.department}</span>
-                          <Badge variant="outline">{role.level}</Badge>
-                          <span>{role.skills} skills</span>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Skills Tab */}
           <TabsContent value="skills" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Skills Management</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Skill
-              </Button>
-            </div>
-
+            {/* Role Selection */}
             <Card>
               <CardHeader>
-                <CardTitle>Skills by Category</CardTitle>
-                <CardDescription>Manage skills and their categorization</CardDescription>
+                <CardTitle>Select Job Role</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {[
-                    { category: "Technical Skills", color: "blue", count: 15 },
-                    { category: "Delivery", color: "green", count: 8 },
-                    { category: "Communication & Collaboration", color: "purple", count: 10 },
-                    { category: "Leadership", color: "indigo", count: 7 },
-                    { category: "Strategic Impact", color: "orange", count: 5 },
-                  ].map((cat, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-4 h-4 rounded-full bg-${cat.color}-500`} />
-                        <div>
-                          <h3 className="font-medium">{cat.category}</h3>
-                          <p className="text-sm text-gray-500">{cat.count} skills</p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Select
+                  value={selectedJobRoleId?.toString() || ""}
+                  onValueChange={(value) => setSelectedJobRoleId(Number.parseInt(value))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a job role to manage skills" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">E1 - Junior Engineer</SelectItem>
+                    <SelectItem value="2">E2 - Software Engineer</SelectItem>
+                    <SelectItem value="3">E3 - Senior Engineer</SelectItem>
+                    <SelectItem value="4">E4 - Lead Engineer</SelectItem>
+                    <SelectItem value="5">E5 - Principal Engineer</SelectItem>
+                  </SelectContent>
+                </Select>
               </CardContent>
             </Card>
+
+            {/* Skills Management */}
+            {selectedJobRoleId && (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">Skills Management</h2>
+                  <Button onClick={() => setIsAddingSkill(true)} className="bg-brand-600 hover:bg-brand-700">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Skill
+                  </Button>
+                </div>
+
+                {isLoading ? (
+                  <div className="text-center py-8">Loading...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {skillCategories.map((category) => {
+                      const categorySkills = skills.filter((skill) => skill.category_id === category.id)
+                      if (categorySkills.length === 0) return null
+
+                      return (
+                        <Card key={category.id}>
+                          <CardHeader>
+                            <CardTitle className={`text-${category.color}-700`}>{category.name}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3">
+                              {categorySkills.map((skill) => (
+                                <div
+                                  key={skill.id}
+                                  className={`p-4 rounded-lg border ${getColorClasses(category.color)}`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <span className="font-medium">{skill.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {skill.level}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-sm">{skill.description}</p>
+                                    </div>
+                                    <div className="flex gap-2 ml-4">
+                                      <Button variant="outline" size="sm" onClick={() => setEditingSkill(skill)}>
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDeleteSkill(skill.id)}
+                                        className="text-red-600 hover:text-red-700"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </TabsContent>
 
-          {/* Audit Log Tab */}
-          <TabsContent value="audit" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Audit Log</h2>
-              <Button variant="outline">
-                <Activity className="w-4 h-4 mr-2" />
-                Export Log
-              </Button>
-            </div>
+          <TabsContent value="bulk" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Export */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Download className="w-5 h-5" />
+                    Export Skills
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-gray-600">Export skills data for backup or analysis</p>
+                  <div className="flex gap-2">
+                    <Button onClick={() => handleExport("json")} variant="outline">
+                      Export JSON
+                    </Button>
+                    <Button onClick={() => handleExport("csv")} variant="outline">
+                      Export CSV
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
+              {/* Import */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5" />
+                    Import Skills
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-gray-600">Import skills from JSON or CSV file</p>
+                  <Input type="file" accept=".json,.csv" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} />
+                  <Button onClick={handleBulkImport} disabled={!bulkFile || !selectedJobRoleId} className="w-full">
+                    Import Skills
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="audit" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Track changes and system activity</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="w-5 h-5" />
+                  Audit Trail
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { action: "CREATE", table: "job_roles", user: "admin@henryschein.com", time: "2 hours ago" },
-                    { action: "UPDATE", table: "skills_master", user: "admin@henryschein.com", time: "4 hours ago" },
-                    {
-                      action: "DELETE",
-                      table: "demonstration_templates",
-                      user: "admin@henryschein.com",
-                      time: "1 day ago",
-                    },
-                    { action: "CREATE", table: "departments", user: "admin@henryschein.com", time: "2 days ago" },
-                  ].map((log, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <Badge variant={log.action === "DELETE" ? "destructive" : "default"}>{log.action}</Badge>
-                        <div>
-                          <h3 className="font-medium">{log.table}</h3>
-                          <p className="text-sm text-gray-500">by {log.user}</p>
+                  {auditLogs.map((log) => (
+                    <div key={log.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              log.action === "DELETE"
+                                ? "destructive"
+                                : log.action === "CREATE"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                          >
+                            {log.action}
+                          </Badge>
+                          <span className="text-sm font-medium">{log.user_name}</span>
+                          <span className="text-sm text-gray-500">({log.user_email})</span>
                         </div>
+                        <span className="text-sm text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
                       </div>
-                      <span className="text-sm text-gray-500">{log.time}</span>
+                      <div className="text-sm text-gray-600">
+                        {log.action} {log.table_name} record #{log.record_id}
+                      </div>
+                      {log.new_values && (
+                        <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
+                          <strong>Changes:</strong> {JSON.stringify(log.new_values, null, 2)}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -281,46 +641,189 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Quick Actions */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common administrative tasks</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Button
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center space-y-2 bg-transparent"
-              >
-                <Building2 className="w-6 h-6" />
-                <span>Bulk Import Roles</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center space-y-2 bg-transparent"
-              >
-                <Target className="w-6 h-6" />
-                <span>Export Skills Matrix</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center space-y-2 bg-transparent"
-              >
-                <Users className="w-6 h-6" />
-                <span>User Management</span>
-              </Button>
+        {/* Add/Edit Skill Dialogs */}
+        <Dialog open={isAddingSkill} onOpenChange={setIsAddingSkill}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Skill</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Skill Name</label>
+                <Input
+                  value={newSkill.name}
+                  onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
+                  placeholder="Enter skill name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Level <span className="text-red-500">*</span>
+                  </label>
+                  <Select value={newSkill.level} onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select level (L1, L2, M1, etc.)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {skillLevels.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-2">
+                  <Input
+                    placeholder="Or enter custom level (e.g., S1, P3, etc.)"
+                    value={newSkill.level.startsWith("L") || newSkill.level.startsWith("M") ? "" : newSkill.level}
+                    onChange={(e) => setNewSkill({ ...newSkill, level: e.target.value.toUpperCase() })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Format: Letter followed by number (L1, M2, S3, etc.)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <Select
+                    value={newSkill.category_id.toString()}
+                    onValueChange={(value) => setNewSkill({ ...newSkill, category_id: Number.parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {skillCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id.toString()}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
+                <Textarea
+                  value={newSkill.description}
+                  onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
+                  placeholder="Enter brief demonstration description (shown in skill list)"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
+                <Textarea
+                  value={newSkill.fullDescription}
+                  onChange={(e) => setNewSkill({ ...newSkill, fullDescription: e.target.value })}
+                  placeholder="Enter detailed skill description (shown in skill details)"
+                  rows={6}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsAddingSkill(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleSaveSkill(newSkill)}
+                  className="bg-brand-600 hover:bg-brand-700"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Adding..." : "Add Skill"}
+                </Button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
 
-        {/* System Status */}
-        <Alert className="mt-8">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>System Status:</strong> All services are operational. Last backup completed 2 hours ago.
-          </AlertDescription>
-        </Alert>
+        <Dialog open={!!editingSkill} onOpenChange={() => setEditingSkill(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Skill</DialogTitle>
+            </DialogHeader>
+            {editingSkill && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skill Name</label>
+                  <Input
+                    value={editingSkill.name}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Level <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={editingSkill.level}
+                      onValueChange={(value) => setEditingSkill({ ...editingSkill, level: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {skillLevels.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <Select
+                      value={editingSkill.category_id.toString()}
+                      onValueChange={(value) =>
+                        setEditingSkill({ ...editingSkill, category_id: Number.parseInt(value) })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {skillCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
+                  <Textarea
+                    value={editingSkill.description}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, description: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
+                  <Textarea
+                    value={editingSkill.full_description}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, full_description: e.target.value })}
+                    rows={6}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setEditingSkill(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveSkill(editingSkill)}
+                    className="bg-brand-600 hover:bg-brand-700"
+                    disabled={isLoading}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {isLoading ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

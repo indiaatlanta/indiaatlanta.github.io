@@ -1,80 +1,87 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Settings, Users, BarChart3 } from "lucide-react"
 import Link from "next/link"
+import { Settings } from "lucide-react"
 
-interface User {
-  id: number
-  email: string
-  name: string
-  role: string
-}
-
-export default function AdminButton() {
-  const [user, setUser] = useState<User | null>(null)
+export function AdminButton() {
+  const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    checkSession()
+    const checkAdminStatus = async () => {
+      try {
+        // Check for demo session cookie
+        const demoSession = document.cookie.includes("demo-session=true")
+        if (demoSession) {
+          setIsAdmin(true)
+          setIsLoading(false)
+          return
+        }
+
+        // In demo mode (development or no database), always show admin button
+        if (process.env.NODE_ENV === "development") {
+          setIsAdmin(true)
+          setIsLoading(false)
+          return
+        }
+
+        // Check if database is configured by trying to fetch roles
+        try {
+          const rolesResponse = await fetch("/api/roles")
+          const rolesData = await rolesResponse.json()
+
+          // If we're in demo mode (no database), show admin button
+          if (rolesData.isDemoMode) {
+            setIsAdmin(true)
+            setIsLoading(false)
+            return
+          }
+        } catch (error) {
+          // If API fails, assume demo mode
+          setIsAdmin(true)
+          setIsLoading(false)
+          return
+        }
+
+        // Try to check session via API call for database mode
+        const response = await fetch("/api/auth/session")
+        if (response.ok) {
+          const data = await response.json()
+          setIsAdmin(data.user?.role === "admin")
+        } else {
+          setIsAdmin(false)
+        }
+      } catch (error) {
+        // On any error, show admin button in development
+        console.log("Admin check error:", error)
+        setIsAdmin(process.env.NODE_ENV === "development")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAdminStatus()
   }, [])
 
-  const checkSession = async () => {
-    try {
-      const response = await fetch("/api/auth/session")
-      if (response.ok) {
-        const userData = await response.json()
-        setUser(userData)
-      }
-    } catch (error) {
-      console.error("Session check failed:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+  // Don't render anything while loading
   if (isLoading) {
-    return <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
+    return null
   }
 
-  if (!user || (user.role !== "admin" && user.role !== "manager")) {
+  // Don't render if user is not admin
+  if (!isAdmin) {
     return null
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Settings className="w-4 h-4 mr-2" />
-          {user.role === "admin" ? "Admin" : "Manager"}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {user.role === "admin" && (
-          <>
-            <DropdownMenuItem asChild>
-              <Link href="/admin" className="flex items-center">
-                <Settings className="w-4 h-4 mr-2" />
-                Admin Panel
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/profile" className="flex items-center">
-                <Users className="w-4 h-4 mr-2" />
-                User Management
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-        <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center">
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Reports
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Link
+      href="/admin"
+      className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+    >
+      <Settings className="w-4 h-4" />
+      Admin Panel
+      {process.env.NODE_ENV === "development" && <span className="text-xs opacity-75">(Demo)</span>}
+    </Link>
   )
 }

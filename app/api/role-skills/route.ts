@@ -1,115 +1,174 @@
-import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { type NextRequest, NextResponse } from "next/server"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
     const { searchParams } = new URL(request.url)
     const roleId = searchParams.get("roleId")
-    const departmentSlug = searchParams.get("departmentSlug")
 
-    if (roleId) {
-      // Get skills for a specific role
-      const roleSkills = await sql`
+    if (!roleId) {
+      return NextResponse.json({ error: "Role ID is required" }, { status: 400 })
+    }
+
+    if (!isDatabaseConfigured() || !sql) {
+      // Return mock skills for demo mode with proper sort orders
+      const mockSkills = [
+        {
+          id: 1,
+          skill_name: "Security",
+          level: "L1",
+          demonstration_description: "Understands the importance of security.",
+          skill_description: "Security is a fundamental aspect of software engineering...",
+          category_name: "Technical Skills",
+          category_color: "blue",
+          skill_sort_order: 1,
+          category_sort_order: 1,
+        },
+        {
+          id: 2,
+          skill_name: "Work Breakdown",
+          level: "L1",
+          demonstration_description: "Understands value of rightsizing pieces of work.",
+          skill_description: "Work Breakdown is the practice of decomposing large, complex work items...",
+          category_name: "Delivery",
+          category_color: "green",
+          skill_sort_order: 1,
+          category_sort_order: 2,
+        },
+        {
+          id: 3,
+          skill_name: "Communication",
+          level: "L1",
+          demonstration_description: "Communicates effectively with team members.",
+          skill_description: "Effective communication is essential for collaboration...",
+          category_name: "Feedback, Communication & Collaboration",
+          category_color: "purple",
+          skill_sort_order: 1,
+          category_sort_order: 3,
+        },
+        {
+          id: 4,
+          skill_name: "JavaScript",
+          level: "L1",
+          demonstration_description: "Has basic understanding of JavaScript fundamentals.",
+          skill_description:
+            "JavaScript is a programming language that is one of the core technologies of the World Wide Web...",
+          category_name: "Language and Technologies Familiarity",
+          category_color: "orange",
+          skill_sort_order: 1,
+          category_sort_order: 4,
+        },
+        {
+          id: 5,
+          skill_name: "React",
+          level: "L1",
+          demonstration_description: "Can build simple React components.",
+          skill_description:
+            "React is a free and open-source front-end JavaScript library for building user interfaces...",
+          category_name: "Language and Technologies Familiarity",
+          category_color: "orange",
+          skill_sort_order: 2,
+          category_sort_order: 4,
+        },
+      ]
+
+      // Return different levels based on role ID for demo
+      return NextResponse.json(
+        mockSkills.map((skill) => ({
+          ...skill,
+          level: roleId === "1" ? "L1" : roleId === "2" ? "L2" : "L3",
+          demonstration_description:
+            roleId === "1"
+              ? skill.demonstration_description
+              : roleId === "2"
+                ? skill.demonstration_description.replace("Understands", "Implements")
+                : skill.demonstration_description.replace("Understands", "Designs and leads"),
+        })),
+      )
+    }
+
+    try {
+      // First try the new many-to-many structure
+      const newStructureSkills = await sql`
         SELECT 
-          rs.id,
-          rs.required_level,
-          rs.is_required,
-          sm.id as skill_id,
+          dt.id,
           sm.name as skill_name,
-          sm.category as skill_category,
-          sm.description as skill_description
-        FROM role_skills rs
-        JOIN skills_master sm ON rs.skill_id = sm.id
-        WHERE rs.role_id = ${roleId}
-        ORDER BY sm.category, sm.name
-      `
-
-      return NextResponse.json({ roleSkills })
-    }
-
-    if (departmentSlug) {
-      // Get all skills for roles in a department (skills matrix)
-      const departmentSkills = await sql`
-        SELECT DISTINCT
-          sm.id as skill_id,
-          sm.name as skill_name,
-          sm.category as skill_category,
+          dt.level,
+          dt.demonstration_description,
           sm.description as skill_description,
-          jr.id as role_id,
-          jr.title as role_title,
-          jr.level as role_level,
-          rs.required_level,
-          rs.is_required
-        FROM skills_master sm
-        LEFT JOIN role_skills rs ON sm.id = rs.skill_id
-        LEFT JOIN job_roles jr ON rs.role_id = jr.id
-        LEFT JOIN departments d ON jr.department_id = d.id
-        WHERE d.slug = ${departmentSlug} OR d.slug IS NULL
-        ORDER BY sm.category, sm.name, jr.level
+          sc.name as category_name,
+          sc.color as category_color,
+          djr.sort_order,
+          sm.sort_order as skill_sort_order,
+          sc.sort_order as category_sort_order
+        FROM demonstration_templates dt
+        JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
+        JOIN skills_master sm ON dt.skill_master_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        WHERE djr.job_role_id = ${Number.parseInt(roleId)}
+        ORDER BY sc.sort_order, sm.sort_order, djr.sort_order, sm.name
       `
 
-      // Group skills by category and role
-      const skillsMatrix: Record<string, any> = {}
-      const roles: Record<number, any> = {}
-
-      departmentSkills.forEach((row: any) => {
-        // Track roles
-        if (row.role_id && !roles[row.role_id]) {
-          roles[row.role_id] = {
-            id: row.role_id,
-            title: row.role_title,
-            level: row.role_level,
-          }
-        }
-
-        // Track skills by category
-        if (!skillsMatrix[row.skill_category]) {
-          skillsMatrix[row.skill_category] = {}
-        }
-
-        if (!skillsMatrix[row.skill_category][row.skill_id]) {
-          skillsMatrix[row.skill_category][row.skill_id] = {
-            id: row.skill_id,
-            name: row.skill_name,
-            category: row.skill_category,
-            description: row.skill_description,
-            roles: {},
-          }
-        }
-
-        // Add role requirement if it exists
-        if (row.role_id && row.required_level) {
-          skillsMatrix[row.skill_category][row.skill_id].roles[row.role_id] = {
-            required_level: row.required_level,
-            is_required: row.is_required,
-          }
-        }
-      })
-
-      return NextResponse.json({
-        skillsMatrix,
-        roles: Object.values(roles),
-      })
+      if (newStructureSkills.length > 0) {
+        return NextResponse.json(newStructureSkills)
+      }
+    } catch (newStructureError) {
+      console.log("New structure not available, trying current structure...")
     }
 
-    // Get all skills
-    const allSkills = await sql`
-      SELECT 
-        id,
-        name,
-        category,
-        description
-      FROM skills_master
-      ORDER BY category, name
-    `
+    try {
+      // Use the current skill demonstrations structure with proper sort orders
+      const skills = await sql`
+        SELECT 
+          sd.id,
+          sm.name as skill_name,
+          sd.level,
+          sd.demonstration_description,
+          sm.description as skill_description,
+          sc.name as category_name,
+          sc.color as category_color,
+          sd.sort_order,
+          sm.sort_order as skill_sort_order,
+          sc.sort_order as category_sort_order
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_master_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        WHERE sd.job_role_id = ${Number.parseInt(roleId)}
+        ORDER BY sc.sort_order, sm.sort_order, sd.sort_order, sm.name
+      `
 
-    return NextResponse.json({ skills: allSkills })
+      return NextResponse.json(skills)
+    } catch (error) {
+      console.error("Error fetching role skills:", error)
+
+      // Fallback to old structure
+      try {
+        const fallbackSkills = await sql`
+          SELECT 
+            s.id,
+            s.name as skill_name,
+            s.level,
+            s.description as demonstration_description,
+            s.full_description as skill_description,
+            sc.name as category_name,
+            sc.color as category_color,
+            s.sort_order,
+            s.sort_order as skill_sort_order,
+            sc.sort_order as category_sort_order
+          FROM skills s
+          JOIN skill_categories sc ON s.category_id = sc.id
+          WHERE s.job_role_id = ${Number.parseInt(roleId)}
+          ORDER BY sc.sort_order, s.sort_order, s.name
+        `
+
+        return NextResponse.json(fallbackSkills)
+      } catch (fallbackError) {
+        console.error("Error with fallback query:", fallbackError)
+        return NextResponse.json([])
+      }
+    }
   } catch (error) {
-    console.error("Error fetching role skills:", error)
-    return NextResponse.json({ error: "Failed to fetch role skills" }, { status: 500 })
+    console.error("Error in role-skills API:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

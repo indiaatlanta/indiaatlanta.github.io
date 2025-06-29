@@ -1,31 +1,61 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { authenticateUser, createToken } from "@/lib/auth"
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { verifyPassword, createSession } from "@/lib/auth"
+import { loginSchema } from "@/lib/validation"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const { email, password } = loginSchema.parse(body)
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+    // Check if database is configured
+    if (!isDatabaseConfigured() || !sql) {
+      // In demo mode, allow login with demo credentials
+      if (email === "admin@henryscheinone.com" && password === "admin123") {
+        // Return success for demo mode
+        return NextResponse.json({
+          user: {
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          },
+        })
+      } else {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
     }
 
-    const user = await authenticateUser({ email, password })
+    // Find user by email
+    const users = await sql`
+      SELECT id, email, password_hash, name, role
+      FROM users
+      WHERE email = ${email}
+    `
 
-    if (!user) {
+    if (users.length === 0) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    const token = createToken(user)
+    const user = users[0]
 
-    const response = NextResponse.json({ user })
-    response.cookies.set("auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+    // Verify password
+    const isValidPassword = await verifyPassword(password, user.password_hash)
+    if (!isValidPassword) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    }
+
+    // Create session
+    await createSession(user.id)
+
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
     })
-
-    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

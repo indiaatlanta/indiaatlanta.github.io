@@ -1,162 +1,62 @@
 import { z } from "zod"
 
-// User validation schemas
-export const userSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  role: z.enum(["admin", "user"]).default("user"),
-})
-
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-})
-
-// Department validation schemas
-export const departmentSchema = z.object({
-  name: z.string().min(1, "Department name is required"),
-  slug: z
-    .string()
-    .min(1, "Department slug is required")
-    .regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens"),
-  description: z.string().optional(),
-  color: z
-    .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color")
-    .default("#3B82F6"),
-  sort_order: z.number().int().min(0).default(0),
-})
-
-// Job role validation schemas
-export const jobRoleSchema = z.object({
-  name: z.string().min(1, "Role name is required"),
-  title: z.string().min(1, "Role title is required"),
-  code: z.string().min(1, "Role code is required"),
-  department_id: z.number().int().positive("Department ID is required"),
-  level: z.number().int().min(1).max(10).default(1),
-  salary_min: z.number().int().positive().optional(),
-  salary_max: z.number().int().positive().optional(),
-  location_type: z.string().default("Hybrid"),
-  description: z.string().optional(),
-  full_description: z.string().optional(),
-  sort_order: z.number().int().min(0).default(0),
-})
-
-// Skill validation schemas
-export const skillCategorySchema = z.object({
-  name: z.string().min(1, "Category name is required"),
-  color: z.string().min(1, "Color is required").default("blue"),
-  sort_order: z.number().int().min(0).default(0),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 })
 
 export const skillSchema = z.object({
-  name: z.string().min(1, "Skill name is required"),
-  category_id: z.number().int().positive("Category ID is required"),
-  description: z.string().optional(),
-  sort_order: z.number().int().min(0).default(0),
+  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
+  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
+  description: z.string().min(1, "Description is required").max(2000, "Description too long"),
+  fullDescription: z.string().min(1, "Full description is required").max(10000, "Full description too long"),
+  categoryId: z.number().int().positive("Invalid category"),
+  jobRoleId: z.number().int().positive("Invalid job role"),
+  sortOrder: z.number().int().min(0).optional(),
 })
 
-// Demonstration template validation schemas
-export const demonstrationTemplateSchema = z.object({
-  skill_id: z.number().int().positive("Skill ID is required"),
-  level: z.enum(["Beginner", "Intermediate", "Advanced", "Expert"]),
-  description: z.string().optional(),
-  demonstration_description: z.string().min(1, "Demonstration description is required"),
+export const skillMasterSchema = z.object({
+  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
+  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
+  categoryId: z.number().int().positive("Invalid category"),
+  sortOrder: z.number().int().min(0).optional(),
 })
 
-// Bulk operations schemas
+export const skillDemonstrationSchema = z.object({
+  skillMasterId: z.number().int().positive("Invalid skill"),
+  jobRoleId: z.number().int().positive("Invalid job role"),
+  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
+  demonstrationDescription: z
+    .string()
+    .min(1, "Demonstration description is required")
+    .max(2000, "Description too long"),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
 export const bulkSkillsSchema = z.object({
-  skills: z
-    .array(
-      skillSchema.extend({
-        id: z.number().int().positive().optional(),
-      }),
-    )
-    .min(1, "At least one skill is required"),
+  skills: z.array(skillSchema).min(1, "At least one skill is required"),
 })
 
-export const bulkJobRolesSchema = z.object({
-  roles: z
-    .array(
-      jobRoleSchema.extend({
-        id: z.number().int().positive().optional(),
-      }),
-    )
-    .min(1, "At least one role is required"),
+export const jobRoleSchema = z.object({
+  name: z.string().min(1, "Role name is required").max(255, "Role name too long"),
+  code: z.string().min(1, "Role code is required").max(50, "Role code too long"),
+  departmentId: z.number().int().positive("Invalid department"),
+  level: z.number().int().min(1).max(10).optional(),
+  salaryMin: z.number().int().min(0).optional(),
+  salaryMax: z.number().int().min(0).optional(),
+  locationType: z.string().max(50).optional(),
 })
 
-// Password reset schemas
-export const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
+export const departmentSchema = z.object({
+  name: z.string().min(1, "Department name is required").max(255, "Department name too long"),
+  slug: z.string().min(1, "Slug is required").max(255, "Slug too long"),
+  description: z.string().max(2000, "Description too long").optional(),
 })
 
-export const resetPasswordSchema = z
-  .object({
-    token: z.string().min(1, "Reset token is required"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirm_password: z.string().min(8, "Password confirmation is required"),
-  })
-  .refine((data) => data.password === data.confirm_password, {
-    message: "Passwords don't match",
-    path: ["confirm_password"],
-  })
-
-// Self-review and comparison schemas
-export const selfReviewSchema = z.object({
-  user_id: z.number().int().positive().optional(),
-  role_id: z.number().int().positive("Role ID is required"),
-  skill_assessments: z
-    .array(
-      z.object({
-        skill_id: z.number().int().positive(),
-        self_rating: z.number().int().min(1).max(5),
-        notes: z.string().optional(),
-      }),
-    )
-    .min(1, "At least one skill assessment is required"),
-  overall_notes: z.string().optional(),
-})
-
-export const roleComparisonSchema = z.object({
-  role_ids: z
-    .array(z.number().int().positive())
-    .min(2, "At least two roles are required for comparison")
-    .max(5, "Maximum 5 roles can be compared"),
-  user_id: z.number().int().positive().optional(),
-})
-
-// Export utility functions
-export function validateRequest<T>(
-  schema: z.ZodSchema<T>,
-  data: unknown,
-): { success: true; data: T } | { success: false; error: string } {
-  try {
-    const validatedData = schema.parse(data)
-    return { success: true, data: validatedData }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errorMessage = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ")
-      return { success: false, error: errorMessage }
-    }
-    return { success: false, error: "Validation failed" }
-  }
-}
-
-export function validatePartialRequest<T>(
-  schema: z.ZodSchema<T>,
-  data: unknown,
-): { success: true; data: Partial<T> } | { success: false; error: string } {
-  try {
-    const partialSchema = schema.partial()
-    const validatedData = partialSchema.parse(data)
-    return { success: true, data: validatedData }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errorMessage = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ")
-      return { success: false, error: errorMessage }
-    }
-    return { success: false, error: "Validation failed" }
-  }
-}
+export type LoginInput = z.infer<typeof loginSchema>
+export type SkillInput = z.infer<typeof skillSchema>
+export type SkillMasterInput = z.infer<typeof skillMasterSchema>
+export type SkillDemonstrationInput = z.infer<typeof skillDemonstrationSchema>
+export type BulkSkillsInput = z.infer<typeof bulkSkillsSchema>
+export type JobRoleInput = z.infer<typeof jobRoleSchema>
+export type DepartmentInput = z.infer<typeof departmentSchema>

@@ -1,80 +1,117 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { logAuditEvent } from "@/lib/audit"
+import { requireAdmin } from "@/lib/auth"
+import { createAuditLog } from "@/lib/audit"
+import { z } from "zod"
 
-export async function GET(request: Request) {
+const skillDemonstrationSchema = z.object({
+  skillMasterId: z.number().int().positive("Invalid skill"),
+  jobRoleId: z.number().int().positive("Invalid job role"),
+  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
+  demonstrationDescription: z
+    .string()
+    .min(1, "Demonstration description is required")
+    .max(2000, "Description too long"),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+// Get skill demonstrations
+export async function GET(request: NextRequest) {
   try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
+    await requireAdmin()
 
     const { searchParams } = new URL(request.url)
-    const skill_id = searchParams.get("skill_id")
-    const job_role_id = searchParams.get("job_role_id")
+    const jobRoleId = searchParams.get("jobRoleId")
+    const skillMasterId = searchParams.get("skillMasterId")
 
-    let query = sql`
-      SELECT 
-        dt.*,
-        sm.name as skill_name,
-        COUNT(djr.job_role_id) as role_count
-      FROM demonstration_templates dt
-      JOIN skills_master sm ON dt.skill_id = sm.id
-      LEFT JOIN demonstration_job_roles djr ON dt.id = djr.demonstration_template_id
-    `
-
-    const conditions = []
-    if (skill_id) {
-      conditions.push(sql`dt.skill_id = ${skill_id}`)
+    let query
+    if (jobRoleId) {
+      query = sql`
+        SELECT 
+          sd.*,
+          sm.name as skill_name,
+          sm.description as skill_description,
+          sc.name as category_name,
+          sc.color as category_color,
+          jr.name as job_role_name,
+          jr.code as job_role_code
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_master_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        JOIN job_roles jr ON sd.job_role_id = jr.id
+        WHERE sd.job_role_id = ${Number.parseInt(jobRoleId)}
+        ORDER BY sc.sort_order, sm.sort_order, sd.sort_order, sm.name
+      `
+    } else if (skillMasterId) {
+      query = sql`
+        SELECT 
+          sd.*,
+          sm.name as skill_name,
+          sm.description as skill_description,
+          sc.name as category_name,
+          sc.color as category_color,
+          jr.name as job_role_name,
+          jr.code as job_role_code
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_master_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        JOIN job_roles jr ON sd.job_role_id = jr.id
+        WHERE sd.skill_master_id = ${Number.parseInt(skillMasterId)}
+        ORDER BY jr.level, jr.name, sd.sort_order
+      `
+    } else {
+      query = sql`
+        SELECT 
+          sd.*,
+          sm.name as skill_name,
+          sm.description as skill_description,
+          sc.name as category_name,
+          sc.color as category_color,
+          jr.name as job_role_name,
+          jr.code as job_role_code
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_master_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        JOIN job_roles jr ON sd.job_role_id = jr.id
+        ORDER BY sc.sort_order, sm.name, jr.level, sd.sort_order
+      `
     }
-    if (job_role_id) {
-      conditions.push(sql`djr.job_role_id = ${job_role_id}`)
-    }
-
-    if (conditions.length > 0) {
-      query = sql`${query} WHERE ${sql.join(conditions, sql` AND `)}`
-    }
-
-    query = sql`${query} GROUP BY dt.id, sm.name ORDER BY dt.skill_id, dt.level`
 
     const demonstrations = await query
-
-    return NextResponse.json({ demonstrations })
+    return NextResponse.json(demonstrations)
   } catch (error) {
-    console.error("Get demonstrations error:", error)
-    return NextResponse.json({ error: "Failed to get demonstrations" }, { status: 500 })
+    console.error("Get skill demonstrations error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+// Create new skill demonstration
+export async function POST(request: NextRequest) {
   try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
+    const user = await requireAdmin()
     const body = await request.json()
-    const { skill_id, level, description, demonstration_description } = body
+    const demonstrationData = skillDemonstrationSchema.parse(body)
 
-    if (!skill_id || !level) {
-      return NextResponse.json({ error: "skill_id and level are required" }, { status: 400 })
-    }
-
-    const newDemonstration = await sql`
-      INSERT INTO demonstration_templates (skill_id, level, description, demonstration_description)
-      VALUES (${skill_id}, ${level}, ${description || null}, ${demonstration_description || null})
+    const result = await sql`
+      INSERT INTO skill_demonstrations (skill_master_id, job_role_id, level, demonstration_description, sort_order)
+      VALUES (${demonstrationData.skillMasterId}, ${demonstrationData.jobRoleId}, ${demonstrationData.level}, ${demonstrationData.demonstrationDescription}, ${demonstrationData.sortOrder || 0})
       RETURNING *
     `
 
-    // Log audit event
-    await logAuditEvent({
+    const newDemonstration = result[0]
+
+    // Create audit log
+    await createAuditLog({
+      userId: user.id,
+      tableName: "skill_demonstrations",
+      recordId: newDemonstration.id,
       action: "CREATE",
-      table_name: "demonstration_templates",
-      record_id: newDemonstration[0].id,
-      new_values: newDemonstration[0],
+      newValues: demonstrationData,
     })
 
-    return NextResponse.json({ demonstration: newDemonstration[0] })
+    return NextResponse.json(newDemonstration, { status: 201 })
   } catch (error) {
-    console.error("Create demonstration error:", error)
-    return NextResponse.json({ error: "Failed to create demonstration" }, { status: 500 })
+    console.error("Create skill demonstration error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

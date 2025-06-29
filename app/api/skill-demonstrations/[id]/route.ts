@@ -1,133 +1,96 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { logAuditEvent } from "@/lib/audit"
+import { requireAdmin } from "@/lib/auth"
+import { createAuditLog } from "@/lib/audit"
+import { z } from "zod"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+const skillDemonstrationSchema = z.object({
+  skillMasterId: z.number().int().positive("Invalid skill"),
+  jobRoleId: z.number().int().positive("Invalid job role"),
+  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
+  demonstrationDescription: z
+    .string()
+    .min(1, "Demonstration description is required")
+    .max(2000, "Description too long"),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
-    const demonstrationId = Number.parseInt(params.id)
-
-    const demonstration = await sql`
-      SELECT 
-        dt.*,
-        sm.name as skill_name,
-        sc.name as category_name
-      FROM demonstration_templates dt
-      JOIN skills_master sm ON dt.skill_id = sm.id
-      LEFT JOIN skill_categories sc ON sm.category_id = sc.id
-      WHERE dt.id = ${demonstrationId}
-    `
-
-    if (demonstration.length === 0) {
-      return NextResponse.json({ error: "Demonstration not found" }, { status: 404 })
-    }
-
-    // Get associated job roles
-    const jobRoles = await sql`
-      SELECT 
-        jr.*,
-        d.name as department_name
-      FROM demonstration_job_roles djr
-      JOIN job_roles jr ON djr.job_role_id = jr.id
-      JOIN departments d ON jr.department_id = d.id
-      WHERE djr.demonstration_template_id = ${demonstrationId}
-      ORDER BY d.name, jr.level
-    `
-
-    return NextResponse.json({
-      demonstration: demonstration[0],
-      job_roles: jobRoles,
-    })
-  } catch (error) {
-    console.error("Get demonstration error:", error)
-    return NextResponse.json({ error: "Failed to get demonstration" }, { status: 500 })
-  }
-}
-
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
+    const user = await requireAdmin()
     const demonstrationId = Number.parseInt(params.id)
     const body = await request.json()
-    const { skill_id, level, description, demonstration_description } = body
+    const demonstrationData = skillDemonstrationSchema.parse(body)
 
     // Get old values for audit
     const oldDemonstration = await sql`
-      SELECT * FROM demonstration_templates WHERE id = ${demonstrationId}
+      SELECT * FROM skill_demonstrations WHERE id = ${demonstrationId}
     `
 
     if (oldDemonstration.length === 0) {
-      return NextResponse.json({ error: "Demonstration not found" }, { status: 404 })
+      return NextResponse.json({ error: "Skill demonstration not found" }, { status: 404 })
     }
 
-    // Update demonstration
-    const updatedDemonstration = await sql`
-      UPDATE demonstration_templates 
+    const result = await sql`
+      UPDATE skill_demonstrations 
       SET 
-        skill_id = ${skill_id},
-        level = ${level},
-        description = ${description || null},
-        demonstration_description = ${demonstration_description || null},
+        skill_master_id = ${demonstrationData.skillMasterId},
+        job_role_id = ${demonstrationData.jobRoleId},
+        level = ${demonstrationData.level},
+        demonstration_description = ${demonstrationData.demonstrationDescription},
+        sort_order = ${demonstrationData.sortOrder || 0},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${demonstrationId}
       RETURNING *
     `
 
-    // Log audit event
-    await logAuditEvent({
+    const updatedDemonstration = result[0]
+
+    // Create audit log
+    await createAuditLog({
+      userId: user.id,
+      tableName: "skill_demonstrations",
+      recordId: demonstrationId,
       action: "UPDATE",
-      table_name: "demonstration_templates",
-      record_id: demonstrationId,
-      old_values: oldDemonstration[0],
-      new_values: updatedDemonstration[0],
+      oldValues: oldDemonstration[0],
+      newValues: demonstrationData,
     })
 
-    return NextResponse.json({ demonstration: updatedDemonstration[0] })
+    return NextResponse.json(updatedDemonstration)
   } catch (error) {
-    console.error("Update demonstration error:", error)
-    return NextResponse.json({ error: "Failed to update demonstration" }, { status: 500 })
+    console.error("Update skill demonstration error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    if (!sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
+    const user = await requireAdmin()
     const demonstrationId = Number.parseInt(params.id)
 
-    // Get demonstration for audit
+    // Get demonstration data for audit
     const demonstration = await sql`
-      SELECT * FROM demonstration_templates WHERE id = ${demonstrationId}
+      SELECT * FROM skill_demonstrations WHERE id = ${demonstrationId}
     `
 
     if (demonstration.length === 0) {
-      return NextResponse.json({ error: "Demonstration not found" }, { status: 404 })
+      return NextResponse.json({ error: "Skill demonstration not found" }, { status: 404 })
     }
 
-    // Delete demonstration (this will cascade to related records)
-    await sql`
-      DELETE FROM demonstration_templates WHERE id = ${demonstrationId}
-    `
+    await sql`DELETE FROM skill_demonstrations WHERE id = ${demonstrationId}`
 
-    // Log audit event
-    await logAuditEvent({
+    // Create audit log
+    await createAuditLog({
+      userId: user.id,
+      tableName: "skill_demonstrations",
+      recordId: demonstrationId,
       action: "DELETE",
-      table_name: "demonstration_templates",
-      record_id: demonstrationId,
-      old_values: demonstration[0],
+      oldValues: demonstration[0],
     })
 
-    return NextResponse.json({ message: "Demonstration deleted successfully" })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Delete demonstration error:", error)
-    return NextResponse.json({ error: "Failed to delete demonstration" }, { status: 500 })
+    console.error("Delete skill demonstration error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -1,82 +1,62 @@
-import { Suspense } from "react"
-import Image from "next/image"
 import Link from "next/link"
-import LoginButton from "@/components/login-button"
-import AdminButton from "@/components/admin-button"
-import SelfReviewClient from "./self-review-client"
+import { ArrowLeft, Rocket, Settings } from "lucide-react"
+import { getSession } from "@/lib/auth"
+import { SelfReviewClient } from "./self-review-client"
+import Image from "next/image"
 
-export default function SelfReviewPage() {
+// Force dynamic rendering since we use cookies and database
+export const dynamic = "force-dynamic"
+
+export default async function SelfReviewPage() {
+  let session = null
+  let isAdmin = false
+
+  try {
+    session = await getSession()
+    isAdmin = session?.user?.role === "admin"
+  } catch (error) {
+    console.error("Error getting session:", error)
+    // Continue without session
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center space-x-4">
-                <Image
-                  src="/images/hs1-logo.png"
-                  alt="Henry Schein One"
-                  width={40}
-                  height={40}
-                  className="h-10 w-auto"
-                />
-                <div>
-                  <h1 className="text-xl font-semibold text-gray-900">Career Matrix</h1>
-                  <p className="text-sm text-gray-500">Self Assessment</p>
-                </div>
+      <div className="bg-brand-800 px-4 py-3">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <Rocket className="w-4 h-4 text-white" />
+              <span className="text-white text-sm">/ Self Review</span>
+            </div>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="ml-auto bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Admin Panel
               </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
-                <LoginButton />
-              </Suspense>
-              <Suspense fallback={<div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />}>
-                <AdminButton />
-              </Suspense>
-            </div>
+            )}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Navigation */}
-      <nav className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center space-x-8 h-12">
-            <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-              ← Back to Home
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center gap-6 py-3">
+            <Link href="/" className="text-gray-600 hover:text-gray-800 flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
             </Link>
-            <div className="flex space-x-6">
-              <Link href="/compare" className="text-sm text-gray-600 hover:text-gray-900">
-                Compare Roles
-              </Link>
-              <span className="text-sm font-medium text-gray-900">Self Assessment</span>
-            </div>
           </div>
         </div>
-      </nav>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Self Assessment</h2>
-          <p className="text-lg text-gray-600 mb-6">
-            Evaluate your current skills against a specific job role to identify areas for development and career
-            growth.
-          </p>
-        </div>
-
-        <Suspense
-          fallback={
-            <div className="space-y-4">
-              <div className="h-8 bg-gray-200 rounded animate-pulse" />
-              <div className="h-64 bg-gray-200 rounded animate-pulse" />
-            </div>
-          }
-        >
-          <SelfReviewClient />
-        </Suspense>
-      </main>
+      {/* Pass data to client component */}
+      <SelfReviewClient />
     </div>
   )
 }
