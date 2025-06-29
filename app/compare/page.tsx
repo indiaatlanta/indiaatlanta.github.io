@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import LoginButton from "@/components/login-button"
-import AdminButton from "@/components/admin-button"
+import { AdminButton } from "@/components/admin-button"
 import CompareClient from "./compare-client"
 
 export default function ComparePage() {

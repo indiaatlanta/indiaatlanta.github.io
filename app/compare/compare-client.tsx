@@ -28,10 +28,10 @@ interface Skill {
 }
 
 interface Props {
-  isDemoMode: boolean
+  isDemoMode?: boolean
 }
 
-export function CompareClient({ isDemoMode }: Props) {
+export default function CompareClient({ isDemoMode = true }: Props) {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole1, setSelectedRole1] = useState<Role | null>(null)
   const [selectedRole2, setSelectedRole2] = useState<Role | null>(null)
