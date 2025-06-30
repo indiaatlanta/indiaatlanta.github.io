@@ -8,22 +8,23 @@ import { Badge } from "@/components/ui/badge"
 import {
   Users,
   BookOpen,
-  TrendingUp,
-  Award,
   Building2,
-  LogOut,
+  TrendingUp,
+  User,
   Settings,
-  BarChart3,
-  Target,
-  Clock,
+  LogOut,
+  ChevronRight,
   Star,
+  Clock,
+  Award,
+  Target,
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import type { User as AuthUser } from "@/lib/auth"
+import type { User as UserType } from "@/lib/auth"
 
 interface MainPageClientProps {
-  user: AuthUser
+  user: UserType
 }
 
 interface Department {
@@ -43,79 +44,138 @@ interface Skill {
   description: string
 }
 
-interface Stats {
-  totalUsers: number
-  totalSkills: number
-  totalDepartments: number
-  totalAssessments: number
-}
-
 export default function MainPageClient({ user }: MainPageClientProps) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [recentSkills, setRecentSkills] = useState<Skill[]>([])
-  const [stats, setStats] = useState<Stats>({
+  const [stats, setStats] = useState({
     totalUsers: 0,
     totalSkills: 0,
     totalDepartments: 0,
     totalAssessments: 0,
   })
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch departments
-        const deptResponse = await fetch("/api/departments")
-        if (deptResponse.ok) {
-          const deptData = await deptResponse.json()
-          setDepartments(deptData)
+    // Fetch departments
+    fetch("/api/departments")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.departments) {
+          setDepartments(data.departments)
+          setStats((prev) => ({ ...prev, totalDepartments: data.departments.length }))
         }
+      })
+      .catch((error) => {
+        console.error("Failed to fetch departments:", error)
+        // Fallback data
+        setDepartments([
+          {
+            id: 1,
+            name: "Engineering",
+            slug: "engineering",
+            description: "Software development and technical roles",
+            skillCount: 45,
+            roleCount: 12,
+          },
+          {
+            id: 2,
+            name: "Product",
+            slug: "product",
+            description: "Product management and strategy",
+            skillCount: 32,
+            roleCount: 8,
+          },
+          {
+            id: 3,
+            name: "Design",
+            slug: "design",
+            description: "UX/UI and visual design",
+            skillCount: 28,
+            roleCount: 6,
+          },
+          {
+            id: 4,
+            name: "Marketing",
+            slug: "marketing",
+            description: "Digital marketing and growth",
+            skillCount: 35,
+            roleCount: 10,
+          },
+          {
+            id: 5,
+            name: "Sales",
+            slug: "sales",
+            description: "Sales and business development",
+            skillCount: 25,
+            roleCount: 7,
+          },
+          {
+            id: 6,
+            name: "Operations",
+            slug: "operations",
+            description: "Business operations and support",
+            skillCount: 30,
+            roleCount: 9,
+          },
+        ])
+        setStats((prev) => ({ ...prev, totalDepartments: 6 }))
+      })
 
-        // Fetch recent skills
-        const skillsResponse = await fetch("/api/skills?limit=5")
-        if (skillsResponse.ok) {
-          const skillsData = await skillsResponse.json()
-          setRecentSkills(skillsData)
+    // Fetch recent skills
+    fetch("/api/skills?limit=5")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.skills) {
+          setRecentSkills(data.skills)
+          setStats((prev) => ({ ...prev, totalSkills: data.total || data.skills.length }))
         }
+      })
+      .catch((error) => {
+        console.error("Failed to fetch skills:", error)
+        // Fallback data
+        setRecentSkills([
+          {
+            id: 1,
+            name: "React Development",
+            category: "Frontend",
+            level: 4,
+            description: "Building user interfaces with React",
+          },
+          { id: 2, name: "API Design", category: "Backend", level: 3, description: "Designing RESTful APIs" },
+          {
+            id: 3,
+            name: "User Research",
+            category: "Design",
+            level: 5,
+            description: "Conducting user interviews and surveys",
+          },
+          { id: 4, name: "Data Analysis", category: "Analytics", level: 4, description: "Analyzing business metrics" },
+          {
+            id: 5,
+            name: "Project Management",
+            category: "Leadership",
+            level: 3,
+            description: "Managing cross-functional projects",
+          },
+        ])
+        setStats((prev) => ({ ...prev, totalSkills: 195 }))
+      })
 
-        // Set demo stats
-        setStats({
-          totalUsers: 156,
-          totalSkills: 89,
-          totalDepartments: departments.length || 8,
-          totalAssessments: 234,
-        })
-      } catch (error) {
-        console.error("Error fetching data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [departments.length])
+    // Set demo stats
+    setStats((prev) => ({
+      ...prev,
+      totalUsers: 1247,
+      totalAssessments: 3891,
+    }))
+  }, [])
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      })
+      await fetch("/api/auth/logout", { method: "POST" })
       window.location.href = "/login"
     } catch (error) {
       console.error("Logout error:", error)
+      window.location.href = "/login"
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -124,7 +184,7 @@ export default function MainPageClient({ user }: MainPageClientProps) {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center">
               <Image
                 src="/images/henry-schein-one-logo.png"
                 alt="Henry Schein One"
@@ -132,13 +192,11 @@ export default function MainPageClient({ user }: MainPageClientProps) {
                 height={40}
                 className="h-8 w-auto"
               />
-              <div className="hidden md:block">
-                <h1 className="text-xl font-semibold text-gray-900">Careers Matrix</h1>
-              </div>
+              <div className="ml-4 text-xl font-semibold text-gray-900">Careers Matrix</div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <LogOut className="h-5 w-5 text-gray-400" />
+                <User className="h-5 w-5 text-gray-400" />
                 <span className="text-sm font-medium text-gray-700">{user.name}</span>
                 <Badge variant={user.role === "admin" ? "destructive" : "secondary"}>{user.role}</Badge>
               </div>
@@ -163,203 +221,207 @@ export default function MainPageClient({ user }: MainPageClientProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
-          <p className="text-gray-600">Explore career paths, assess your skills, and discover growth opportunities.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h1>
+          <p className="text-lg text-gray-600">
+            Explore career paths, assess your skills, and plan your professional development.
+          </p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Users className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Users</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Active platform users</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <BookOpen className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Skills Tracked</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalSkills}</p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Skills</CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalSkills}</div>
+              <p className="text-xs text-muted-foreground">Available skills</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Building2 className="h-8 w-8 text-purple-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Departments</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalDepartments}</p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Departments</CardTitle>
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalDepartments}</div>
+              <p className="text-xs text-muted-foreground">Career departments</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <BarChart3 className="h-8 w-8 text-orange-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Assessments</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalAssessments}</p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Assessments</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalAssessments.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Completed assessments</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link href="/self-review">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center">
-                    <Target className="h-8 w-8 text-blue-600" />
-                    <div className="ml-4">
-                      <h4 className="font-semibold text-gray-900">Self Assessment</h4>
-                      <p className="text-sm text-gray-600">Evaluate your current skills</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/compare">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center">
-                    <TrendingUp className="h-8 w-8 text-green-600" />
-                    <div className="ml-4">
-                      <h4 className="font-semibold text-gray-900">Compare Roles</h4>
-                      <p className="text-sm text-gray-600">Find your ideal career path</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Link href="/self-review">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <Award className="h-8 w-8 text-purple-600" />
-                  <div className="ml-4">
-                    <h4 className="font-semibold text-gray-900">Learning Paths</h4>
-                    <p className="text-sm text-gray-600">Discover skill development</p>
-                  </div>
-                </div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Target className="h-5 w-5 mr-2 text-blue-600" />
+                  Self Assessment
+                </CardTitle>
+                <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full">
+                  Start Assessment
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
               </CardContent>
             </Card>
-          </div>
+          </Link>
+
+          <Link href="/compare">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Award className="h-5 w-5 mr-2 text-green-600" />
+                  Compare Roles
+                </CardTitle>
+                <CardDescription>Compare your skills against different job roles and requirements</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-transparent" variant="outline">
+                  Compare Now
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <BookOpen className="h-5 w-5 mr-2 text-purple-600" />
+                Learning Paths
+              </CardTitle>
+              <CardDescription>Discover personalized learning recommendations for your career goals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-transparent" variant="outline">
+                Explore Paths
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="departments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+        {/* Tabbed Content */}
+        <Tabs defaultValue="departments" className="space-y-4">
+          <TabsList>
             <TabsTrigger value="departments">Departments</TabsTrigger>
             <TabsTrigger value="skills">Recent Skills</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="departments" className="space-y-6">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Department Explorer</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {departments.length > 0 ? (
-                  departments.map((dept) => (
-                    <Link key={dept.id} href={`/department/${dept.slug}`}>
-                      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                        <CardHeader>
-                          <CardTitle className="text-lg">{dept.name}</CardTitle>
-                          <CardDescription>{dept.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex justify-between text-sm text-gray-600">
-                            <span>{dept.skillCount} skills</span>
-                            <span>{dept.roleCount} roles</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="col-span-full text-center py-8">
-                    <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No departments available</p>
-                  </div>
-                )}
-              </div>
+          <TabsContent value="departments" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {departments.map((dept) => (
+                <Link key={dept.id} href={`/department/${dept.slug}`}>
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        {dept.name}
+                        <ChevronRight className="h-4 w-4" />
+                      </CardTitle>
+                      <CardDescription>{dept.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>{dept.skillCount} skills</span>
+                        <span>{dept.roleCount} roles</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
             </div>
           </TabsContent>
 
-          <TabsContent value="skills" className="space-y-6">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Recently Added Skills</h3>
-              <div className="space-y-4">
-                {recentSkills.length > 0 ? (
-                  recentSkills.map((skill) => (
-                    <Card key={skill.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-semibold text-gray-900">{skill.name}</h4>
-                            <p className="text-sm text-gray-600">{skill.description}</p>
-                            <Badge variant="outline" className="mt-2">
-                              {skill.category}
-                            </Badge>
-                          </div>
+          <TabsContent value="skills" className="space-y-4">
+            <div className="space-y-4">
+              {recentSkills.map((skill) => (
+                <Card key={skill.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold">{skill.name}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
+                        <div className="flex items-center mt-2 space-x-2">
+                          <Badge variant="secondary">{skill.category}</Badge>
                           <div className="flex items-center">
-                            <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                            <span className="text-sm font-medium">{skill.level}/5</span>
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-4 w-4 ${
+                                  i < skill.level ? "text-yellow-400 fill-current" : "text-gray-300"
+                                }`}
+                              />
+                            ))}
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No recent skills to display</p>
-                  </div>
-                )}
-              </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </TabsContent>
 
-          <TabsContent value="activity" className="space-y-6">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center">
-                      <Clock className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">System initialized</p>
-                        <p className="text-xs text-gray-600">Welcome to the HS1 Careers Matrix</p>
-                      </div>
+          <TabsContent value="activity" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Clock className="h-5 w-5 mr-2" />
+                  Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm">Completed self-assessment for Frontend Development</p>
+                      <p className="text-xs text-gray-500">2 hours ago</p>
                     </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center">
-                      <LogOut className="h-5 w-5 text-blue-500 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Profile created</p>
-                        <p className="text-xs text-gray-600">Your account is ready to use</p>
-                      </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm">Updated skill rating for React Development</p>
+                      <p className="text-xs text-gray-500">1 day ago</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm">Compared skills with Senior Developer role</p>
+                      <p className="text-xs text-gray-500">3 days ago</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
