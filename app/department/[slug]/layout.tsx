@@ -4,5 +4,5 @@ export default function DepartmentLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

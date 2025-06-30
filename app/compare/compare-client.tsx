@@ -1,482 +1,465 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Download, GitCompare, Users, Target, BookOpen, ArrowRight } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Download, FileText } from "lucide-react"
 import jsPDF from "jspdf"
+import { autoTable } from "jspdf-autotable"
 
 interface Role {
   id: number
-  title: string
-  department: string
-  level: string
-  description: string
+  name: string
+  code: string
+  level: number
+  department_name: string
 }
 
 interface Skill {
   id: number
-  name: string
-  category: string
-  level: number
-  description: string
+  skill_name: string
+  level: string
+  demonstration_description: string
+  skill_description: string
+  category_name: string
+  category_color: string
 }
 
-interface ComparisonData {
-  role1: Role | null
-  role2: Role | null
-  role1Skills: Skill[]
-  role2Skills: Skill[]
-}
-
-export default function CompareClient() {
+export function CompareClient() {
   const [roles, setRoles] = useState<Role[]>([])
-  const [loading, setLoading] = useState(true)
-  const [comparison, setComparison] = useState<ComparisonData>({
-    role1: null,
-    role2: null,
-    role1Skills: [],
-    role2Skills: [],
-  })
+  const [selectedRole1, setSelectedRole1] = useState<Role | null>(null)
+  const [selectedRole2, setSelectedRole2] = useState<Role | null>(null)
+  const [role1Skills, setRole1Skills] = useState<Skill[]>([])
+  const [role2Skills, setRole2Skills] = useState<Skill[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(false)
 
   useEffect(() => {
     fetchRoles()
   }, [])
 
   const fetchRoles = async () => {
+    setIsLoadingRoles(true)
     try {
       const response = await fetch("/api/roles")
       if (response.ok) {
         const data = await response.json()
-        setRoles(data)
+        console.log("Roles API response:", data) // Debug log
+
+        // Handle different response formats
+        if (data && Array.isArray(data.roles)) {
+          setRoles(data.roles)
+          setIsDemoMode(data.isDemoMode || false)
+        } else if (Array.isArray(data)) {
+          setRoles(data)
+          setIsDemoMode(false)
+        } else {
+          console.error("Unexpected roles data format:", data)
+          setRoles([])
+          setIsDemoMode(true)
+        }
       } else {
-        console.error("Failed to fetch roles")
-        // Fallback to mock data
-        setRoles([
-          {
-            id: 1,
-            title: "Software Engineer I",
-            department: "Engineering",
-            level: "Junior",
-            description: "Entry-level software development role",
-          },
-          {
-            id: 2,
-            title: "Software Engineer II",
-            department: "Engineering",
-            level: "Mid",
-            description: "Mid-level software development role",
-          },
-          {
-            id: 3,
-            title: "Senior Software Engineer",
-            department: "Engineering",
-            level: "Senior",
-            description: "Senior software development role",
-          },
-          {
-            id: 4,
-            title: "Product Manager",
-            department: "Product",
-            level: "Mid",
-            description: "Product strategy and management role",
-          },
-          {
-            id: 5,
-            title: "Senior Product Manager",
-            department: "Product",
-            level: "Senior",
-            description: "Senior product strategy and management role",
-          },
-        ])
+        console.error("Failed to fetch roles, status:", response.status)
+        setRoles([])
+        setIsDemoMode(true)
       }
     } catch (error) {
       console.error("Error fetching roles:", error)
-      // Fallback to mock data
-      setRoles([
-        {
-          id: 1,
-          title: "Software Engineer I",
-          department: "Engineering",
-          level: "Junior",
-          description: "Entry-level software development role",
-        },
-        {
-          id: 2,
-          title: "Software Engineer II",
-          department: "Engineering",
-          level: "Mid",
-          description: "Mid-level software development role",
-        },
-        {
-          id: 3,
-          title: "Senior Software Engineer",
-          department: "Engineering",
-          level: "Senior",
-          description: "Senior software development role",
-        },
-      ])
+      setRoles([])
+      setIsDemoMode(true)
     } finally {
-      setLoading(false)
+      setIsLoadingRoles(false)
     }
   }
 
-  const fetchRoleSkills = async (roleId: number) => {
+  const fetchSkills = async (roleId: number) => {
     try {
       const response = await fetch(`/api/role-skills?roleId=${roleId}`)
       if (response.ok) {
         const data = await response.json()
-        return data
-      } else {
-        console.error("Failed to fetch role skills")
-        return []
+        return Array.isArray(data) ? data : []
       }
+      return []
     } catch (error) {
-      console.error("Error fetching role skills:", error)
+      console.error("Error fetching skills:", error)
       return []
     }
   }
 
-  const handleRoleSelect = async (roleId: string, position: "role1" | "role2") => {
-    const selectedRole = roles.find((role) => role.id === Number.parseInt(roleId))
-    if (!selectedRole) return
-
-    const skills = await fetchRoleSkills(selectedRole.id)
-
-    setComparison((prev) => ({
-      ...prev,
-      [position]: selectedRole,
-      [`${position}Skills`]: skills,
-    }))
+  const handleRole1Change = async (roleId: string) => {
+    const role = roles.find((r) => r.id === Number.parseInt(roleId))
+    if (role) {
+      setSelectedRole1(role)
+      setIsLoading(true)
+      const skills = await fetchSkills(role.id)
+      setRole1Skills(skills)
+      setIsLoading(false)
+    }
   }
 
-  const exportToPDF = () => {
-    const doc = new jsPDF()
+  const handleRole2Change = async (roleId: string) => {
+    const role = roles.find((r) => r.id === Number.parseInt(roleId))
+    if (role) {
+      setSelectedRole2(role)
+      setIsLoading(true)
+      const skills = await fetchSkills(role.id)
+      setRole2Skills(skills)
+      setIsLoading(false)
+    }
+  }
 
-    // Header
-    doc.setFontSize(20)
-    doc.text("Henry Schein One - Role Comparison", 20, 30)
+  const generatePDF = async () => {
+    if (!selectedRole1 || !selectedRole2) return
 
-    doc.setFontSize(12)
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 45)
+    setIsGeneratingPDF(true)
+    try {
+      const doc = new jsPDF("p", "mm", "a4")
 
-    let yPosition = 60
+      // Add header without logo to avoid PNG issues
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text("Henry Schein One", 20, 25)
 
-    if (comparison.role1 && comparison.role2) {
-      // Role 1
       doc.setFontSize(16)
-      doc.text(`Role 1: ${comparison.role1.title}`, 20, yPosition)
-      yPosition += 10
+      doc.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 20, 35)
 
+      // Add role information
       doc.setFontSize(12)
-      doc.text(`Department: ${comparison.role1.department}`, 20, yPosition)
-      yPosition += 8
-      doc.text(`Level: ${comparison.role1.level}`, 20, yPosition)
-      yPosition += 8
-      doc.text(`Description: ${comparison.role1.description}`, 20, yPosition)
-      yPosition += 15
+      doc.setFont("helvetica", "normal")
+      doc.text(`Role 1: ${selectedRole1.name} (${selectedRole1.code}) - ${selectedRole1.department_name}`, 20, 50)
+      doc.text(`Role 2: ${selectedRole2.name} (${selectedRole2.code}) - ${selectedRole2.department_name}`, 20, 60)
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70)
 
-      // Role 1 Skills
-      doc.setFontSize(14)
-      doc.text("Skills:", 20, yPosition)
-      yPosition += 10
+      // Get all unique skills
+      const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
 
-      comparison.role1Skills.forEach((skill) => {
-        doc.setFontSize(10)
-        doc.text(`• ${skill.name} (${skill.category}) - Level ${skill.level}`, 25, yPosition)
-        yPosition += 6
-        if (yPosition > 270) {
-          doc.addPage()
-          yPosition = 20
+      role1Skills.forEach((skill) => {
+        allSkills.set(skill.skill_name, {
+          skill,
+          inRole1: true,
+          inRole2: false,
+        })
+      })
+
+      role2Skills.forEach((skill) => {
+        const existing = allSkills.get(skill.skill_name)
+        if (existing) {
+          existing.inRole2 = true
+        } else {
+          allSkills.set(skill.skill_name, {
+            skill,
+            inRole1: false,
+            inRole2: true,
+          })
         }
       })
 
-      yPosition += 10
+      // Create table data
+      const tableData = Array.from(allSkills.values()).map(({ skill, inRole1, inRole2 }) => [
+        skill.skill_name,
+        skill.category_name,
+        inRole1 ? "✓" : "✗",
+        inRole2 ? "✓" : "✗",
+      ])
 
-      // Role 2
-      doc.setFontSize(16)
-      doc.text(`Role 2: ${comparison.role2.title}`, 20, yPosition)
-      yPosition += 10
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 85,
+        head: [["Skill", "Category", selectedRole1.code, selectedRole2.code]],
+        body: tableData,
+        theme: "grid",
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 25, halign: "center" },
+          3: { cellWidth: 25, halign: "center" },
+        },
+      })
 
-      doc.setFontSize(12)
-      doc.text(`Department: ${comparison.role2.department}`, 20, yPosition)
-      yPosition += 8
-      doc.text(`Level: ${comparison.role2.level}`, 20, yPosition)
-      yPosition += 8
-      doc.text(`Description: ${comparison.role2.description}`, 20, yPosition)
-      yPosition += 15
+      doc.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
+      setIsGeneratingPDF(false)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      setIsGeneratingPDF(false)
+    }
+  }
 
-      // Role 2 Skills
-      doc.setFontSize(14)
-      doc.text("Skills:", 20, yPosition)
-      yPosition += 10
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, string> = {
+      blue: "bg-blue-50 text-blue-900 border-blue-200",
+      green: "bg-green-50 text-green-900 border-green-200",
+      purple: "bg-purple-50 text-purple-900 border-purple-200",
+      indigo: "bg-indigo-50 text-indigo-900 border-indigo-200",
+      orange: "bg-orange-50 text-orange-900 border-orange-200",
+    }
+    return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
+  }
 
-      comparison.role2Skills.forEach((skill) => {
-        doc.setFontSize(10)
-        doc.text(`• ${skill.name} (${skill.category}) - Level ${skill.level}`, 25, yPosition)
-        yPosition += 6
-        if (yPosition > 270) {
-          doc.addPage()
-          yPosition = 20
-        }
+  // Get all unique skills from both roles
+  const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
+
+  role1Skills.forEach((skill) => {
+    allSkills.set(skill.skill_name, {
+      skill,
+      inRole1: true,
+      inRole2: false,
+    })
+  })
+
+  role2Skills.forEach((skill) => {
+    const existing = allSkills.get(skill.skill_name)
+    if (existing) {
+      existing.inRole2 = true
+      // Use the skill from role2 if it has more complete data
+      if (skill.skill_description && !existing.skill.skill_description) {
+        existing.skill = skill
+      }
+    } else {
+      allSkills.set(skill.skill_name, {
+        skill,
+        inRole1: false,
+        inRole2: true,
       })
     }
+  })
 
-    doc.save("role-comparison.pdf")
-  }
-
-  const getUniqueSkills = (skills1: Skill[], skills2: Skill[]) => {
-    const allSkills = [...skills1, ...skills2]
-    const uniqueSkills = allSkills.reduce((acc, skill) => {
-      const existing = acc.find((s) => s.name === skill.name)
-      if (!existing) {
-        acc.push(skill)
+  // Group skills by category
+  const skillsByCategory = Array.from(allSkills.values()).reduce(
+    (acc, { skill, inRole1, inRole2 }) => {
+      if (!acc[skill.category_name]) {
+        acc[skill.category_name] = {
+          color: skill.category_color,
+          skills: [],
+        }
       }
+      acc[skill.category_name].skills.push({ skill, inRole1, inRole2 })
       return acc
-    }, [] as Skill[])
-    return uniqueSkills.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
-  }
-
-  const getSkillLevel = (skillName: string, skills: Skill[]) => {
-    const skill = skills.find((s) => s.name === skillName)
-    return skill ? skill.level : 0
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3 mb-8"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="h-64 bg-gray-200 rounded"></div>
-              <div className="h-64 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+    },
+    {} as Record<string, { color: string; skills: Array<{ skill: Skill; inRole1: boolean; inRole2: boolean }> }>,
+  )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <GitCompare className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Compare Roles</h1>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Database Status Banner */}
+      {isDemoMode && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
           </div>
-          <p className="text-lg text-gray-600">
-            Compare different roles to understand career progression paths and skill requirements.
+          <p className="text-blue-700 text-sm mt-1">
+            Running in preview mode. Database features are simulated for demonstration purposes.
           </p>
         </div>
+      )}
 
-        {/* Role Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Role 1
-              </CardTitle>
-              <CardDescription>Select the first role to compare</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Select onValueChange={(value) => handleRoleSelect(value, "role1")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.title} - {role.department}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {comparison.role1 && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-lg">{comparison.role1.title}</h3>
-                  <div className="flex gap-2 mt-2">
-                    <Badge variant="secondary">{comparison.role1.department}</Badge>
-                    <Badge variant="outline">{comparison.role1.level}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">{comparison.role1.description}</p>
-                  <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
-                    <Target className="w-4 h-4" />
-                    <span>{comparison.role1Skills.length} skills required</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Role 2
-              </CardTitle>
-              <CardDescription>Select the second role to compare</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Select onValueChange={(value) => handleRoleSelect(value, "role2")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.title} - {role.department}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {comparison.role2 && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-lg">{comparison.role2.title}</h3>
-                  <div className="flex gap-2 mt-2">
-                    <Badge variant="secondary">{comparison.role2.department}</Badge>
-                    <Badge variant="outline">{comparison.role2.level}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">{comparison.role2.description}</p>
-                  <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
-                    <Target className="w-4 h-4" />
-                    <span>{comparison.role2Skills.length} skills required</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Comparison Results */}
-        {comparison.role1 && comparison.role2 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-5 h-5" />
-                    Skills Comparison
-                  </CardTitle>
-                  <CardDescription>Detailed comparison of skills required for both roles</CardDescription>
-                </div>
-                <Button onClick={exportToPDF} className="flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Export PDF
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Skills Matrix */}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-3 font-semibold">Skill</th>
-                        <th className="text-left p-3 font-semibold">Category</th>
-                        <th className="text-center p-3 font-semibold">{comparison.role1.title}</th>
-                        <th className="text-center p-3 font-semibold">{comparison.role2.title}</th>
-                        <th className="text-center p-3 font-semibold">Difference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getUniqueSkills(comparison.role1Skills, comparison.role2Skills).map((skill, index) => {
-                        const role1Level = getSkillLevel(skill.name, comparison.role1Skills)
-                        const role2Level = getSkillLevel(skill.name, comparison.role2Skills)
-                        const difference = role2Level - role1Level
-
-                        return (
-                          <tr key={index} className="border-b hover:bg-gray-50">
-                            <td className="p-3 font-medium">{skill.name}</td>
-                            <td className="p-3">
-                              <Badge variant="outline" className="text-xs">
-                                {skill.category}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-center">
-                              {role1Level > 0 ? (
-                                <Badge variant="secondary">Level {role1Level}</Badge>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="p-3 text-center">
-                              {role2Level > 0 ? (
-                                <Badge variant="secondary">Level {role2Level}</Badge>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="p-3 text-center">
-                              {difference > 0 && (
-                                <Badge variant="default" className="bg-green-100 text-green-800">
-                                  +{difference}
-                                </Badge>
-                              )}
-                              {difference < 0 && (
-                                <Badge variant="default" className="bg-red-100 text-red-800">
-                                  {difference}
-                                </Badge>
-                              )}
-                              {difference === 0 && role1Level > 0 && role2Level > 0 && (
-                                <Badge variant="outline">Same</Badge>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{comparison.role1Skills.length}</div>
-                    <div className="text-sm text-gray-600">Skills in {comparison.role1.title}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{comparison.role2Skills.length}</div>
-                    <div className="text-sm text-gray-600">Skills in {comparison.role2.title}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {getUniqueSkills(comparison.role1Skills, comparison.role2Skills).length}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Unique Skills</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Empty State */}
-        {!comparison.role1 && !comparison.role2 && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <GitCompare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Roles to Compare</h3>
-              <p className="text-gray-600 mb-6">
-                Choose two roles from the dropdowns above to see a detailed comparison of their skill requirements.
-              </p>
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                <ArrowRight className="w-4 h-4" />
-                <span>Start by selecting your first role</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Compare Roles</h1>
+        <p className="text-gray-600">Compare skills and requirements between different roles.</p>
       </div>
+
+      {/* Role Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Role 1</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select onValueChange={handleRole1Change}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select first role" />
+              </SelectTrigger>
+              <SelectContent>
+                {isLoadingRoles ? (
+                  <SelectItem value="loading" disabled>
+                    Loading roles...
+                  </SelectItem>
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-roles" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {selectedRole1 && (
+              <div className="mt-4">
+                <Badge variant="outline">{selectedRole1.code}</Badge>
+                <h3 className="font-semibold mt-2">{selectedRole1.name}</h3>
+                <p className="text-sm text-gray-600">Level {selectedRole1.level}</p>
+                <p className="text-sm text-gray-600">{selectedRole1.department_name}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Role 2</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select onValueChange={handleRole2Change}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select second role" />
+              </SelectTrigger>
+              <SelectContent>
+                {isLoadingRoles ? (
+                  <SelectItem value="loading" disabled>
+                    Loading roles...
+                  </SelectItem>
+                ) : roles.length > 0 ? (
+                  roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.department_name} - {role.name} ({role.code})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-roles" disabled>
+                    No roles available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {selectedRole2 && (
+              <div className="mt-4">
+                <Badge variant="outline">{selectedRole2.code}</Badge>
+                <h3 className="font-semibold mt-2">{selectedRole2.name}</h3>
+                <p className="text-sm text-gray-600">Level {selectedRole2.level}</p>
+                <p className="text-sm text-gray-600">{selectedRole2.department_name}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Export Button */}
+      {selectedRole1 && selectedRole2 && (
+        <div className="mb-6 flex justify-end">
+          <Button onClick={generatePDF} disabled={isGeneratingPDF} className="flex items-center gap-2">
+            {isGeneratingPDF ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Export PDF
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Comparison Content */}
+      {selectedRole1 && selectedRole2 && (
+        <div id="comparison-content">
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="text-gray-500">Loading comparison...</div>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {Object.entries(skillsByCategory).map(([categoryName, categoryData]) => (
+                <Card key={categoryName}>
+                  <CardHeader>
+                    <CardTitle className={`text-${categoryData.color}-700`}>{categoryName}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {categoryData.skills.map(({ skill, inRole1, inRole2 }) => (
+                        <div key={skill.skill_name} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold">{skill.skill_name}</h4>
+                            <div className="flex gap-2">
+                              {inRole1 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {selectedRole1.code}
+                                </Badge>
+                              )}
+                              {inRole2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {selectedRole2.code}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div
+                              className={`p-3 rounded ${inRole1 ? getColorClasses(categoryData.color) : "bg-gray-50"}`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-medium text-sm">{selectedRole1.name}</span>
+                                {inRole1 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {role1Skills.find((s) => s.skill_name === skill.skill_name)?.level || "N/A"}
+                                  </Badge>
+                                )}
+                              </div>
+                              {inRole1 ? (
+                                <p className="text-sm">
+                                  {role1Skills.find((s) => s.skill_name === skill.skill_name)
+                                    ?.demonstration_description || "No description available"}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 italic">Not required for this role</p>
+                              )}
+                            </div>
+
+                            <div
+                              className={`p-3 rounded ${inRole2 ? getColorClasses(categoryData.color) : "bg-gray-50"}`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-medium text-sm">{selectedRole2.name}</span>
+                                {inRole2 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {role2Skills.find((s) => s.skill_name === skill.skill_name)?.level || "N/A"}
+                                  </Badge>
+                                )}
+                              </div>
+                              {inRole2 ? (
+                                <p className="text-sm">
+                                  {role2Skills.find((s) => s.skill_name === skill.skill_name)
+                                    ?.demonstration_description || "No description available"}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 italic">Not required for this role</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* No Selection Message */}
+      {(!selectedRole1 || !selectedRole2) && (
+        <div className="text-center py-12">
+          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <div className="text-gray-400 text-lg mb-2">Select two roles to compare</div>
+          <div className="text-gray-500 text-sm">
+            Choose roles from the dropdowns above to see their skill comparison.
+          </div>
+        </div>
+      )}
     </div>
   )
 }

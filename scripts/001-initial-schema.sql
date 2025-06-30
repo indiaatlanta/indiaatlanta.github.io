@@ -1,17 +1,4 @@
--- Create database schema for the career matrix system
-
--- Users table for authentication
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    role VARCHAR(50) DEFAULT 'user' CHECK (role IN ('admin', 'user')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Departments table
+-- Create departments table
 CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -21,71 +8,73 @@ CREATE TABLE IF NOT EXISTS departments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Job roles table
+-- Create job_roles table
 CREATE TABLE IF NOT EXISTS job_roles (
     id SERIAL PRIMARY KEY,
-    department_id INTEGER REFERENCES departments(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    code VARCHAR(50) NOT NULL,
-    level INTEGER,
-    salary_min INTEGER,
-    salary_max INTEGER,
-    location_type VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Skill categories table
-CREATE TABLE IF NOT EXISTS skill_categories (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    slug VARCHAR(255) UNIQUE NOT NULL,
-    color VARCHAR(50) DEFAULT 'gray',
+    code VARCHAR(50) UNIQUE NOT NULL,
+    level INTEGER NOT NULL,
+    department_id INTEGER REFERENCES departments(id),
     description TEXT,
-    sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Skills table
-CREATE TABLE IF NOT EXISTS skills (
+-- Create skills_master table
+CREATE TABLE IF NOT EXISTS skills_master (
     id SERIAL PRIMARY KEY,
-    job_role_id INTEGER REFERENCES job_roles(id) ON DELETE CASCADE,
-    category_id INTEGER REFERENCES skill_categories(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    level VARCHAR(10) CHECK (level IN ('L1', 'L2', 'L3', 'L4', 'L5', 'N/A')),
-    description TEXT NOT NULL,
-    sort_order INTEGER DEFAULT 0,
+    description TEXT,
+    category VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Audit log table
-CREATE TABLE IF NOT EXISTS audit_logs (
+-- Create demonstration_templates table
+CREATE TABLE IF NOT EXISTS demonstration_templates (
+    id SERIAL PRIMARY KEY,
+    skill_master_id INTEGER REFERENCES skills_master(id),
+    level VARCHAR(50) NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create demonstration_job_roles table (many-to-many)
+CREATE TABLE IF NOT EXISTS demonstration_job_roles (
+    id SERIAL PRIMARY KEY,
+    demonstration_template_id INTEGER REFERENCES demonstration_templates(id),
+    job_role_id INTEGER REFERENCES job_roles(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(demonstration_template_id, job_role_id)
+);
+
+-- Create users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create audit_log table
+CREATE TABLE IF NOT EXISTS audit_log (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
-    table_name VARCHAR(100) NOT NULL,
-    record_id INTEGER NOT NULL,
-    action VARCHAR(20) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    action VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255),
+    record_id INTEGER,
     old_values JSONB,
     new_values JSONB,
-    ip_address INET,
-    user_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Sessions table for authentication
-CREATE TABLE IF NOT EXISTS sessions (
-    id VARCHAR(255) PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_skills_job_role_id ON skills(job_role_id);
-CREATE INDEX IF NOT EXISTS idx_skills_category_id ON skills(category_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_table_record ON audit_logs(table_name, record_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_job_roles_department ON job_roles(department_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_templates_skill ON demonstration_templates(skill_master_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_template ON demonstration_job_roles(demonstration_template_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_role ON demonstration_job_roles(job_role_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_table ON audit_log(table_name);
