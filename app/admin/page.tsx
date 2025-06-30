@@ -36,7 +36,7 @@ const skillCategories = [
   { id: 5, name: "Strategic Impact", color: "orange" },
 ]
 
-const skillLevels = ["L1", "L2", "L3", "L4", "L5", "M1", "M2", "M3", "M4", "M5"]
+const skillLevels = ["L1", "L2", "L3", "L4", "L5"]
 
 // Mock data for demo mode
 const mockSkills: Skill[] = [
@@ -83,15 +83,19 @@ const mockAuditLogs: AuditLog[] = [
 ]
 
 export default async function AdminPage() {
+  console.log("AdminPage: Getting current user")
   const user = await getCurrentUser()
 
   if (!user) {
+    console.log("AdminPage: No user found, redirecting to login")
     redirect("/login")
   }
 
   if (user.role !== "admin") {
+    console.log("AdminPage: Non-admin user, redirecting to home")
     redirect("/")
   }
 
+  console.log("AdminPage: Admin user found:", user.email)
   return <AdminClient user={user} />
 }

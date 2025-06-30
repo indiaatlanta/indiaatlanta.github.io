@@ -4,8 +4,18 @@ import { verifySession } from "@/lib/auth"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-
   console.log("Middleware processing:", pathname)
+
+  // Skip middleware for static files and Next.js internals
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/_next") ||
+    pathname.includes(".") ||
+    pathname === "/favicon.ico" ||
+    pathname.startsWith("/images/")
+  ) {
+    return NextResponse.next()
+  }
 
   // Public paths that don't require authentication
   const publicPaths = ["/login", "/forgot-password", "/reset-password"]
@@ -20,22 +30,13 @@ export async function middleware(request: NextRequest) {
   ]
   const isPublicApiPath = publicApiPaths.some((path) => pathname.startsWith(path))
 
-  // Static files and Next.js internals
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/_next") ||
-    pathname.includes(".") ||
-    pathname === "/favicon.ico"
-  ) {
-    return NextResponse.next()
-  }
-
   // Allow public paths
   if (isPublicPath || isPublicApiPath) {
+    console.log("Public path, allowing access:", pathname)
     return NextResponse.next()
   }
 
-  // Check for session
+  // Check for session cookie
   const sessionCookie = request.cookies.get("session")
   console.log("Session cookie present:", !!sessionCookie?.value)
 
@@ -47,7 +48,7 @@ export async function middleware(request: NextRequest) {
   // Verify session
   try {
     const user = await verifySession(sessionCookie.value)
-    console.log("Session verification result:", !!user)
+    console.log("Session verification result:", user ? `User: ${user.email}` : "No user")
 
     if (!user) {
       console.log("Invalid session, redirecting to login")
@@ -62,7 +63,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/", request.url))
     }
 
-    console.log("Session valid, allowing access")
+    console.log("Session valid, allowing access to:", pathname)
     return NextResponse.next()
   } catch (error) {
     console.error("Session verification error:", error)

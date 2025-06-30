@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Set session cookie
+    // Set session cookie with proper options
     response.cookies.set("session", sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
       path: "/",
     })
 
-    console.log("Login successful, cookie set")
+    console.log("Login successful, cookie set, returning response")
     return response
   } catch (error) {
     console.error("Login error:", error)

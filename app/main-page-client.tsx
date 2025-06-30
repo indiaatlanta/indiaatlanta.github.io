@@ -8,7 +8,6 @@ import { User, Settings, BarChart3, Users, BookOpen, LogOut } from "lucide-react
 import type { User as UserType } from "@/lib/auth"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 interface MainPageClientProps {
   user: UserType
@@ -16,12 +15,16 @@ interface MainPageClientProps {
 
 export default function MainPageClient({ user }: MainPageClientProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const router = useRouter()
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
+      console.log("Logging out...")
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+      console.log("Logout successful, redirecting to login")
       window.location.href = "/login"
     } catch (error) {
       console.error("Logout error:", error)

@@ -45,6 +45,7 @@ const demoUsers: User[] = [
 
 export async function createSession(user: User): Promise<string> {
   const sessionId = uuidv4()
+  console.log("Creating session for user:", user.email, "Session ID:", sessionId)
 
   // Try to store session in database if available
   if (isDatabaseConfigured()) {
@@ -60,17 +61,21 @@ export async function createSession(user: User): Promise<string> {
           expires_at = EXCLUDED.expires_at,
           updated_at = CURRENT_TIMESTAMP
       `
-      console.log("Session stored in database:", sessionId)
+      console.log("Session stored in database successfully")
     } catch (error) {
       console.error("Failed to store session in database:", error)
       // Continue with cookie-only session
     }
+  } else {
+    console.log("Database not configured, using cookie-only session")
   }
 
   return sessionId
 }
 
 export async function verifySession(sessionId: string): Promise<User | null> {
+  console.log("Verifying session:", sessionId)
+
   try {
     // Try database verification first
     if (isDatabaseConfigured()) {
@@ -84,12 +89,15 @@ export async function verifySession(sessionId: string): Promise<User | null> {
 
         if (sessions.length > 0) {
           const session = sessions[0]
+          console.log("Database session found for user:", session.email)
           return {
             id: session.user_id,
             email: session.email,
             name: session.name,
             role: session.role,
           }
+        } else {
+          console.log("No valid database session found")
         }
       } catch (error) {
         console.error("Database session verification failed:", error)
@@ -115,6 +123,7 @@ export async function getCurrentUser(): Promise<User | null> {
       return null
     }
 
+    console.log("Found session cookie, verifying...")
     return await verifySession(sessionId)
   } catch (error) {
     console.error("Get current user error:", error)
@@ -123,6 +132,8 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
+  console.log("Deleting session:", sessionId)
+
   if (isDatabaseConfigured()) {
     try {
       await sql!`
