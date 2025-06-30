@@ -1,21 +1,20 @@
 import { neon } from "@neondatabase/serverless"
 
-export const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
+export let sql: ReturnType<typeof neon> | null = null
 
 export function isDatabaseConfigured(): boolean {
-  return !!process.env.DATABASE_URL && !!sql
+  return !!process.env.DATABASE_URL
 }
 
-export async function testDatabaseConnection(): Promise<boolean> {
-  if (!isDatabaseConfigured()) {
-    return false
-  }
-
+// Initialize database connection if URL is provided
+if (process.env.DATABASE_URL) {
   try {
-    await sql!`SELECT 1`
-    return true
+    sql = neon(process.env.DATABASE_URL)
+    console.log("Database connection initialized")
   } catch (error) {
-    console.error("Database connection test failed:", error)
-    return false
+    console.error("Failed to initialize database connection:", error)
+    sql = null
   }
+} else {
+  console.log("No DATABASE_URL provided, running in demo mode")
 }

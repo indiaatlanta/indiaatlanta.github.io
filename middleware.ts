@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
   ]
   const isPublicApiPath = publicApiPaths.some((path) => pathname.startsWith(path))
 
-  // Allow public paths
+  // Allow public paths and API routes
   if (isPublicPath || isPublicApiPath) {
     console.log("Public path, allowing access:", pathname)
     return NextResponse.next()
@@ -60,6 +60,12 @@ export async function middleware(request: NextRequest) {
     // Check admin access for admin routes
     if (pathname.startsWith("/admin") && user.role !== "admin") {
       console.log("Non-admin user trying to access admin route")
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+
+    // If user is authenticated and trying to access login page, redirect to home
+    if (pathname === "/login") {
+      console.log("Authenticated user accessing login page, redirecting to home")
       return NextResponse.redirect(new URL("/", request.url))
     }
 

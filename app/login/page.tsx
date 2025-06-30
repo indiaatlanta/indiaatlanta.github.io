@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +15,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
   const performLogin = async (loginEmail: string, loginPassword: string) => {
     setError("")
@@ -40,9 +38,8 @@ export default function LoginPage() {
 
       if (response.ok && data.success) {
         console.log("Login successful, redirecting...")
-        // Use Next.js router for navigation
-        router.push("/")
-        router.refresh()
+        // Force a complete page reload to ensure session is recognized
+        window.location.href = "/"
       } else {
         console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
