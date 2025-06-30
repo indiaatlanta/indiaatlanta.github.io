@@ -1,73 +1,81 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const checkOnly = searchParams.get("checkOnly")
+    const limit = Number.parseInt(searchParams.get("limit") || "10")
 
-    // If this is just a database connectivity check, don't require auth
-    if (checkOnly === "true") {
-      const isDemoMode = !isDatabaseConfigured() || !sql
-      return NextResponse.json({ isDemoMode })
+    if (isDatabaseConfigured()) {
+      try {
+        const skills = await sql!`
+          SELECT id, name, category, level, description
+          FROM skills
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `
+
+        return NextResponse.json({
+          skills: skills.map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            category: skill.category,
+            level: skill.level || 3,
+            description: skill.description,
+          })),
+          total: skills.length,
+        })
+      } catch (error) {
+        console.error("Database error fetching skills:", error)
+        // Fall through to demo data
+      }
     }
 
-    // For actual data requests, require admin auth
-    await requireAdmin()
-
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({
-        skills: [],
-        isDemoMode: true,
-      })
-    }
-
-    const skills = await sql`
-      SELECT 
-        sm.id,
-        sm.name,
-        sm.category,
-        sm.description,
-        sm.created_at,
-        sm.updated_at
-      FROM skills_master sm
-      ORDER BY sm.category, sm.name
-    `
+    // Demo data fallback
+    const demoSkills = [
+      {
+        id: 1,
+        name: "React Development",
+        category: "Frontend",
+        level: 4,
+        description: "Building user interfaces with React framework",
+      },
+      {
+        id: 2,
+        name: "Node.js",
+        category: "Backend",
+        level: 3,
+        description: "Server-side JavaScript development",
+      },
+      {
+        id: 3,
+        name: "UI/UX Design",
+        category: "Design",
+        level: 5,
+        description: "User interface and experience design",
+      },
+      {
+        id: 4,
+        name: "Data Analysis",
+        category: "Analytics",
+        level: 4,
+        description: "Analyzing and interpreting data",
+      },
+      {
+        id: 5,
+        name: "Project Management",
+        category: "Leadership",
+        level: 3,
+        description: "Managing projects and teams",
+      },
+    ].slice(0, limit)
 
     return NextResponse.json({
-      skills: skills || [],
-      isDemoMode: false,
+      skills: demoSkills,
+      total: demoSkills.length,
     })
   } catch (error) {
-    console.error("Get skills error:", error)
+    console.error("Error fetching skills:", error)
     return NextResponse.json({ error: "Failed to fetch skills" }, { status: 500 })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    await requireAdmin()
-
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
-    }
-
-    const { name, category, description } = await request.json()
-
-    if (!name || !category) {
-      return NextResponse.json({ error: "Name and category are required" }, { status: 400 })
-    }
-
-    const result = await sql`
-      INSERT INTO skills_master (name, category, description)
-      VALUES (${name}, ${category}, ${description || ""})
-      RETURNING id, name, category, description, created_at, updated_at
-    `
-
-    return NextResponse.json(result[0])
-  } catch (error) {
-    console.error("Create skill error:", error)
-    return NextResponse.json({ error: "Failed to create skill" }, { status: 500 })
   }
 }

@@ -1,17 +1,11 @@
 import { neon } from "@neondatabase/serverless"
 
-// Make database connection optional for preview environments
-let sql: ReturnType<typeof neon> | null = null
+export const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
-if (process.env.DATABASE_URL) {
-  sql = neon(process.env.DATABASE_URL)
-} else {
+if (!process.env.DATABASE_URL) {
   console.warn("DATABASE_URL not configured - database features will be disabled")
 }
 
-export { sql }
-
-// Database helper functions
 export async function withTransaction<T>(
   callback: (sql: NonNullable<typeof import("./db").sql>) => Promise<T>,
 ): Promise<T> {
@@ -24,5 +18,5 @@ export async function withTransaction<T>(
 }
 
 export function isDatabaseConfigured(): boolean {
-  return !!sql
+  return !!process.env.DATABASE_URL && !!sql
 }

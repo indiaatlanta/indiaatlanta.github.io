@@ -16,21 +16,20 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const performLogin = async (loginEmail: string, loginPassword: string) => {
     setError("")
     setIsLoading(true)
 
     try {
-      console.log("Submitting login form for:", email)
+      console.log("Performing login for:", loginEmail)
 
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
-        credentials: "include", // Important for cookies
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        credentials: "include",
       })
 
       console.log("Login response status:", response.status)
@@ -38,11 +37,9 @@ export default function LoginPage() {
       console.log("Login response data:", data)
 
       if (response.ok && data.success) {
-        console.log("Login successful, redirecting to main page")
-        // Force a hard redirect to ensure session is recognized
-        setTimeout(() => {
-          window.location.replace("/")
-        }, 500)
+        console.log("Login successful, redirecting...")
+        // Force a complete page reload to ensure session is recognized
+        window.location.href = "/"
       } else {
         console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
@@ -55,43 +52,16 @@ export default function LoginPage() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await performLogin(email, password)
+  }
+
   const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
     console.log("Demo login attempt for:", demoEmail)
     setEmail(demoEmail)
     setPassword(demoPassword)
-    setError("")
-    setIsLoading(true)
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: demoEmail, password: demoPassword }),
-        credentials: "include",
-      })
-
-      console.log("Demo login response status:", response.status)
-      const data = await response.json()
-      console.log("Demo login response data:", data)
-
-      if (response.ok && data.success) {
-        console.log("Demo login successful, redirecting to main page")
-        // Force a hard redirect to ensure session is recognized
-        setTimeout(() => {
-          window.location.replace("/")
-        }, 500)
-      } else {
-        console.log("Demo login failed:", data.error)
-        setError(data.error || "Demo login failed")
-      }
-    } catch (error) {
-      console.error("Demo login error:", error)
-      setError("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    await performLogin(demoEmail, demoPassword)
   }
 
   return (

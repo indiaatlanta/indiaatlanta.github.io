@@ -15,8 +15,6 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     console.error("Logout error:", error)
-    const response = NextResponse.json({ success: true })
-    response.cookies.delete("session")
-    return response
+    return NextResponse.json({ error: "Logout failed" }, { status: 500 })
   }
 }

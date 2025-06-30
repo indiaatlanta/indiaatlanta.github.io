@@ -9,42 +9,8 @@ export interface User {
   role: string
 }
 
-// In-memory session store for demo mode
-const sessionStore = new Map<string, { user: User; expiresAt: Date }>()
-
-// Demo users for when database is not configured
-const demoUsers: User[] = [
-  {
-    id: 1,
-    email: "admin@henryscheinone.com",
-    name: "Admin User",
-    role: "admin",
-  },
-  {
-    id: 2,
-    email: "user@henryscheinone.com",
-    name: "John Doe",
-    role: "user",
-  },
-  {
-    id: 3,
-    email: "manager@henryscheinone.com",
-    name: "Jane Manager",
-    role: "admin",
-  },
-  {
-    id: 4,
-    email: "john.smith@henryscheinone.com",
-    name: "John Smith",
-    role: "user",
-  },
-  {
-    id: 5,
-    email: "jane.doe@henryscheinone.com",
-    name: "Jane Doe",
-    role: "user",
-  },
-]
+// Global in-memory session store
+const globalSessionStore = new Map<string, { user: User; expiresAt: Date }>()
 
 export async function createSession(user: User): Promise<string> {
   const sessionId = uuidv4()
@@ -52,8 +18,9 @@ export async function createSession(user: User): Promise<string> {
 
   console.log("Creating session for user:", user.email, "Session ID:", sessionId)
 
-  // Store in memory for demo mode
-  sessionStore.set(sessionId, { user, expiresAt })
+  // Always store in memory first for immediate access
+  globalSessionStore.set(sessionId, { user, expiresAt })
+  console.log("Session stored in memory")
 
   // Try to store session in database if available
   if (isDatabaseConfigured()) {
@@ -67,13 +34,11 @@ export async function createSession(user: User): Promise<string> {
           expires_at = EXCLUDED.expires_at,
           updated_at = CURRENT_TIMESTAMP
       `
-      console.log("Session stored in database successfully")
+      console.log("Session also stored in database")
     } catch (error) {
       console.error("Failed to store session in database:", error)
       // Continue with memory-only session
     }
-  } else {
-    console.log("Database not configured, using memory-only session")
   }
 
   return sessionId
@@ -87,11 +52,17 @@ export async function verifySession(sessionId: string): Promise<User | null> {
 
   console.log("Verifying session:", sessionId)
 
-  // Check memory store first (works for both demo and database modes)
-  const memorySession = sessionStore.get(sessionId)
-  if (memorySession && memorySession.expiresAt > new Date()) {
-    console.log("Valid session found in memory for user:", memorySession.user.email)
-    return memorySession.user
+  // Check memory store first (fastest)
+  const memorySession = globalSessionStore.get(sessionId)
+  if (memorySession) {
+    if (memorySession.expiresAt > new Date()) {
+      console.log("Valid session found in memory for user:", memorySession.user.email)
+      return memorySession.user
+    } else {
+      // Clean up expired session
+      globalSessionStore.delete(sessionId)
+      console.log("Expired session removed from memory")
+    }
   }
 
   // Try database verification if configured
@@ -114,25 +85,17 @@ export async function verifySession(sessionId: string): Promise<User | null> {
         }
 
         // Store in memory for faster future lookups
-        sessionStore.set(sessionId, {
+        globalSessionStore.set(sessionId, {
           user,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         })
 
-        console.log("Database session found for user:", session.email)
+        console.log("Database session found and cached for user:", session.email)
         return user
-      } else {
-        console.log("No valid database session found")
       }
     } catch (error) {
       console.error("Database session verification failed:", error)
     }
-  }
-
-  // Clean up expired memory session
-  if (memorySession) {
-    sessionStore.delete(sessionId)
-    console.log("Expired session removed from memory")
   }
 
   console.log("Session verification failed for:", sessionId)
@@ -165,7 +128,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
   console.log("Deleting session:", sessionId)
 
   // Remove from memory
-  sessionStore.delete(sessionId)
+  globalSessionStore.delete(sessionId)
 
   // Remove from database if configured
   if (isDatabaseConfigured()) {
@@ -185,10 +148,15 @@ export async function deleteSession(sessionId: string): Promise<void> {
 setInterval(
   () => {
     const now = new Date()
-    for (const [sessionId, session] of sessionStore.entries()) {
+    let cleanedCount = 0
+    for (const [sessionId, session] of globalSessionStore.entries()) {
       if (session.expiresAt <= now) {
-        sessionStore.delete(sessionId)
+        globalSessionStore.delete(sessionId)
+        cleanedCount++
       }
+    }
+    if (cleanedCount > 0) {
+      console.log(`Cleaned up ${cleanedCount} expired sessions`)
     }
   },
   60 * 60 * 1000,

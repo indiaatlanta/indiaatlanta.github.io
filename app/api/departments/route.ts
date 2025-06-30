@@ -11,27 +11,28 @@ export async function GET() {
             d.name,
             d.slug,
             d.description,
-            COUNT(DISTINCT s.id) as skill_count,
-            COUNT(DISTINCT jr.id) as role_count
+            COUNT(DISTINCT jr.id) as total_roles,
+            COUNT(DISTINCT s.id) as total_skills
           FROM departments d
-          LEFT JOIN skills s ON d.id = s.department_id
           LEFT JOIN job_roles jr ON d.id = jr.department_id
+          LEFT JOIN role_skills rs ON jr.id = rs.job_role_id
+          LEFT JOIN skills s ON rs.skill_id = s.id
           GROUP BY d.id, d.name, d.slug, d.description
           ORDER BY d.name
         `
 
-        const formattedDepartments = departments.map((dept: any) => ({
-          id: dept.id,
-          name: dept.name,
-          slug: dept.slug,
-          description: dept.description,
-          skillCount: Number.parseInt(dept.skill_count) || 0,
-          roleCount: Number.parseInt(dept.role_count) || 0,
-        }))
-
-        return NextResponse.json({ departments: formattedDepartments })
+        return NextResponse.json({
+          departments: departments.map((dept) => ({
+            id: dept.id,
+            name: dept.name,
+            slug: dept.slug,
+            description: dept.description,
+            skillCount: Number.parseInt(dept.total_skills) || 0,
+            roleCount: Number.parseInt(dept.total_roles) || 0,
+          })),
+        })
       } catch (error) {
-        console.error("Database error:", error)
+        console.error("Database error fetching departments:", error)
         // Fall through to demo data
       }
     }
@@ -48,9 +49,9 @@ export async function GET() {
       },
       {
         id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product management and strategy",
+        name: "Product Management",
+        slug: "product-management",
+        description: "Product strategy and management roles",
         skillCount: 32,
         roleCount: 8,
       },
@@ -58,39 +59,39 @@ export async function GET() {
         id: 3,
         name: "Design",
         slug: "design",
-        description: "UX/UI and visual design",
+        description: "UX/UI design and creative roles",
         skillCount: 28,
         roleCount: 6,
       },
       {
         id: 4,
-        name: "Marketing",
-        slug: "marketing",
-        description: "Digital marketing and growth",
-        skillCount: 35,
-        roleCount: 10,
+        name: "Data Science",
+        slug: "data-science",
+        description: "Analytics and data-driven roles",
+        skillCount: 38,
+        roleCount: 5,
       },
       {
         id: 5,
-        name: "Sales",
-        slug: "sales",
-        description: "Sales and business development",
+        name: "Marketing",
+        slug: "marketing",
+        description: "Marketing and growth roles",
         skillCount: 25,
         roleCount: 7,
       },
       {
         id: 6,
-        name: "Operations",
-        slug: "operations",
-        description: "Business operations and support",
-        skillCount: 30,
+        name: "Sales",
+        slug: "sales",
+        description: "Sales and business development roles",
+        skillCount: 22,
         roleCount: 9,
       },
     ]
 
     return NextResponse.json({ departments: demoDepartments })
   } catch (error) {
-    console.error("Departments API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error fetching departments:", error)
+    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
   }
 }
