@@ -206,8 +206,14 @@ export default function LoginPage() {
                 </Button>
               </div>
               <div className="mt-4 text-xs text-gray-500">
-                <p>Admin: admin@henryscheinone.com / admin123</p>
-                <p>User: user@henryscheinone.com / user123</p>
+                <p>
+                  <strong>Available Accounts:</strong>
+                </p>
+                <p>• admin@henryscheinone.com / admin123</p>
+                <p>• user@henryscheinone.com / user123</p>
+                <p>• manager@henryscheinone.com / manager123</p>
+                <p>• john.smith@henryscheinone.com / password123</p>
+                <p>• jane.doe@henryscheinone.com / password123</p>
               </div>
             </div>
           </CardContent>

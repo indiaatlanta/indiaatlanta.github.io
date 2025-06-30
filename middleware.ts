@@ -7,8 +7,7 @@ export function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/api/") ||
     request.nextUrl.pathname.startsWith("/_next/") ||
-    request.nextUrl.pathname.startsWith("/images/") ||
-    request.nextUrl.pathname === "/favicon.ico"
+    request.nextUrl.pathname.startsWith("/favicon.ico")
   ) {
     return NextResponse.next()
   }
