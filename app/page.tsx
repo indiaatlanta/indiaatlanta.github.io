@@ -1,140 +1,80 @@
-import { requireAuth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Building2, BookOpen, TrendingUp, LogOut, Settings } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
+import { Users, Building2, Target, TrendingUp, BookOpen, Award, BarChart3, UserCheck, LogOut } from "lucide-react"
 
-async function getDashboardData() {
+async function getStats() {
   if (!isDatabaseConfigured() || !sql) {
-    // Return mock data for demo mode
     return {
-      departments: [
-        {
-          id: 1,
-          name: "Engineering",
-          slug: "engineering",
-          description: "Software development and technical roles",
-          role_count: 8,
-          skill_count: 45,
-        },
-        {
-          id: 2,
-          name: "Product",
-          slug: "product",
-          description: "Product management and strategy",
-          role_count: 5,
-          skill_count: 32,
-        },
-        {
-          id: 3,
-          name: "Design",
-          slug: "design",
-          description: "User experience and visual design",
-          role_count: 4,
-          skill_count: 28,
-        },
-        {
-          id: 4,
-          name: "Marketing",
-          slug: "marketing",
-          description: "Marketing and growth",
-          role_count: 6,
-          skill_count: 35,
-        },
-      ],
-      totalRoles: 23,
-      totalSkills: 140,
-      totalUsers: 156,
+      totalRoles: 12,
+      totalSkills: 45,
+      totalUsers: 8,
       isDemoMode: true,
     }
   }
 
   try {
-    // Get departments with role and skill counts
-    const departments = await sql`
-      SELECT 
-        d.id,
-        d.name,
-        d.slug,
-        d.description,
-        COUNT(DISTINCT jr.id) as role_count,
-        COUNT(DISTINCT COALESCE(sd.id, s.id)) as skill_count
-      FROM departments d
-      LEFT JOIN job_roles jr ON d.id = jr.department_id
-      LEFT JOIN skill_demonstrations sd ON jr.id = sd.job_role_id
-      LEFT JOIN skills s ON jr.id = s.job_role_id
-      GROUP BY d.id, d.name, d.slug, d.description
-      ORDER BY d.name
-    `
-
-    // Get total counts
-    const totalRoles = await sql`SELECT COUNT(*) as count FROM job_roles`
-    const totalSkills = await sql`
-      SELECT COUNT(DISTINCT COALESCE(sd.skill_master_id, s.id)) as count 
-      FROM skill_demonstrations sd 
-      FULL OUTER JOIN skills s ON 1=1
-    `
-    const totalUsers = await sql`SELECT COUNT(*) as count FROM users WHERE active = true`
+    const [roles, skills, users] = await Promise.all([
+      sql`SELECT COUNT(*) as count FROM job_roles`,
+      sql`SELECT COUNT(*) as count FROM skills_master`,
+      sql`SELECT COUNT(*) as count FROM users`,
+    ])
 
     return {
-      departments,
-      totalRoles: totalRoles[0]?.count || 0,
-      totalSkills: totalSkills[0]?.count || 0,
-      totalUsers: totalUsers[0]?.count || 0,
+      totalRoles: Number(roles[0]?.count || 0),
+      totalSkills: Number(skills[0]?.count || 0),
+      totalUsers: Number(users[0]?.count || 0),
       isDemoMode: false,
     }
   } catch (error) {
-    console.error("Dashboard data error:", error)
-    // Fallback to demo data
+    console.error("Error fetching stats:", error)
     return {
-      departments: [
-        {
-          id: 1,
-          name: "Engineering",
-          slug: "engineering",
-          description: "Software development and technical roles",
-          role_count: 8,
-          skill_count: 45,
-        },
-        {
-          id: 2,
-          name: "Product",
-          slug: "product",
-          description: "Product management and strategy",
-          role_count: 5,
-          skill_count: 32,
-        },
-        {
-          id: 3,
-          name: "Design",
-          slug: "design",
-          description: "User experience and visual design",
-          role_count: 4,
-          skill_count: 28,
-        },
-        {
-          id: 4,
-          name: "Marketing",
-          slug: "marketing",
-          description: "Marketing and growth",
-          role_count: 6,
-          skill_count: 35,
-        },
-      ],
-      totalRoles: 23,
-      totalSkills: 140,
-      totalUsers: 156,
+      totalRoles: 0,
+      totalSkills: 0,
+      totalUsers: 0,
       isDemoMode: true,
     }
   }
 }
 
+async function getDepartments() {
+  if (!isDatabaseConfigured() || !sql) {
+    return [
+      { name: "Engineering", slug: "engineering", role_count: 4 },
+      { name: "Product", slug: "product", role_count: 3 },
+      { name: "Design", slug: "design", role_count: 2 },
+      { name: "Marketing", slug: "marketing", role_count: 3 },
+    ]
+  }
+
+  try {
+    const departments = await sql`
+      SELECT 
+        department as name,
+        LOWER(REPLACE(department, ' ', '-')) as slug,
+        COUNT(*) as role_count
+      FROM job_roles 
+      GROUP BY department 
+      ORDER BY department
+    `
+    return departments
+  } catch (error) {
+    console.error("Error fetching departments:", error)
+    return []
+  }
+}
+
 export default async function HomePage() {
-  const user = await requireAuth()
-  const { departments, totalRoles, totalSkills, totalUsers, isDemoMode } = await getDashboardData()
+  const session = await getSession()
+  const stats = await getStats()
+  const departments = await getDepartments()
+
+  if (!session) {
+    return null // This should be handled by middleware
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -143,28 +83,27 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Career Development Matrix</h1>
-                {isDemoMode && (
-                  <Badge variant="secondary" className="ml-2">
-                    Demo Mode
-                  </Badge>
-                )}
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {user.name}</span>
-              {user.role === "admin" && (
+              {stats.isDemoMode && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  Demo Mode
+                </Badge>
+              )}
+              <span className="text-sm text-gray-600">Welcome, {session.user.name}</span>
+              {session.user.role === "admin" && (
                 <Link href="/admin">
                   <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Admin
+                    Admin Panel
                   </Button>
                 </Link>
               )}
-              <form action="/api/auth/logout" method="POST">
-                <Button variant="outline" size="sm" type="submit">
+              <form action="/api/auth/logout" method="post">
+                <Button variant="ghost" size="sm" type="submit">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </Button>
@@ -174,14 +113,13 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore Your Career Path</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Discover role requirements, assess your skills, and plan your professional development journey with our
-            comprehensive career matrix.
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Accelerate Your Career Growth</h2>
+          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            Explore career paths, assess your skills, and identify development opportunities across Henry Schein One.
+            Take control of your professional journey.
           </p>
         </div>
 
@@ -190,57 +128,72 @@ export default async function HomePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalRoles}</div>
+              <div className="text-2xl font-bold">{stats.totalRoles}</div>
               <p className="text-xs text-muted-foreground">Across all departments</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Skills Tracked</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalSkills}</div>
-              <p className="text-xs text-muted-foreground">Unique skills and competencies</p>
+              <div className="text-2xl font-bold">{stats.totalSkills}</div>
+              <p className="text-xs text-muted-foreground">Technical and soft skills</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Team members using the platform</p>
+              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <p className="text-xs text-muted-foreground">Using the platform</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle>Self Assessment</CardTitle>
-              <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
+              <CardTitle className="flex items-center">
+                <UserCheck className="h-5 w-5 mr-2 text-blue-600" />
+                Self Assessment
+              </CardTitle>
+              <CardDescription>
+                Evaluate your current skills against role requirements and identify growth areas.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/self-review">
-                <Button className="w-full">Start Assessment</Button>
+                <Button className="w-full">
+                  Start Assessment
+                  <TrendingUp className="h-4 w-4 ml-2" />
+                </Button>
               </Link>
             </CardContent>
           </Card>
-          <Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle>Compare Roles</CardTitle>
-              <CardDescription>Compare skill requirements between different positions</CardDescription>
+              <CardTitle className="flex items-center">
+                <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
+                Role Comparison
+              </CardTitle>
+              <CardDescription>
+                Compare different roles to understand career progression paths and requirements.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/compare">
                 <Button className="w-full bg-transparent" variant="outline">
                   Compare Roles
+                  <Award className="h-4 w-4 ml-2" />
                 </Button>
               </Link>
             </CardContent>
@@ -250,33 +203,52 @@ export default async function HomePage() {
         {/* Departments Grid */}
         <div className="mb-8">
           <h3 className="text-2xl font-bold text-gray-900 mb-6">Explore by Department</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {departments.map((department) => (
-              <Card key={department.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center">
-                      <Building2 className="h-5 w-5 mr-2 text-blue-600" />
-                      {department.name}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {departments.map((dept) => (
+              <Link key={dept.slug} href={`/department/${dept.slug}`}>
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>{dept.name}</span>
+                      <Building2 className="h-5 w-5 text-gray-400" />
                     </CardTitle>
-                  </div>
-                  <CardDescription>{department.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between text-sm text-gray-600 mb-4">
-                    <span>{department.role_count} roles</span>
-                    <span>{department.skill_count} skills</span>
-                  </div>
-                  <Link href={`/department/${department.slug}`}>
-                    <Button className="w-full bg-transparent" variant="outline">
-                      Explore Department
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">{dept.role_count} roles</span>
+                      <BookOpen className="h-4 w-4 text-blue-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         </div>
+
+        {/* Call to Action */}
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="text-center py-12">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Ready to Take the Next Step?</h3>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+              Whether you're looking to advance in your current role or explore new opportunities, our career matrix
+              provides the insights you need to make informed decisions.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/self-review">
+                <Button size="lg">
+                  Start Your Assessment
+                  <TrendingUp className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+              <Link href="/compare">
+                <Button size="lg" variant="outline">
+                  Explore Roles
+                  <BookOpen className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

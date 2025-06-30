@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   const checkDatabaseStatus = async () => {
     try {
-      const response = await fetch("/api/skills?checkOnly=true")
+      const response = await fetch("/api/roles")
       const data = await response.json()
       setIsDemoMode(data.isDemoMode || false)
     } catch (error) {

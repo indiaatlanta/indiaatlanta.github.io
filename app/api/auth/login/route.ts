@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
     // Database mode - query actual users table
     try {
       const users = await sql`
-        SELECT id, email, name, role, password_hash, active
+        SELECT id, email, name, role, password_hash
         FROM users
-        WHERE email = ${email} AND active = true
+        WHERE email = ${email}
       `
 
       if (users.length === 0) {
