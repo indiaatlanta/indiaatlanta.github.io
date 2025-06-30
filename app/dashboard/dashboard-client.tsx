@@ -6,56 +6,83 @@ import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Target, BookOpen, Building2, User, LogOut } from "lucide-react"
+import { Users, Target, BookOpen, Building2, User, LogOut, Settings, BarChart3 } from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
 import type { User as UserType } from "@/lib/auth"
 
-interface MainPageClientProps {
+interface DashboardStats {
+  totalRoles: number
+  totalSkills: number
+  totalUsers: number
+}
+
+interface Department {
+  slug: string
+  name: string
+  description: string
+  roleCount: number
+}
+
+interface DashboardClientProps {
   user: UserType
 }
 
-export default function MainPageClient({ user }: MainPageClientProps) {
-  const [stats, setStats] = useState({
+export default function DashboardClient({ user }: DashboardClientProps) {
+  const [stats, setStats] = useState<DashboardStats>({
     totalRoles: 0,
     totalSkills: 0,
     totalUsers: 0,
   })
-  const [departments, setDepartments] = useState([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Mock data - in a real app, you'd fetch from APIs
-    setStats({
-      totalRoles: 15,
-      totalSkills: 85,
-      totalUsers: 24,
-    })
+    const fetchDashboardData = async () => {
+      try {
+        // Mock data for now - in a real app, you'd fetch from APIs
+        const mockStats = {
+          totalRoles: 15,
+          totalSkills: 85,
+          totalUsers: 24,
+        }
 
-    setDepartments([
-      {
-        slug: "engineering",
-        name: "Engineering",
-        description: "Software development and technical roles",
-        roleCount: 6,
-      },
-      {
-        slug: "product",
-        name: "Product Management",
-        description: "Product strategy and management roles",
-        roleCount: 4,
-      },
-      {
-        slug: "design",
-        name: "Design",
-        description: "UX/UI design and creative roles",
-        roleCount: 3,
-      },
-      {
-        slug: "data",
-        name: "Data & Analytics",
-        description: "Data science and analytics roles",
-        roleCount: 2,
-      },
-    ])
+        const mockDepartments = [
+          {
+            slug: "engineering",
+            name: "Engineering",
+            description: "Software development and technical roles",
+            roleCount: 6,
+          },
+          {
+            slug: "product",
+            name: "Product Management",
+            description: "Product strategy and management roles",
+            roleCount: 4,
+          },
+          {
+            slug: "design",
+            name: "Design",
+            description: "UX/UI design and creative roles",
+            roleCount: 3,
+          },
+          {
+            slug: "data",
+            name: "Data & Analytics",
+            description: "Data science and analytics roles",
+            roleCount: 2,
+          },
+        ]
+
+        setStats(mockStats)
+        setDepartments(mockDepartments)
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchDashboardData()
   }, [])
 
   const handleLogout = async () => {
@@ -70,6 +97,7 @@ export default function MainPageClient({ user }: MainPageClientProps) {
       }
     } catch (error) {
       console.error("Logout error:", error)
+      // Force redirect even if logout fails
       window.location.href = "/login"
     }
   }
@@ -145,7 +173,7 @@ export default function MainPageClient({ user }: MainPageClientProps) {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -163,7 +191,7 @@ export default function MainPageClient({ user }: MainPageClientProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="w-5 h-5" />
+                <BarChart3 className="w-5 h-5" />
                 Role Comparison
               </CardTitle>
             </CardHeader>
@@ -176,6 +204,24 @@ export default function MainPageClient({ user }: MainPageClientProps) {
               </Link>
             </CardContent>
           </Card>
+          {user.role === "admin" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Admin Panel
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">Manage skills, roles, and system configuration.</p>
+                <Link href="/admin">
+                  <Button variant="outline" className="w-full bg-transparent">
+                    Open Admin Panel
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Departments */}
@@ -205,6 +251,31 @@ export default function MainPageClient({ user }: MainPageClientProps) {
             ))}
           </div>
         </div>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm font-medium">Welcome to HS1 Careers Matrix!</p>
+                  <p className="text-xs text-gray-500">Get started by taking a self-assessment</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <div>
+                  <p className="text-sm font-medium">Explore career paths in your department</p>
+                  <p className="text-xs text-gray-500">Discover new opportunities for growth</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

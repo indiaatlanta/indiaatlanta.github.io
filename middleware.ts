@@ -60,7 +60,13 @@ export async function middleware(request: NextRequest) {
     // Check admin access for admin routes
     if (pathname.startsWith("/admin") && user.role !== "admin") {
       console.log("Non-admin user trying to access admin route")
-      return NextResponse.redirect(new URL("/", request.url))
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    // Redirect root to dashboard
+    if (pathname === "/") {
+      console.log("Redirecting root to dashboard")
+      return NextResponse.redirect(new URL("/dashboard", request.url))
     }
 
     console.log("Session valid, allowing access to:", pathname)

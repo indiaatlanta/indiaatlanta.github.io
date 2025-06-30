@@ -123,9 +123,10 @@ export async function POST(request: NextRequest) {
     const sessionId = await createSession(user)
     console.log("Session created successfully:", sessionId)
 
-    // Create response
+    // Create response with redirect URL
     const response = NextResponse.json({
       success: true,
+      redirectUrl: "/dashboard",
       user: {
         id: user.id,
         email: user.email,

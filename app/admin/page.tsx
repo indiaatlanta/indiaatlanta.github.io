@@ -92,8 +92,8 @@ export default async function AdminPage() {
   }
 
   if (user.role !== "admin") {
-    console.log("AdminPage: Non-admin user, redirecting to home")
-    redirect("/")
+    console.log("AdminPage: Non-admin user, redirecting to dashboard")
+    redirect("/dashboard")
   }
 
   console.log("AdminPage: Admin user found:", user.email)

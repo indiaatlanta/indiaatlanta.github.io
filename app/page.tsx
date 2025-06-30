@@ -1,6 +1,5 @@
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import MainPageClient from "./main-page-client"
 
 export default async function HomePage() {
   console.log("HomePage: Getting current user")
@@ -11,6 +10,6 @@ export default async function HomePage() {
     redirect("/login")
   }
 
-  console.log("HomePage: User found:", user.email)
-  return <MainPageClient user={user} />
+  console.log("HomePage: User found, redirecting to dashboard")
+  redirect("/dashboard")
 }

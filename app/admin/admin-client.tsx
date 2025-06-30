@@ -3,44 +3,33 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
+  Users,
   Settings,
+  Database,
+  FileText,
   Plus,
   Edit,
   Trash2,
   Download,
   Upload,
-  User,
   LogOut,
-  Search,
-  Filter,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
+  ArrowLeft,
 } from "lucide-react"
-import type { User as UserType } from "@/lib/auth"
-import Image from "next/image"
-import Link from "next/link"
+import type { User } from "@/lib/auth"
 
 interface AdminClientProps {
-  user: UserType
+  user: User
 }
 
 interface Skill {
@@ -51,44 +40,25 @@ interface Skill {
   level: string
 }
 
-interface AuditEntry {
-  id: number
-  action: string
-  table_name: string
-  record_id: number
-  old_values: any
-  new_values: any
-  user_id: number
-  timestamp: string
-}
-
 export default function AdminClient({ user }: AdminClientProps) {
   const [skills, setSkills] = useState<Skill[]>([])
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
-  const [formData, setFormData] = useState({
+
+  // Form states
+  const [newSkill, setNewSkill] = useState({
     name: "",
     category: "",
     description: "",
     level: "beginner",
   })
 
-  const categories = ["Technical", "Leadership", "Communication", "Business", "Creative", "Analytical"]
-  const levels = ["beginner", "intermediate", "advanced", "expert"]
-
   useEffect(() => {
-    loadSkills()
-    loadAuditLog()
+    fetchSkills()
   }, [])
 
-  const loadSkills = async () => {
+  const fetchSkills = async () => {
     try {
       setIsLoading(true)
       const response = await fetch("/api/skills")
@@ -96,91 +66,55 @@ export default function AdminClient({ user }: AdminClientProps) {
         const data = await response.json()
         setSkills(data)
       } else {
-        setError("Failed to load skills")
+        setError("Failed to fetch skills")
       }
     } catch (error) {
-      console.error("Error loading skills:", error)
-      setError("Error loading skills")
+      console.error("Error fetching skills:", error)
+      setError("Error fetching skills")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const loadAuditLog = async () => {
-    try {
-      const response = await fetch("/api/audit")
-      if (response.ok) {
-        const data = await response.json()
-        setAuditLog(data)
-      }
-    } catch (error) {
-      console.error("Error loading audit log:", error)
-    }
-  }
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      window.location.href = "/login"
-    } catch (error) {
-      console.error("Logout error:", error)
-      setIsLoggingOut(false)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreateSkill = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
 
     try {
-      const url = editingSkill ? `/api/skills/${editingSkill.id}` : "/api/skills"
-      const method = editingSkill ? "PUT" : "POST"
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      const response = await fetch("/api/skills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newSkill),
       })
 
       if (response.ok) {
-        setSuccess(editingSkill ? "Skill updated successfully" : "Skill created successfully")
-        setIsDialogOpen(false)
-        setEditingSkill(null)
-        setFormData({ name: "", category: "", description: "", level: "beginner" })
-        loadSkills()
-        loadAuditLog()
+        setSuccess("Skill created successfully")
+        setNewSkill({ name: "", category: "", description: "", level: "beginner" })
+        fetchSkills()
       } else {
         const data = await response.json()
-        setError(data.error || "Failed to save skill")
+        setError(data.error || "Failed to create skill")
       }
     } catch (error) {
-      console.error("Error saving skill:", error)
-      setError("Error saving skill")
+      console.error("Error creating skill:", error)
+      setError("Error creating skill")
     }
   }
 
-  const handleEdit = (skill: Skill) => {
-    setEditingSkill(skill)
-    setFormData({
-      name: skill.name,
-      category: skill.category,
-      description: skill.description,
-      level: skill.level,
-    })
-    setIsDialogOpen(true)
-  }
-
-  const handleDelete = async (skillId: number) => {
+  const handleDeleteSkill = async (id: number) => {
     if (!confirm("Are you sure you want to delete this skill?")) return
 
     try {
-      const response = await fetch(`/api/skills/${skillId}`, { method: "DELETE" })
+      const response = await fetch(`/api/skills/${id}`, {
+        method: "DELETE",
+      })
+
       if (response.ok) {
         setSuccess("Skill deleted successfully")
-        loadSkills()
-        loadAuditLog()
+        fetchSkills()
       } else {
         setError("Failed to delete skill")
       }
@@ -190,416 +124,273 @@ export default function AdminClient({ user }: AdminClientProps) {
     }
   }
 
-  const handleExport = async (format: "csv" | "json") => {
+  const handleExportSkills = async () => {
     try {
-      const response = await fetch(`/api/skills/export?format=${format}`)
+      const response = await fetch("/api/skills/export")
       if (response.ok) {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
-        a.download = `skills.${format}`
+        a.download = "skills-export.csv"
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
-        setSuccess(`Skills exported as ${format.toUpperCase()}`)
+        setSuccess("Skills exported successfully")
       } else {
         setError("Failed to export skills")
       }
     } catch (error) {
-      console.error("Export error:", error)
+      console.error("Error exporting skills:", error)
       setError("Error exporting skills")
     }
   }
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const formData = new FormData()
-    formData.append("file", file)
-
+  const handleLogout = async () => {
     try {
-      const response = await fetch("/api/skills/bulk", {
+      const response = await fetch("/api/auth/logout", {
         method: "POST",
-        body: formData,
+        credentials: "include",
       })
 
       if (response.ok) {
-        const result = await response.json()
-        setSuccess(`Successfully imported ${result.imported} skills`)
-        loadSkills()
-        loadAuditLog()
-      } else {
-        const data = await response.json()
-        setError(data.error || "Failed to import skills")
+        window.location.href = "/login"
       }
     } catch (error) {
-      console.error("Import error:", error)
-      setError("Error importing skills")
+      console.error("Logout error:", error)
+      window.location.href = "/login"
     }
-
-    // Reset file input
-    event.target.value = ""
   }
-
-  const filteredSkills = skills.filter((skill) => {
-    const matchesSearch =
-      skill.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      skill.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || skill.category === categoryFilter
-    return matchesSearch && matchesCategory
-  })
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-6 py-4">
+      <div className="bg-brand-800 px-4 py-3">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/">
-                <Image
-                  src="/images/henry-schein-one-logo.png"
-                  alt="Henry Schein One"
-                  width={200}
-                  height={60}
-                  className="h-10 w-auto cursor-pointer"
-                />
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm" className="text-white hover:bg-brand-700">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Button>
               </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
-                <p className="text-sm text-gray-600">Manage skills and system data</p>
-              </div>
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <span className="text-white text-lg font-semibold">Admin Panel</span>
             </div>
             <div className="flex items-center gap-4">
-              <Badge variant="outline" className="flex items-center gap-2">
-                <User className="h-3 w-3" />
-                {user.name} ({user.role})
-              </Badge>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Back to Main
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout} disabled={isLoggingOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                {isLoggingOut ? "Signing out..." : "Sign Out"}
+              <div className="flex items-center gap-2 text-white text-sm">
+                <span>{user.name}</span>
+                <Badge variant="secondary" className="bg-red-100 text-red-800">
+                  Admin
+                </Badge>
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+          <p className="text-gray-600">Manage skills, users, and system configuration.</p>
+        </div>
+
         {/* Alerts */}
         {error && (
           <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          <Alert className="mb-6">
+            <AlertDescription>{success}</AlertDescription>
           </Alert>
         )}
 
+        {/* Admin Tabs */}
         <Tabs defaultValue="skills" className="space-y-6">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="skills">Skills Management</TabsTrigger>
-            <TabsTrigger value="audit">Audit Log</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
+          {/* Skills Management */}
           <TabsContent value="skills" className="space-y-6">
-            {/* Skills Management */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Create New Skill */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="w-5 h-5" />
+                    Create New Skill
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateSkill} className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Skill Name</label>
+                      <Input
+                        value={newSkill.name}
+                        onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
+                        placeholder="Enter skill name"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Category</label>
+                      <Input
+                        value={newSkill.category}
+                        onChange={(e) => setNewSkill({ ...newSkill, category: e.target.value })}
+                        placeholder="Enter category"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Description</label>
+                      <Textarea
+                        value={newSkill.description}
+                        onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
+                        placeholder="Enter description"
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Level</label>
+                      <Select
+                        value={newSkill.level}
+                        onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="beginner">Beginner</SelectItem>
+                          <SelectItem value="intermediate">Intermediate</SelectItem>
+                          <SelectItem value="advanced">Advanced</SelectItem>
+                          <SelectItem value="expert">Expert</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" className="w-full">
+                      Create Skill
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {/* Skills Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="w-5 h-5" />
+                    Skills Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button onClick={handleExportSkills} variant="outline" className="w-full bg-transparent">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Skills (CSV)
+                  </Button>
+                  <Button variant="outline" className="w-full bg-transparent">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Skills
+                  </Button>
+                  <div className="pt-4 border-t">
+                    <p className="text-sm text-gray-600 mb-2">Total Skills: {skills.length}</p>
+                    <p className="text-sm text-gray-600">Categories: {new Set(skills.map((s) => s.category)).size}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Skills List */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Skills Management</CardTitle>
-                    <CardDescription>Create, edit, and manage skills in the system</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => {
-                        setEditingSkill(null)
-                        setFormData({ name: "", category: "", description: "", level: "beginner" })
-                        setIsDialogOpen(true)
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Skill
-                    </Button>
-                    <Button variant="outline" onClick={() => handleExport("csv")}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export CSV
-                    </Button>
-                    <Button variant="outline" onClick={() => handleExport("json")}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export JSON
-                    </Button>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept=".csv,.json"
-                        onChange={handleImport}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <Button variant="outline">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Import
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <CardTitle>All Skills</CardTitle>
               </CardHeader>
               <CardContent>
-                {/* Filters */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search skills..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
+                {isLoading ? (
+                  <p>Loading skills...</p>
+                ) : (
+                  <div className="space-y-4">
+                    {skills.map((skill) => (
+                      <div key={skill.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex-1">
+                          <h3 className="font-medium">{skill.name}</h3>
+                          <p className="text-sm text-gray-600">{skill.category}</p>
+                          <p className="text-sm text-gray-500">{skill.description}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{skill.level}</Badge>
+                          <Button size="sm" variant="outline">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleDeleteSkill(skill.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-48">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filter by category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" onClick={loadSkills} disabled={isLoading}>
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
-                </div>
-
-                {/* Skills Table */}
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Level</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8">
-                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                            Loading skills...
-                          </TableCell>
-                        </TableRow>
-                      ) : filteredSkills.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                            No skills found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredSkills.map((skill) => (
-                          <TableRow key={skill.id}>
-                            <TableCell className="font-medium">{skill.name}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{skill.category}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  skill.level === "expert"
-                                    ? "default"
-                                    : skill.level === "advanced"
-                                      ? "secondary"
-                                      : "outline"
-                                }
-                              >
-                                {skill.level}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="max-w-xs truncate">{skill.description}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button variant="outline" size="sm" onClick={() => handleEdit(skill)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDelete(skill.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="audit" className="space-y-6">
-            {/* Audit Log */}
+          {/* Users Tab */}
+          <TabsContent value="users">
             <Card>
               <CardHeader>
-                <CardTitle>Audit Log</CardTitle>
-                <CardDescription>Track all changes made to the system</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  User Management
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Table</TableHead>
-                        <TableHead>Record ID</TableHead>
-                        <TableHead>User</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {auditLog.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                            No audit entries found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        auditLog.slice(0, 50).map((entry) => (
-                          <TableRow key={entry.id}>
-                            <TableCell className="font-mono text-sm">
-                              {new Date(entry.timestamp).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  entry.action === "DELETE"
-                                    ? "destructive"
-                                    : entry.action === "CREATE"
-                                      ? "default"
-                                      : "secondary"
-                                }
-                              >
-                                {entry.action}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{entry.table_name}</TableCell>
-                            <TableCell>{entry.record_id}</TableCell>
-                            <TableCell>User {entry.user_id}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                <p className="text-gray-600">User management features coming soon...</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* System Tab */}
+          <TabsContent value="system">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  System Configuration
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">System configuration options coming soon...</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Reports & Analytics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">Reports and analytics coming soon...</p>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Add/Edit Skill Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingSkill ? "Edit Skill" : "Add New Skill"}</DialogTitle>
-              <DialogDescription>
-                {editingSkill ? "Update the skill information" : "Create a new skill in the system"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="name" className="text-sm font-medium">
-                  Name
-                </label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter skill name"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="category" className="text-sm font-medium">
-                  Category
-                </label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label htmlFor="level" className="text-sm font-medium">
-                  Level
-                </label>
-                <Select value={formData.level} onValueChange={(value) => setFormData({ ...formData, level: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {levels.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level.charAt(0).toUpperCase() + level.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label htmlFor="description" className="text-sm font-medium">
-                  Description
-                </label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter skill description"
-                  rows={3}
-                />
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">{editingSkill ? "Update" : "Create"} Skill</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   )

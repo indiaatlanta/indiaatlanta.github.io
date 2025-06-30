@@ -38,11 +38,10 @@ export default function LoginPage() {
       console.log("Login response data:", data)
 
       if (response.ok && data.success) {
-        console.log("Login successful, redirecting to home page")
-        // Small delay to ensure cookie is set
-        setTimeout(() => {
-          window.location.href = "/"
-        }, 100)
+        console.log("Login successful, redirecting to dashboard")
+        // Use the redirect URL from the response or default to dashboard
+        const redirectUrl = data.redirectUrl || "/dashboard"
+        window.location.href = redirectUrl
       } else {
         console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
@@ -77,11 +76,9 @@ export default function LoginPage() {
       console.log("Demo login response data:", data)
 
       if (response.ok && data.success) {
-        console.log("Demo login successful, redirecting to home page")
-        // Small delay to ensure cookie is set
-        setTimeout(() => {
-          window.location.href = "/"
-        }, 100)
+        console.log("Demo login successful, redirecting to dashboard")
+        const redirectUrl = data.redirectUrl || "/dashboard"
+        window.location.href = redirectUrl
       } else {
         console.log("Demo login failed:", data.error)
         setError(data.error || "Demo login failed")
