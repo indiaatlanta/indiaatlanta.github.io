@@ -1,19 +1,30 @@
 "use client"
-
-import type React from "react"
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, User, Lock } from "lucide-react"
+import { Eye, EyeOff, LogIn } from "lucide-react"
+
+const demoAccounts = [
+  { email: "admin@henryscheinone.com", password: "admin123", name: "Admin User", role: "Admin" },
+  { email: "user@henryscheinone.com", password: "user123", name: "John Doe", role: "User" },
+  { email: "manager@henryscheinone.com", password: "manager123", name: "Jane Manager", role: "Manager" },
+  { email: "john.smith@henryscheinone.com", password: "password123", name: "John Smith", role: "User" },
+  { email: "jane.doe@henryscheinone.com", password: "password123", name: "Jane Doe", role: "User" },
+]
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,30 +32,24 @@ export default function LoginPage() {
     setError("")
 
     try {
-      console.log("Submitting login form for:", email)
-
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       })
 
       const data = await response.json()
-      console.log("Login response:", { status: response.status, data })
 
-      if (response.ok && data.success) {
-        console.log("Login successful, redirecting to home page")
-        // Force a hard redirect to ensure session is recognized
+      if (response.ok) {
+        console.log("Login successful, redirecting...")
+        // Use hard redirect to ensure session is recognized
         window.location.href = "/"
       } else {
-        console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
       }
     } catch (error) {
       console.error("Login error:", error)
-      setError("An error occurred during login")
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -57,29 +62,24 @@ export default function LoginPage() {
     setError("")
 
     try {
-      console.log("Demo login for:", demoEmail)
-
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: demoEmail, password: demoPassword }),
       })
 
       const data = await response.json()
-      console.log("Demo login response:", { status: response.status, data })
 
-      if (response.ok && data.success) {
-        console.log("Demo login successful, redirecting to home page")
+      if (response.ok) {
+        console.log("Demo login successful, redirecting...")
+        // Use hard redirect to ensure session is recognized
         window.location.href = "/"
       } else {
-        console.log("Demo login failed:", data.error)
         setError(data.error || "Demo login failed")
       }
     } catch (error) {
       console.error("Demo login error:", error)
-      setError("An error occurred during demo login")
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -90,65 +90,80 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <img src="/images/hs1-logo.png" alt="Henry Schein One" className="mx-auto h-12 w-auto" />
-          <h1 className="mt-6 text-3xl font-bold text-gray-900">Career Development Matrix</h1>
-          <p className="mt-2 text-sm text-gray-600">Sign in to access your career development tools</p>
+          <Image
+            src="/images/hs1-logo.png"
+            alt="Henry Schein One"
+            width={64}
+            height={64}
+            className="mx-auto h-16 w-auto"
+          />
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Sign in to your account</h2>
+          <p className="mt-2 text-sm text-gray-600">HS1 Careers Matrix</p>
         </div>
 
         {/* Login Form */}
         <Card>
           <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access the career matrix</CardDescription>
+            <CardTitle>Login</CardTitle>
           </CardHeader>
           <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@henryscheinone.com"
-                    className="pl-10"
-                    required
-                  />
-                </div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="mt-1"
+                  placeholder="Enter your email"
+                />
               </div>
 
               <div>
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <div className="relative mt-1">
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="pl-10"
                     required
+                    placeholder="Enter your password"
                   />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
                 </div>
               </div>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading} className="w-full bg-brand-600 hover:bg-brand-700">
                 {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing In...
-                  </>
+                  "Signing in..."
                 ) : (
-                  "Sign In"
+                  <>
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign in
+                  </>
                 )}
               </Button>
             </form>
@@ -159,49 +174,35 @@ export default function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Demo Accounts</CardTitle>
-            <CardDescription className="text-xs">Click to login with demo credentials</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="grid grid-cols-1 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("admin@henryscheinone.com", "admin123")}
-                disabled={isLoading}
-                className="justify-start text-xs"
-              >
-                <User className="mr-2 h-3 w-3" />
-                Admin: admin@henryscheinone.com / admin123
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("user@henryscheinone.com", "user123")}
-                disabled={isLoading}
-                className="justify-start text-xs"
-              >
-                <User className="mr-2 h-3 w-3" />
-                User: user@henryscheinone.com / user123
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("manager@henryscheinone.com", "manager123")}
-                disabled={isLoading}
-                className="justify-start text-xs"
-              >
-                <User className="mr-2 h-3 w-3" />
-                Manager: manager@henryscheinone.com / manager123
-              </Button>
+          <CardContent>
+            <p className="text-xs text-gray-600 mb-3">Click any button below to login with a demo account</p>
+            <div className="space-y-2">
+              {demoAccounts.map((account, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDemoLogin(account.email, account.password)}
+                  disabled={isLoading}
+                  className="w-full justify-start text-left"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <div className="font-medium text-xs">{account.name}</div>
+                      <div className="text-xs text-gray-500">{account.email}</div>
+                    </div>
+                    <div className="text-xs bg-gray-100 px-2 py-1 rounded">{account.role}</div>
+                  </div>
+                </Button>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Additional Demo Credentials */}
-        <div className="text-center text-xs text-gray-500">
-          <p>Additional demo credentials:</p>
-          <p>john.smith@henryscheinone.com / password123</p>
-          <p>jane.doe@henryscheinone.com / password123</p>
+        {/* Footer */}
+        <div className="text-center">
+          <p className="text-xs text-gray-500">© 2024 Henry Schein One. All rights reserved.</p>
         </div>
       </div>
     </div>

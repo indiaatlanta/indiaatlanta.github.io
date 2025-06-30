@@ -13,36 +13,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Get old values for audit
     const oldSkill = await sql`
-      SELECT 
-        sd.*,
-        sm.name,
-        sm.category_id
-      FROM skill_demonstrations sd
-      JOIN skills_master sm ON sd.skill_id = sm.id
-      WHERE sd.id = ${skillId}
+      SELECT * FROM skills WHERE id = ${skillId}
     `
 
     if (oldSkill.length === 0) {
       return NextResponse.json({ error: "Skill not found" }, { status: 404 })
     }
 
-    // Update skill master if name changed
-    if (oldSkill[0].name !== skillData.name) {
-      await sql`
-        UPDATE skills_master 
-        SET 
-          name = ${skillData.name},
-          category_id = ${skillData.categoryId},
-          description = ${skillData.description},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${oldSkill[0].skill_id}
-      `
-    }
-
-    // Update skill demonstration
     const result = await sql`
-      UPDATE skill_demonstrations 
+      UPDATE skills 
       SET 
+        job_role_id = ${skillData.jobRoleId},
+        category_id = ${skillData.categoryId},
+        name = ${skillData.name},
         level = ${skillData.level},
         description = ${skillData.description},
         full_description = ${skillData.fullDescription},
@@ -57,7 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Create audit log
     await createAuditLog({
       userId: user.id,
-      tableName: "skill_demonstrations",
+      tableName: "skills",
       recordId: skillId,
       action: "UPDATE",
       oldValues: oldSkill[0],
@@ -78,24 +61,19 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Get skill data for audit
     const skill = await sql`
-      SELECT 
-        sd.*,
-        sm.name
-      FROM skill_demonstrations sd
-      JOIN skills_master sm ON sd.skill_id = sm.id
-      WHERE sd.id = ${skillId}
+      SELECT * FROM skills WHERE id = ${skillId}
     `
 
     if (skill.length === 0) {
       return NextResponse.json({ error: "Skill not found" }, { status: 404 })
     }
 
-    await sql`DELETE FROM skill_demonstrations WHERE id = ${skillId}`
+    await sql`DELETE FROM skills WHERE id = ${skillId}`
 
     // Create audit log
     await createAuditLog({
       userId: user.id,
-      tableName: "skill_demonstrations",
+      tableName: "skills",
       recordId: skillId,
       action: "DELETE",
       oldValues: skill[0],

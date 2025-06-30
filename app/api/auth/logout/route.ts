@@ -1,30 +1,26 @@
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { type NextRequest, NextResponse } from "next/server"
+import { deleteSession } from "@/lib/auth"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get("session")?.value
+    const sessionToken = request.cookies.get("session")?.value
 
-    if (sessionId) {
-      // Try to delete session from database if it exists
-      if (isDatabaseConfigured() && sql) {
-        try {
-          await sql`DELETE FROM user_sessions WHERE id = ${sessionId}`
-          console.log("Session deleted from database:", sessionId)
-        } catch (dbError) {
-          console.log("Could not delete database session (table may not exist):", dbError.message)
-          // Continue with cookie deletion even if database deletion fails
-        }
-      }
-
-      // Delete session cookie
-      cookieStore.delete("session")
-      console.log("Session cookie deleted")
+    if (sessionToken) {
+      await deleteSession(sessionToken)
     }
 
-    return NextResponse.json({ success: true })
+    const response = NextResponse.json({ success: true })
+
+    // Clear the session cookie
+    response.cookies.set("session", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 0,
+      path: "/",
+    })
+
+    return response
   } catch (error) {
     console.error("Logout error:", error)
     return NextResponse.json({ error: "Logout failed" }, { status: 500 })

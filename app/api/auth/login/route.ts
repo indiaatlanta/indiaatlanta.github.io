@@ -1,160 +1,149 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { cookies } from "next/headers"
-import { v4 as uuidv4 } from "uuid"
+import { createSession } from "@/lib/auth"
+import bcrypt from "bcryptjs"
+
+// Demo users for when database is not configured
+const demoUsers = [
+  {
+    id: 1,
+    email: "admin@henryscheinone.com",
+    password: "admin123",
+    name: "Admin User",
+    role: "admin",
+  },
+  {
+    id: 2,
+    email: "user@henryscheinone.com",
+    password: "user123",
+    name: "John Doe",
+    role: "user",
+  },
+  {
+    id: 3,
+    email: "manager@henryscheinone.com",
+    password: "manager123",
+    name: "Jane Manager",
+    role: "admin",
+  },
+  {
+    id: 4,
+    email: "john.smith@henryscheinone.com",
+    password: "password123",
+    name: "John Smith",
+    role: "user",
+  },
+  {
+    id: 5,
+    email: "jane.doe@henryscheinone.com",
+    password: "password123",
+    name: "Jane Doe",
+    role: "user",
+  },
+]
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
-    console.log("Login attempt for:", email)
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    // Demo users for fallback
-    const demoUsers = [
-      { email: "admin@henryscheinone.com", password: "admin123", name: "Admin User", role: "admin", id: 1 },
-      { email: "user@henryscheinone.com", password: "user123", name: "Regular User", role: "user", id: 2 },
-      { email: "manager@henryscheinone.com", password: "manager123", name: "Manager User", role: "admin", id: 3 },
-      { email: "john.smith@henryscheinone.com", password: "password123", name: "John Smith", role: "user", id: 4 },
-      { email: "jane.doe@henryscheinone.com", password: "password123", name: "Jane Doe", role: "user", id: 5 },
-    ]
+    let user = null
 
-    // Check if database is configured
-    if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, using demo mode")
-
-      const demoUser = demoUsers.find((u) => u.email === email && u.password === password)
-
-      if (!demoUser) {
-        console.log("Demo login failed for:", email)
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
-
-      // Create demo session (cookie only)
-      const sessionId = uuidv4()
-      const cookieStore = await cookies()
-
-      cookieStore.set("session", sessionId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: "/",
-      })
-
-      console.log("Demo login successful for:", email)
-      return NextResponse.json({
-        success: true,
-        user: {
-          id: demoUser.id,
-          email: demoUser.email,
-          name: demoUser.name,
-          role: demoUser.role,
-        },
-      })
-    }
-
-    try {
-      // Database authentication
-      console.log("Attempting database authentication for:", email)
-
-      const users = await sql`
-        SELECT id, email, name, role, password_hash 
-        FROM users 
-        WHERE email = ${email}
-      `
-
-      if (users.length === 0) {
-        console.log("User not found in database:", email)
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
-
-      const user = users[0]
-      console.log("User found in database:", { id: user.id, email: user.email, role: user.role })
-
-      // Direct password comparison (since we're using plain text now)
-      if (user.password_hash !== password) {
-        console.log("Password verification failed for user:", email)
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
-
-      // Create session (cookie only for now, database session optional)
-      const sessionId = uuidv4()
-      const cookieStore = await cookies()
-
-      cookieStore.set("session", sessionId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: "/",
-      })
-
-      // Try to store session in database if user_sessions table exists
+    if (isDatabaseConfigured()) {
       try {
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-        await sql`
-          INSERT INTO user_sessions (id, user_id, expires_at)
-          VALUES (${sessionId}, ${user.id}, ${expiresAt})
-          ON CONFLICT (id) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            expires_at = EXCLUDED.expires_at
+        console.log("Database login attempt for:", email)
+
+        // Try database authentication first
+        const users = await sql!`
+          SELECT id, email, name, role, password_hash 
+          FROM users 
+          WHERE email = ${email.toLowerCase()}
         `
-        console.log("Session stored in database for user:", email)
-      } catch (sessionError) {
-        console.log("Could not store session in database (table may not exist):", sessionError.message)
-        // Continue without database session storage
+
+        if (users.length > 0) {
+          const dbUser = users[0]
+          console.log("Found user in database:", dbUser.email)
+
+          // Check if password is hashed or plain text
+          let passwordMatch = false
+          if (dbUser.password_hash && dbUser.password_hash.startsWith("$2")) {
+            // Hashed password
+            passwordMatch = await bcrypt.compare(password, dbUser.password_hash)
+          } else {
+            // Plain text password (for demo/development)
+            passwordMatch = password === dbUser.password_hash
+          }
+
+          if (passwordMatch) {
+            user = {
+              id: dbUser.id,
+              email: dbUser.email,
+              name: dbUser.name,
+              role: dbUser.role,
+            }
+            console.log("Database authentication successful")
+          } else {
+            console.log("Password mismatch for database user")
+          }
+        } else {
+          console.log("User not found in database")
+        }
+      } catch (dbError) {
+        console.error("Database login error:", dbError)
+        // Fall through to demo authentication
       }
+    }
 
-      console.log("Database login successful for:", email, "Session ID:", sessionId)
+    // If database auth failed or not configured, try demo users
+    if (!user) {
+      console.log("Trying demo authentication for:", email)
+      const demoUser = demoUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
 
-      return NextResponse.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name || "User",
-          role: user.role,
-        },
-      })
-    } catch (dbError) {
-      console.error("Database login error:", dbError)
-
-      // Fallback to demo authentication if database fails
-      console.log("Falling back to demo authentication")
-
-      const demoUser = demoUsers.find((u) => u.email === email && u.password === password)
-
-      if (!demoUser) {
-        console.log("Demo fallback login failed for:", email)
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
-
-      // Create demo session
-      const sessionId = uuidv4()
-      const cookieStore = await cookies()
-
-      cookieStore.set("session", sessionId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: "/",
-      })
-
-      console.log("Demo fallback login successful for:", email)
-      return NextResponse.json({
-        success: true,
-        user: {
+      if (demoUser && demoUser.password === password) {
+        user = {
           id: demoUser.id,
           email: demoUser.email,
           name: demoUser.name,
           role: demoUser.role,
-        },
-      })
+        }
+        console.log("Demo authentication successful")
+      }
     }
+
+    if (!user) {
+      console.log("Authentication failed for:", email)
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    }
+
+    // Create session
+    const sessionToken = await createSession(user)
+    console.log("Session created successfully")
+
+    // Create response with redirect
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    })
+
+    // Set session cookie
+    response.cookies.set("session", sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    })
+
+    console.log("Login successful, cookie set")
+    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
