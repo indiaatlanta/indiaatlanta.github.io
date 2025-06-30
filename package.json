@@ -26,7 +26,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "html2canvas": "latest",
-    "jose": "latest",
     "jspdf": "latest",
     "jspdf-autotable": "latest",
     "lucide-react": "^0.454.0",

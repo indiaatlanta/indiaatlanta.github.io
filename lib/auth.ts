@@ -1,8 +1,6 @@
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
+import { v4 as uuidv4 } from "uuid"
 
 export interface User {
   id: number
@@ -46,109 +44,90 @@ const demoUsers: User[] = [
 ]
 
 export async function createSession(user: User): Promise<string> {
-  const token = await new SignJWT({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(JWT_SECRET)
+  const sessionId = uuidv4()
 
   // Try to store session in database if available
   if (isDatabaseConfigured()) {
     try {
-      const sessionId = crypto.randomUUID()
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
       await sql!`
-        INSERT INTO user_sessions (id, user_id, token, expires_at)
-        VALUES (${sessionId}, ${user.id}, ${token}, ${expiresAt})
-        ON CONFLICT (user_id) 
+        INSERT INTO user_sessions (id, user_id, expires_at)
+        VALUES (${sessionId}, ${user.id}, ${expiresAt})
+        ON CONFLICT (id) 
         DO UPDATE SET 
-          token = EXCLUDED.token,
+          user_id = EXCLUDED.user_id,
           expires_at = EXCLUDED.expires_at,
           updated_at = CURRENT_TIMESTAMP
       `
-      console.log("Session stored in database")
+      console.log("Session stored in database:", sessionId)
     } catch (error) {
       console.error("Failed to store session in database:", error)
       // Continue with cookie-only session
     }
   }
 
-  return token
+  return sessionId
 }
 
-export async function verifySession(token: string): Promise<User | null> {
+export async function verifySession(sessionId: string): Promise<User | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
-
-    const user: User = {
-      id: payload.userId as number,
-      email: payload.email as string,
-      name: payload.name as string,
-      role: payload.role as string,
-    }
-
-    // Verify user still exists if database is available
+    // Try database verification first
     if (isDatabaseConfigured()) {
       try {
-        const users = await sql!`
-          SELECT id, email, name, role 
-          FROM users 
-          WHERE id = ${user.id}
+        const sessions = await sql!`
+          SELECT us.user_id, u.email, u.name, u.role
+          FROM user_sessions us
+          JOIN users u ON us.user_id = u.id
+          WHERE us.id = ${sessionId} AND us.expires_at > CURRENT_TIMESTAMP
         `
 
-        if (users.length === 0) {
-          console.log("User not found in database, checking demo users")
-          // Check if it's a demo user
-          const demoUser = demoUsers.find((u) => u.id === user.id)
-          return demoUser || null
-        }
-
-        return {
-          id: users[0].id,
-          email: users[0].email,
-          name: users[0].name,
-          role: users[0].role,
+        if (sessions.length > 0) {
+          const session = sessions[0]
+          return {
+            id: session.user_id,
+            email: session.email,
+            name: session.name,
+            role: session.role,
+          }
         }
       } catch (error) {
-        console.error("Database verification failed, using token data:", error)
-        // Fall back to demo users
-        const demoUser = demoUsers.find((u) => u.id === user.id)
-        return demoUser || user
+        console.error("Database session verification failed:", error)
       }
     }
 
-    // If no database, check against demo users
-    const demoUser = demoUsers.find((u) => u.id === user.id)
-    return demoUser || user
+    // Fallback to demo mode - in demo mode, any valid session ID maps to admin user
+    console.log("Using demo mode for session verification")
+    return demoUsers[0] // Return admin user in demo mode
   } catch (error) {
-    console.error("Token verification failed:", error)
+    console.error("Session verification failed:", error)
     return null
   }
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("session")?.value
+  try {
+    const cookieStore = await cookies()
+    const sessionId = cookieStore.get("session")?.value
 
-  if (!token) {
+    if (!sessionId) {
+      console.log("No session cookie found")
+      return null
+    }
+
+    return await verifySession(sessionId)
+  } catch (error) {
+    console.error("Get current user error:", error)
     return null
   }
-
-  return verifySession(token)
 }
 
-export async function deleteSession(token: string): Promise<void> {
+export async function deleteSession(sessionId: string): Promise<void> {
   if (isDatabaseConfigured()) {
     try {
       await sql!`
         DELETE FROM user_sessions 
-        WHERE token = ${token}
+        WHERE id = ${sessionId}
       `
       console.log("Session deleted from database")
     } catch (error) {

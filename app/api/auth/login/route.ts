@@ -45,6 +45,7 @@ const demoUsers = [
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
+    console.log("Login attempt for:", email)
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
@@ -52,11 +53,11 @@ export async function POST(request: NextRequest) {
 
     let user = null
 
+    // Try database authentication first if configured
     if (isDatabaseConfigured()) {
       try {
-        console.log("Database login attempt for:", email)
+        console.log("Attempting database authentication for:", email)
 
-        // Try database authentication first
         const users = await sql!`
           SELECT id, email, name, role, password_hash 
           FROM users 
@@ -119,10 +120,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create session
-    const sessionToken = await createSession(user)
-    console.log("Session created successfully")
+    const sessionId = await createSession(user)
+    console.log("Session created successfully:", sessionId)
 
-    // Create response with redirect
+    // Create response
     const response = NextResponse.json({
       success: true,
       user: {
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Set session cookie
-    response.cookies.set("session", sessionToken, {
+    response.cookies.set("session", sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

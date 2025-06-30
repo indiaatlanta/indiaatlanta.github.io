@@ -1,8 +1,7 @@
 -- Create user_sessions table for session management
 CREATE TABLE IF NOT EXISTS user_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -10,11 +9,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON user_sessions(expires_at);
-
--- Create unique constraint to ensure one session per user
-CREATE UNIQUE INDEX IF NOT EXISTS idx_user_sessions_user_id_unique ON user_sessions(user_id);
 
 -- Add cleanup function for expired sessions
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
@@ -33,7 +28,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS trigger_update_user_sessions_updated_at
+DROP TRIGGER IF EXISTS trigger_update_user_sessions_updated_at ON user_sessions;
+CREATE TRIGGER trigger_update_user_sessions_updated_at
     BEFORE UPDATE ON user_sessions
     FOR EACH ROW
     EXECUTE FUNCTION update_user_sessions_updated_at();
+
+-- Clean up any existing expired sessions
+SELECT cleanup_expired_sessions();

@@ -5,52 +5,70 @@ import { verifySession } from "@/lib/auth"
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  console.log(`[Middleware] Processing request for: ${pathname}`)
+  console.log("Middleware processing:", pathname)
 
-  // Public routes that don't require authentication
-  const publicRoutes = ["/login", "/forgot-password", "/reset-password"]
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
+  // Public paths that don't require authentication
+  const publicPaths = ["/login", "/forgot-password", "/reset-password"]
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
 
-  if (isPublicRoute) {
-    console.log(`[Middleware] Public route, allowing access: ${pathname}`)
+  // API routes that don't require authentication
+  const publicApiPaths = [
+    "/api/auth/login",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/auth/verify-reset-token",
+  ]
+  const isPublicApiPath = publicApiPaths.some((path) => pathname.startsWith(path))
+
+  // Static files and Next.js internals
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/_next") ||
+    pathname.includes(".") ||
+    pathname === "/favicon.ico"
+  ) {
     return NextResponse.next()
   }
 
-  // API routes - let them handle their own auth
-  if (pathname.startsWith("/api/")) {
-    console.log(`[Middleware] API route, skipping middleware: ${pathname}`)
+  // Allow public paths
+  if (isPublicPath || isPublicApiPath) {
     return NextResponse.next()
   }
 
   // Check for session
-  const sessionToken = request.cookies.get("session")?.value
-  console.log(`[Middleware] Session token present: ${!!sessionToken}`)
+  const sessionCookie = request.cookies.get("session")
+  console.log("Session cookie present:", !!sessionCookie?.value)
 
-  if (!sessionToken) {
-    console.log(`[Middleware] No session token, redirecting to login`)
+  if (!sessionCookie?.value) {
+    console.log("No session found, redirecting to login")
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
+  // Verify session
   try {
-    const user = await verifySession(sessionToken)
-    console.log(`[Middleware] Session verified for user: ${user?.email}`)
+    const user = await verifySession(sessionCookie.value)
+    console.log("Session verification result:", !!user)
 
     if (!user) {
-      console.log(`[Middleware] Invalid session, redirecting to login`)
-      return NextResponse.redirect(new URL("/login", request.url))
+      console.log("Invalid session, redirecting to login")
+      const response = NextResponse.redirect(new URL("/login", request.url))
+      response.cookies.delete("session")
+      return response
     }
 
-    // Admin routes protection
+    // Check admin access for admin routes
     if (pathname.startsWith("/admin") && user.role !== "admin") {
-      console.log(`[Middleware] Non-admin user trying to access admin route, redirecting`)
+      console.log("Non-admin user trying to access admin route")
       return NextResponse.redirect(new URL("/", request.url))
     }
 
-    console.log(`[Middleware] Access granted for: ${pathname}`)
+    console.log("Session valid, allowing access")
     return NextResponse.next()
   } catch (error) {
-    console.error(`[Middleware] Session verification error:`, error)
-    return NextResponse.redirect(new URL("/login", request.url))
+    console.error("Session verification error:", error)
+    const response = NextResponse.redirect(new URL("/login", request.url))
+    response.cookies.delete("session")
+    return response
   }
 }
 
@@ -63,6 +81,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!_next/static|_next/image|favicon.ico|images|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
