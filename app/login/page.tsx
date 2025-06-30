@@ -47,7 +47,7 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        router.push("/admin")
+        router.push("/")
         router.refresh()
       } else {
         const data = await response.json()
@@ -62,8 +62,8 @@ export default function LoginPage() {
 
   const handleDemoLogin = () => {
     // Set a demo session cookie and redirect
-    document.cookie = "demo-session=true; path=/; max-age=86400" // 24 hours
-    router.push("/admin")
+    document.cookie = "session=demo-session; path=/; max-age=86400" // 24 hours
+    router.push("/")
   }
 
   return (
@@ -74,8 +74,8 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={48} height={48} className="h-12 w-auto" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Admin Login</h2>
-          <p className="mt-2 text-gray-600">Sign in to manage the career matrix</p>
+          <h2 className="text-3xl font-bold text-gray-900">Welcome to Career Matrix</h2>
+          <p className="mt-2 text-gray-600">Sign in to explore career opportunities</p>
         </div>
 
         {/* Demo Mode Alert */}
@@ -85,10 +85,10 @@ export default function LoginPage() {
               <div className="text-center">
                 <h3 className="font-medium text-blue-900 mb-2">Demo Mode Active</h3>
                 <p className="text-sm text-blue-800 mb-4">
-                  Database is not configured. You can access the admin panel directly in demo mode.
+                  Database is not configured. You can access the career matrix directly in demo mode.
                 </p>
                 <Button onClick={handleDemoLogin} className="w-full bg-blue-600 hover:bg-blue-700">
-                  Access Admin Panel (Demo)
+                  Access Career Matrix (Demo)
                 </Button>
               </div>
             </CardContent>
@@ -118,7 +118,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="admin@henryscheinone.com"
+                  placeholder="your.email@henryscheinone.com"
                 />
               </div>
 
@@ -151,11 +151,6 @@ export default function LoginPage() {
                   Forgot your password?
                 </Link>
               )}
-              <div>
-                <Link href="/" className="text-gray-600 hover:text-gray-800 text-sm">
-                  ← Back to Career Matrix
-                </Link>
-              </div>
             </div>
           </CardContent>
         </Card>

@@ -1,8 +1,10 @@
 import Link from "next/link"
-import { ArrowRight, Users, Target, TrendingUp, Rocket, Settings } from "lucide-react"
+import { ArrowRight, Users, Target, TrendingUp, Rocket, Settings, LogOut } from "lucide-react"
 import { getSession } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
+import { redirect } from "next/navigation"
+import { Button } from "@/components/ui/button"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -93,16 +95,34 @@ async function getDepartments() {
   }
 }
 
+async function LogoutButton() {
+  return (
+    <form action="/api/auth/logout" method="POST" className="inline">
+      <Button variant="ghost" size="sm" className="text-white hover:bg-brand-700 h-8">
+        <LogOut className="w-4 h-4 mr-2" />
+        Logout
+      </Button>
+    </form>
+  )
+}
+
 export default async function Home() {
   let session = null
   let isAdmin = false
 
   try {
     session = await getSession()
+
+    // If no session, redirect to login
+    if (!session) {
+      redirect("/login")
+    }
+
     isAdmin = session?.user?.role === "admin"
   } catch (error) {
     console.error("Error getting session:", error)
-    // Continue without session
+    // Redirect to login on error
+    redirect("/login")
   }
 
   const departments = await getDepartments()
@@ -118,15 +138,26 @@ export default async function Home() {
               <Rocket className="w-4 h-4 text-white" />
               <span className="text-white text-sm">Career Matrix</span>
             </div>
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="ml-auto bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Admin Panel
-              </Link>
-            )}
+            <div className="flex items-center gap-4">
+              {session && (
+                <div className="flex items-center gap-2 text-white text-sm">
+                  <span>Welcome, {session.user.name}</span>
+                  {session.user.role === "admin" && (
+                    <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-xs font-medium">Admin</span>
+                  )}
+                </div>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  Admin Panel
+                </Link>
+              )}
+              <LogoutButton />
+            </div>
           </div>
         </div>
       </div>

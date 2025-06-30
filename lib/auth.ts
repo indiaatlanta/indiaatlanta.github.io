@@ -70,13 +70,13 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
       const sessionId = cookieStore.get("session")?.value
 
       if (sessionId) {
-        // Return mock admin session for demo mode
+        // Return mock user session for demo mode
         return {
           user: {
             id: 1,
-            email: "admin@henryscheinone.com",
-            name: "Demo Admin",
-            role: "admin",
+            email: "demo@henryscheinone.com",
+            name: "Demo User",
+            role: "user",
           },
           session: {
             id: sessionId,
@@ -185,14 +185,14 @@ export async function requireAdmin(): Promise<User> {
 
 // Mock functions for preview/demo mode
 export function getMockSession(): { user: User; session: Session } | null {
-  // Return a mock admin session for demo purposes when database is not configured
+  // Return a mock user session for demo purposes when database is not configured
   if (process.env.NODE_ENV === "development" && !isDatabaseConfigured()) {
     return {
       user: {
         id: 1,
-        email: "admin@henryscheinone.com",
-        name: "Demo Admin",
-        role: "admin",
+        email: "demo@henryscheinone.com",
+        name: "Demo User",
+        role: "user",
       },
       session: {
         id: "mock-session",

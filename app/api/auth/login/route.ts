@@ -1,34 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 import { verifyPassword, createSession } from "@/lib/auth"
-import { loginSchema } from "@/lib/validation"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email, password } = loginSchema.parse(body)
+    const { email, password } = await request.json()
 
-    // Check if database is configured
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+    }
+
+    // If database is not configured, use demo credentials
     if (!isDatabaseConfigured() || !sql) {
-      // In demo mode, allow login with demo credentials
-      if (email === "admin@henryscheinone.com" && password === "admin123") {
-        // Return success for demo mode
-        return NextResponse.json({
-          user: {
-            id: 1,
-            email: "admin@henryscheinone.com",
-            name: "Demo Admin",
-            role: "admin",
-          },
-        })
-      } else {
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
+      // Demo mode - accept any credentials and create a demo session
+      const sessionId = await createSession(1) // Demo user ID
+      return NextResponse.json({ success: true })
     }
 
     // Find user by email
     const users = await sql`
-      SELECT id, email, password_hash, name, role
+      SELECT id, email, name, role, password_hash
       FROM users
       WHERE email = ${email}
     `
@@ -48,14 +39,7 @@ export async function POST(request: NextRequest) {
     // Create session
     await createSession(user.id)
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

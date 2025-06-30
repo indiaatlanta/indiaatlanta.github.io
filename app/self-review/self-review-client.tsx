@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, FileText, Info } from "lucide-react"
 import jsPDF from "jspdf"
-import "jspdf-autotable"
+import { autoTable } from "jspdf-autotable"
 
 interface Role {
   id: number
@@ -145,7 +145,7 @@ export function SelfReviewClient() {
     try {
       const doc = new jsPDF("p", "mm", "a4")
 
-      // Add header
+      // Add header without logo to avoid PNG issues
       doc.setFontSize(20)
       doc.setFont("helvetica", "bold")
       doc.text("Henry Schein One", 20, 25)
@@ -185,7 +185,7 @@ export function SelfReviewClient() {
       })
 
       // Add table using autoTable
-      ;(doc as any).autoTable({
+      autoTable(doc, {
         startY: yPos + 10,
         head: [["Skill", "Category", "Required Level", "Self Rating"]],
         body: tableData,
@@ -388,11 +388,7 @@ export function SelfReviewClient() {
       {/* Export Button */}
       {selectedRole && skills.length > 0 && totalRated > 0 && (
         <div className="mb-6 flex justify-end">
-          <Button
-            onClick={generatePDF}
-            disabled={isGeneratingPDF}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-          >
+          <Button onClick={generatePDF} disabled={isGeneratingPDF} className="flex items-center gap-2">
             {isGeneratingPDF ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -401,7 +397,7 @@ export function SelfReviewClient() {
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                Export Assessment as PDF
+                Export Assessment
               </>
             )}
           </Button>
