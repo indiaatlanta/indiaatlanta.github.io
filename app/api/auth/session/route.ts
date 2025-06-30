@@ -1,24 +1,23 @@
-import { NextResponse } from "next/server"
-import { getSession } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server"
+import { verifySession } from "@/lib/auth"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getSession()
+    const sessionCookie = request.cookies.get("session")
 
-    if (!session) {
-      return NextResponse.json({ user: null }, { status: 401 })
+    if (!sessionCookie?.value) {
+      return NextResponse.json({ error: "No session found" }, { status: 401 })
     }
 
-    return NextResponse.json({
-      user: {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name,
-        role: session.user.role,
-      },
-    })
+    const user = await verifySession(sessionCookie.value)
+
+    if (!user) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 })
+    }
+
+    return NextResponse.json({ user })
   } catch (error) {
-    console.error("Session check error:", error)
-    return NextResponse.json({ user: null }, { status: 500 })
+    console.error("Session verification error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

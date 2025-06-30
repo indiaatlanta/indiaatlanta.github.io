@@ -38,9 +38,9 @@ export default function LoginPage() {
       console.log("Login response data:", data)
 
       if (response.ok && data.success) {
-        console.log("Login successful, redirecting to dashboard")
-        // Use the redirect URL from the response or default to dashboard
-        const redirectUrl = data.redirectUrl || "/dashboard"
+        console.log("Login successful, redirecting to main page")
+        // Use the redirect URL from the response or default to main page
+        const redirectUrl = data.redirectUrl || "/"
         window.location.href = redirectUrl
       } else {
         console.log("Login failed:", data.error)
@@ -76,8 +76,8 @@ export default function LoginPage() {
       console.log("Demo login response data:", data)
 
       if (response.ok && data.success) {
-        console.log("Demo login successful, redirecting to dashboard")
-        const redirectUrl = data.redirectUrl || "/dashboard"
+        console.log("Demo login successful, redirecting to main page")
+        const redirectUrl = data.redirectUrl || "/"
         window.location.href = redirectUrl
       } else {
         console.log("Demo login failed:", data.error)

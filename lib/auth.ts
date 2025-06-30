@@ -1,5 +1,4 @@
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { cookies } from "next/headers"
 import { v4 as uuidv4 } from "uuid"
 
 export interface User {
@@ -9,140 +8,137 @@ export interface User {
   role: string
 }
 
-// Demo users for when database is not configured
-const demoUsers: User[] = [
-  {
-    id: 1,
-    email: "admin@henryscheinone.com",
-    name: "Admin User",
-    role: "admin",
-  },
-  {
-    id: 2,
-    email: "user@henryscheinone.com",
-    name: "John Doe",
-    role: "user",
-  },
-  {
-    id: 3,
-    email: "manager@henryscheinone.com",
-    name: "Jane Manager",
-    role: "admin",
-  },
-  {
-    id: 4,
-    email: "john.smith@henryscheinone.com",
-    name: "John Smith",
-    role: "user",
-  },
-  {
-    id: 5,
-    email: "jane.doe@henryscheinone.com",
-    name: "Jane Doe",
-    role: "user",
-  },
-]
+export interface Session {
+  id: string
+  userId: number
+  user: User
+  expiresAt: Date
+}
+
+// In-memory session store for fallback
+const sessionStore = new Map<string, Session>()
 
 export async function createSession(user: User): Promise<string> {
   const sessionId = uuidv4()
-  console.log("Creating session for user:", user.email, "Session ID:", sessionId)
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
-  // Try to store session in database if available
-  if (isDatabaseConfigured()) {
-    try {
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-
-      await sql!`
-        INSERT INTO user_sessions (id, user_id, expires_at)
-        VALUES (${sessionId}, ${user.id}, ${expiresAt})
-        ON CONFLICT (id) 
-        DO UPDATE SET 
-          user_id = EXCLUDED.user_id,
-          expires_at = EXCLUDED.expires_at,
-          updated_at = CURRENT_TIMESTAMP
-      `
-      console.log("Session stored in database successfully")
-    } catch (error) {
-      console.error("Failed to store session in database:", error)
-      // Continue with cookie-only session
-    }
-  } else {
-    console.log("Database not configured, using cookie-only session")
+  const session: Session = {
+    id: sessionId,
+    userId: user.id,
+    user,
+    expiresAt,
   }
 
+  // Try to store in database first
+  if (isDatabaseConfigured()) {
+    try {
+      await sql!`
+        INSERT INTO user_sessions (id, user_id, user_data, expires_at)
+        VALUES (${sessionId}, ${user.id}, ${JSON.stringify(user)}, ${expiresAt})
+        ON CONFLICT (id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          user_data = EXCLUDED.user_data,
+          expires_at = EXCLUDED.expires_at
+      `
+      console.log("Session stored in database:", sessionId)
+      return sessionId
+    } catch (error) {
+      console.error("Failed to store session in database:", error)
+      // Fall through to memory storage
+    }
+  }
+
+  // Fallback to memory storage
+  sessionStore.set(sessionId, session)
+  console.log("Session stored in memory:", sessionId)
   return sessionId
 }
 
 export async function verifySession(sessionId: string): Promise<User | null> {
-  console.log("Verifying session:", sessionId)
+  if (!sessionId) {
+    return null
+  }
 
-  try {
-    // Try database verification first
-    if (isDatabaseConfigured()) {
-      try {
-        const sessions = await sql!`
-          SELECT us.user_id, u.email, u.name, u.role
-          FROM user_sessions us
-          JOIN users u ON us.user_id = u.id
-          WHERE us.id = ${sessionId} AND us.expires_at > CURRENT_TIMESTAMP
-        `
+  // Try database first
+  if (isDatabaseConfigured()) {
+    try {
+      const sessions = await sql!`
+        SELECT id, user_id, user_data, expires_at
+        FROM user_sessions
+        WHERE id = ${sessionId} AND expires_at > NOW()
+      `
 
-        if (sessions.length > 0) {
-          const session = sessions[0]
-          console.log("Database session found for user:", session.email)
-          return {
-            id: session.user_id,
-            email: session.email,
-            name: session.name,
-            role: session.role,
-          }
-        } else {
-          console.log("No valid database session found")
-        }
-      } catch (error) {
-        console.error("Database session verification failed:", error)
+      if (sessions.length > 0) {
+        const session = sessions[0]
+        console.log("Session found in database:", sessionId)
+        return JSON.parse(session.user_data)
       }
+    } catch (error) {
+      console.error("Database session verification error:", error)
+      // Fall through to memory check
     }
-
-    // Fallback to demo mode - in demo mode, any valid session ID maps to admin user
-    console.log("Using demo mode for session verification")
-    return demoUsers[0] // Return admin user in demo mode
-  } catch (error) {
-    console.error("Session verification failed:", error)
-    return null
   }
-}
 
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get("session")?.value
-
-    if (!sessionId) {
-      console.log("No session cookie found")
-      return null
-    }
-
-    console.log("Found session cookie, verifying...")
-    return await verifySession(sessionId)
-  } catch (error) {
-    console.error("Get current user error:", error)
-    return null
+  // Check memory store
+  const session = sessionStore.get(sessionId)
+  if (session && session.expiresAt > new Date()) {
+    console.log("Session found in memory:", sessionId)
+    return session.user
   }
+
+  // Clean up expired session from memory
+  if (session) {
+    sessionStore.delete(sessionId)
+  }
+
+  console.log("Session not found or expired:", sessionId)
+  return null
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  console.log("Deleting session:", sessionId)
+  if (!sessionId) {
+    return
+  }
 
+  // Try database first
   if (isDatabaseConfigured()) {
     try {
       await sql!`
-        DELETE FROM user_sessions 
-        WHERE id = ${sessionId}
+        DELETE FROM user_sessions WHERE id = ${sessionId}
       `
-      console.log("Session deleted from database")
+      console.log("Session deleted from database:", sessionId)
     } catch (error) {
       console.error("Failed to delete session from database:", error)
     }
   }
+
+  // Also remove from memory store
+  sessionStore.delete(sessionId)
+  console.log("Session deleted from memory:", sessionId)
 }
+
+export async function cleanupExpiredSessions(): Promise<void> {
+  // Clean up database sessions
+  if (isDatabaseConfigured()) {
+    try {
+      await sql!`
+        DELETE FROM user_sessions WHERE expires_at <= NOW()
+      `
+      console.log("Expired database sessions cleaned up")
+    } catch (error) {
+      console.error("Failed to cleanup database sessions:", error)
+    }
+  }
+
+  // Clean up memory sessions
+  const now = new Date()
+  for (const [sessionId, session] of sessionStore.entries()) {
+    if (session.expiresAt <= now) {
+      sessionStore.delete(sessionId)
+    }
+  }
+  console.log("Expired memory sessions cleaned up")
+}
+
+// Run cleanup every hour
+setInterval(cleanupExpiredSessions, 60 * 60 * 1000)

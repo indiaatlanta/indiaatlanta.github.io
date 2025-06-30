@@ -1,21 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { deleteSession } from "@/lib/auth"
-import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("Logout request received")
+    const sessionCookie = request.cookies.get("session")
 
-    // Get session from cookie
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get("session")?.value
-
-    if (sessionId) {
-      console.log("Deleting session:", sessionId)
-      await deleteSession(sessionId)
+    if (sessionCookie?.value) {
+      await deleteSession(sessionCookie.value)
     }
 
-    // Create response
     const response = NextResponse.json({ success: true })
 
     // Clear the session cookie
@@ -23,11 +16,10 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 0, // Expire immediately
+      maxAge: 0,
       path: "/",
     })
 
-    console.log("Logout successful, session cleared")
     return response
   } catch (error) {
     console.error("Logout error:", error)
