@@ -26,11 +26,14 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function createSession(userId: number): Promise<string> {
+  const sessionId = uuidv4()
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+  console.log("Creating session:", { userId, sessionId, isDatabaseConfigured: isDatabaseConfigured() })
+
   if (!isDatabaseConfigured() || !sql) {
     // In demo mode, just set a cookie without database storage
-    const sessionId = uuidv4()
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-
+    console.log("Creating demo session cookie")
     const cookieStore = cookies()
     cookieStore.set("session", sessionId, {
       httpOnly: true,
@@ -42,13 +45,17 @@ export async function createSession(userId: number): Promise<string> {
     return sessionId
   }
 
-  const sessionId = uuidv4()
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+  try {
+    await sql`
+      INSERT INTO sessions (id, user_id, expires_at)
+      VALUES (${sessionId}, ${userId}, ${expiresAt})
+    `
 
-  await sql`
-    INSERT INTO sessions (id, user_id, expires_at)
-    VALUES (${sessionId}, ${userId}, ${expiresAt})
-  `
+    console.log("Database session created successfully")
+  } catch (error) {
+    console.error("Failed to create database session:", error)
+    // Continue with cookie-only session
+  }
 
   const cookieStore = cookies()
   cookieStore.set("session", sessionId, {
@@ -62,12 +69,16 @@ export async function createSession(userId: number): Promise<string> {
 }
 
 export async function getSession(): Promise<{ user: User; session: Session } | null> {
+  console.log("Getting session, isDatabaseConfigured:", isDatabaseConfigured())
+
   // Return null if database is not configured (preview mode)
   if (!isDatabaseConfigured() || !sql) {
     // Check for demo session cookie
     try {
       const cookieStore = cookies()
       const sessionId = cookieStore.get("session")?.value
+
+      console.log("Demo mode session check:", { sessionId: sessionId ? "present" : "missing" })
 
       if (sessionId) {
         // Return mock user session for demo mode
@@ -95,6 +106,8 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
     const cookieStore = cookies()
     const sessionId = cookieStore.get("session")?.value
 
+    console.log("Database session check:", { sessionId: sessionId ? "present" : "missing" })
+
     if (!sessionId) {
       return null
     }
@@ -114,10 +127,13 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
     `
 
     if (result.length === 0) {
+      console.log("No valid session found in database")
       return null
     }
 
     const row = result[0]
+    console.log("Valid session found:", { userId: row.id, email: row.email, role: row.role })
+
     return {
       session: {
         id: row.session_id,

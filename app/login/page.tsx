@@ -27,6 +27,7 @@ export default function LoginPage() {
       const response = await fetch("/api/roles")
       const data = await response.json()
       setIsDemoMode(data.isDemoMode || false)
+      console.log("Database status check:", { isDemoMode: data.isDemoMode })
     } catch (error) {
       console.error("Error checking database status:", error)
       setIsDemoMode(true)
@@ -38,6 +39,8 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
 
+    console.log("Submitting login form:", { email, passwordLength: password.length })
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -48,11 +51,14 @@ export default function LoginPage() {
       })
 
       const data = await response.json()
+      console.log("Login response:", { status: response.status, data })
 
       if (response.ok) {
+        console.log("Login successful, redirecting to home")
         router.push("/")
         router.refresh()
       } else {
+        console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
       }
     } catch (error) {
@@ -70,10 +76,10 @@ export default function LoginPage() {
     }
 
     const creds = demoCredentials[userType]
+    console.log("Demo login attempt:", { userType, email: creds.email })
+
     setEmail(creds.email)
     setPassword(creds.password)
-
-    // Auto-submit the form
     setLoading(true)
     setError("")
 
@@ -87,11 +93,14 @@ export default function LoginPage() {
       })
 
       const data = await response.json()
+      console.log("Demo login response:", { status: response.status, data })
 
       if (response.ok) {
+        console.log("Demo login successful, redirecting to home")
         router.push("/")
         router.refresh()
       } else {
+        console.log("Demo login failed:", data.error)
         setError(data.error || "Demo login failed")
       }
     } catch (error) {
@@ -174,39 +183,33 @@ export default function LoginPage() {
             </form>
 
             {/* Demo Credentials */}
-            {isDemoMode && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600 mb-3">Demo Accounts:</p>
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    className="w-full text-left justify-start bg-transparent"
-                    onClick={() => handleDemoLogin("admin")}
-                    disabled={loading}
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Admin Demo (admin@henryscheinone.com)
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full text-left justify-start bg-transparent"
-                    onClick={() => handleDemoLogin("user")}
-                    disabled={loading}
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    User Demo (user@henryscheinone.com)
-                  </Button>
-                </div>
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-600 mb-3">Demo Accounts:</p>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full text-left justify-start bg-transparent"
+                  onClick={() => handleDemoLogin("admin")}
+                  disabled={loading}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Admin Demo (admin@henryscheinone.com)
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-left justify-start bg-transparent"
+                  onClick={() => handleDemoLogin("user")}
+                  disabled={loading}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  User Demo (user@henryscheinone.com)
+                </Button>
               </div>
-            )}
-
-            {!isDemoMode && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Demo credentials: admin@henryscheinone.com / admin123 or user@henryscheinone.com / user123
-                </p>
+              <div className="mt-4 text-xs text-gray-500">
+                <p>Admin: admin@henryscheinone.com / admin123</p>
+                <p>User: user@henryscheinone.com / user123</p>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>

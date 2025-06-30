@@ -2,15 +2,13 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
   // Allow access to login page and API routes
   if (
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/images/") ||
-    pathname === "/favicon.ico"
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/api/") ||
+    request.nextUrl.pathname.startsWith("/_next/") ||
+    request.nextUrl.pathname.startsWith("/images/") ||
+    request.nextUrl.pathname === "/favicon.ico"
   ) {
     return NextResponse.next()
   }
@@ -18,8 +16,13 @@ export function middleware(request: NextRequest) {
   // Check for session cookie
   const sessionCookie = request.cookies.get("session")
 
-  if (!sessionCookie) {
-    // Redirect to login if no session
+  console.log("Middleware check:", {
+    path: request.nextUrl.pathname,
+    hasSession: !!sessionCookie?.value,
+  })
+
+  if (!sessionCookie?.value) {
+    console.log("No session found, redirecting to login")
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
@@ -34,7 +37,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - login (login page)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|login).*)",
   ],
 }
