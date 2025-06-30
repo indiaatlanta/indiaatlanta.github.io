@@ -1,10 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 import { requireAdmin } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin()
+
+    if (!isDatabaseConfigured() || !sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
+    }
 
     const { searchParams } = new URL(request.url)
     const jobRoleId = searchParams.get("jobRoleId")
@@ -14,71 +18,57 @@ export async function GET(request: NextRequest) {
     if (jobRoleId) {
       query = sql`
         SELECT 
-          s.name,
-          s.level,
-          s.description,
-          s.sort_order,
-          sc.name as category_name,
-          jr.name as job_role_name,
-          jr.code as job_role_code,
-          d.name as department_name
-        FROM skills s
-        JOIN skill_categories sc ON s.category_id = sc.id
-        JOIN job_roles jr ON s.job_role_id = jr.id
-        JOIN departments d ON jr.department_id = d.id
-        WHERE s.job_role_id = ${Number.parseInt(jobRoleId)}
-        ORDER BY sc.sort_order, s.sort_order, s.name
+          jr.name as job_role,
+          sc.name as category,
+          sm.name as skill_name,
+          sd.level,
+          sd.description,
+          sd.full_description,
+          sd.sort_order
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        JOIN job_roles jr ON sd.job_role_id = jr.id
+        WHERE sd.job_role_id = ${Number.parseInt(jobRoleId)}
+        ORDER BY sc.sort_order, sm.name
       `
     } else {
       query = sql`
         SELECT 
-          s.name,
-          s.level,
-          s.description,
-          s.sort_order,
-          sc.name as category_name,
-          jr.name as job_role_name,
-          jr.code as job_role_code,
-          d.name as department_name
-        FROM skills s
-        JOIN skill_categories sc ON s.category_id = sc.id
-        JOIN job_roles jr ON s.job_role_id = jr.id
-        JOIN departments d ON jr.department_id = d.id
-        ORDER BY d.name, jr.name, sc.sort_order, s.sort_order, s.name
+          jr.name as job_role,
+          sc.name as category,
+          sm.name as skill_name,
+          sd.level,
+          sd.description,
+          sd.full_description,
+          sd.sort_order
+        FROM skill_demonstrations sd
+        JOIN skills_master sm ON sd.skill_id = sm.id
+        JOIN skill_categories sc ON sm.category_id = sc.id
+        JOIN job_roles jr ON sd.job_role_id = jr.id
+        ORDER BY jr.name, sc.sort_order, sm.name
       `
     }
 
     const skills = await query
 
     if (format === "csv") {
-      // Convert to CSV
-      const headers = [
-        "Department",
-        "Job Role",
-        "Job Code",
-        "Category",
-        "Skill Name",
-        "Level",
-        "Description",
-        "Sort Order",
-      ]
-      const csvRows = [
-        headers.join(","),
-        ...skills.map((skill) =>
+      const csvHeader = "job_role,category,skill_name,level,description,full_description,sort_order\n"
+      const csvData = skills
+        .map((skill) =>
           [
-            `"${skill.department_name}"`,
-            `"${skill.job_role_name}"`,
-            `"${skill.job_role_code}"`,
-            `"${skill.category_name}"`,
-            `"${skill.name}"`,
+            `"${skill.job_role}"`,
+            `"${skill.category}"`,
+            `"${skill.skill_name}"`,
             `"${skill.level}"`,
-            `"${skill.description.replace(/"/g, '""')}"`,
-            skill.sort_order,
+            `"${skill.description?.replace(/"/g, '""') || ""}"`,
+            `"${skill.full_description?.replace(/"/g, '""') || ""}"`,
+            skill.sort_order || 0,
           ].join(","),
-        ),
-      ]
+        )
+        .join("\n")
 
-      return new NextResponse(csvRows.join("\n"), {
+      return new Response(csvHeader + csvData, {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename="skills-export-${new Date().toISOString().split("T")[0]}.csv"`,
@@ -86,9 +76,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.json(skills)
+    return NextResponse.json(skills, {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="skills-export-${new Date().toISOString().split("T")[0]}.json"`,
+      },
+    })
   } catch (error) {
     console.error("Export skills error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to export skills" }, { status: 500 })
   }
 }

@@ -16,6 +16,7 @@ import Image from "next/image"
 
 interface Skill {
   id: number
+  skill_id: number
   name: string
   level: string
   description: string
@@ -49,50 +50,6 @@ const skillCategories = [
 
 const skillLevels = ["L1", "L2", "L3", "L4", "L5", "M1", "M2", "M3", "M4", "M5"]
 
-// Mock data for demo mode
-const mockSkills: Skill[] = [
-  {
-    id: 1,
-    name: "Security",
-    level: "L1",
-    description: "Understands the importance of security.",
-    full_description:
-      "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices.",
-    category_id: 1,
-    category_name: "Technical Skills",
-    category_color: "blue",
-    job_role_id: 1,
-    sort_order: 0,
-  },
-  {
-    id: 2,
-    name: "Work Breakdown",
-    level: "L2",
-    description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
-    full_description:
-      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L2 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
-    category_id: 2,
-    category_name: "Delivery",
-    category_color: "green",
-    job_role_id: 1,
-    sort_order: 0,
-  },
-]
-
-const mockAuditLogs: AuditLog[] = [
-  {
-    id: 1,
-    user_name: "Demo Admin",
-    user_email: "admin@henryscheinone.com",
-    action: "CREATE",
-    table_name: "skills",
-    record_id: 1,
-    old_values: null,
-    new_values: { name: "Security", level: "L1" },
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default function AdminPage() {
   const [selectedJobRoleId, setSelectedJobRoleId] = useState<number | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
@@ -111,24 +68,19 @@ export default function AdminPage() {
     level: "L1",
     description: "",
     fullDescription: "",
-    category_id: 1,
-    sort_order: 0,
+    categoryId: 1,
+    sortOrder: 0,
   })
 
   useEffect(() => {
     // Check if we're in demo mode (no database configured)
     const checkDemoMode = async () => {
       try {
-        const response = await fetch("/api/skills?jobRoleId=1")
-        if (response.status === 500) {
-          setIsDemoMode(true)
-          setSkills(mockSkills)
-          setAuditLogs(mockAuditLogs)
-        }
+        const response = await fetch("/api/skills?checkOnly=true")
+        const data = await response.json()
+        setIsDemoMode(data.isDemoMode)
       } catch (error) {
         setIsDemoMode(true)
-        setSkills(mockSkills)
-        setAuditLogs(mockAuditLogs)
       }
     }
 
@@ -139,9 +91,6 @@ export default function AdminPage() {
     if (selectedJobRoleId && !isDemoMode) {
       loadSkills()
       loadAuditLogs()
-    } else if (selectedJobRoleId && isDemoMode) {
-      setSkills(mockSkills)
-      setAuditLogs(mockAuditLogs)
     }
   }, [selectedJobRoleId, isDemoMode])
 
@@ -166,7 +115,7 @@ export default function AdminPage() {
 
   const loadAuditLogs = async () => {
     try {
-      const response = await fetch(`/api/audit?tableName=skills&limit=50`)
+      const response = await fetch(`/api/audit?tableName=skill_demonstrations&limit=50`)
       if (response.ok) {
         const data = await response.json()
         setAuditLogs(data)
@@ -178,11 +127,10 @@ export default function AdminPage() {
 
   const handleSaveSkill = async (skill: Partial<Skill>) => {
     if (isDemoMode) {
-      // Simulate saving in demo mode
-      setSuccess("Skill saved successfully (Demo Mode)")
+      setSuccess("Demo mode: Skill operations are simulated")
       setEditingSkill(null)
       setIsAddingSkill(false)
-      setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
+      setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", categoryId: 1, sortOrder: 0 })
       return
     }
 
@@ -192,9 +140,13 @@ export default function AdminPage() {
 
     try {
       const skillData = {
-        ...skill,
+        name: skill.name,
+        level: skill.level,
+        description: skill.description,
+        fullDescription: skill.full_description || skill.fullDescription,
+        categoryId: skill.category_id || skill.categoryId,
         jobRoleId: selectedJobRoleId,
-        categoryId: skill.category_id,
+        sortOrder: skill.sort_order || skill.sortOrder || 0,
       }
 
       let response
@@ -216,7 +168,7 @@ export default function AdminPage() {
         setSuccess(editingSkill ? "Skill updated successfully" : "Skill created successfully")
         setEditingSkill(null)
         setIsAddingSkill(false)
-        setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
+        setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", categoryId: 1, sortOrder: 0 })
         loadSkills()
         loadAuditLogs()
       } else {
@@ -234,7 +186,7 @@ export default function AdminPage() {
     if (!confirm("Are you sure you want to delete this skill?")) return
 
     if (isDemoMode) {
-      setSuccess("Skill deleted successfully (Demo Mode)")
+      setSuccess("Demo mode: Skill operations are simulated")
       return
     }
 
@@ -260,20 +212,7 @@ export default function AdminPage() {
 
   const handleExport = async (format: "json" | "csv") => {
     if (isDemoMode) {
-      // Create mock export data
-      const mockData =
-        format === "json"
-          ? JSON.stringify(mockSkills, null, 2)
-          : "name,level,description,full_description\nSecurity,L1,Understands the importance of security.,Security is a fundamental aspect..."
-      const blob = new Blob([mockData], { type: format === "json" ? "application/json" : "text/csv" })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `skills-export-demo.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
+      setSuccess("Demo mode: Export operations are simulated")
       return
     }
 
@@ -303,7 +242,7 @@ export default function AdminPage() {
     if (!bulkFile || !selectedJobRoleId) return
 
     if (isDemoMode) {
-      setSuccess("Bulk import completed successfully (Demo Mode)")
+      setSuccess("Demo mode: Import operations are simulated")
       setBulkFile(null)
       return
     }
@@ -324,13 +263,13 @@ export default function AdminPage() {
           .map((line) => {
             const values = line.split(",")
             return {
-              name: values[4]?.replace(/"/g, ""),
-              level: values[5]?.replace(/"/g, "") || "L1", // Default to L1 if no level specified
-              description: values[6]?.replace(/"/g, ""),
-              fullDescription: values[7]?.replace(/"/g, "") || values[6]?.replace(/"/g, ""),
-              categoryId: skillCategories.find((c) => c.name === values[3]?.replace(/"/g, ""))?.id || 1,
+              name: values[2]?.replace(/"/g, ""),
+              level: values[3]?.replace(/"/g, "") || "L1",
+              description: values[4]?.replace(/"/g, ""),
+              fullDescription: values[5]?.replace(/"/g, "") || values[4]?.replace(/"/g, ""),
+              categoryId: skillCategories.find((c) => c.name === values[1]?.replace(/"/g, ""))?.id || 1,
               jobRoleId: selectedJobRoleId,
-              sortOrder: Number.parseInt(values[8]) || 0,
+              sortOrder: Number.parseInt(values[6]) || 0,
             }
           })
           .filter((skill) => skill.name)
@@ -359,11 +298,6 @@ export default function AdminPage() {
   }
 
   const handleLogout = async () => {
-    if (isDemoMode) {
-      router.push("/")
-      return
-    }
-
     try {
       await fetch("/api/auth/logout", { method: "POST" })
       router.push("/login")
@@ -409,7 +343,7 @@ export default function AdminPage() {
               </Badge>
               <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700">
                 <LogOut className="w-4 h-4 mr-2" />
-                {isDemoMode ? "Exit Demo" : "Logout"}
+                Logout
               </Button>
             </div>
           </div>
@@ -502,7 +436,7 @@ export default function AdminPage() {
                   <div className="space-y-4">
                     {skillCategories.map((category) => {
                       const categorySkills = skills.filter((skill) => skill.category_id === category.id)
-                      if (categorySkills.length === 0) return null
+                      if (categorySkills.length === 0 && !isDemoMode) return null
 
                       return (
                         <Card key={category.id}>
@@ -511,37 +445,41 @@ export default function AdminPage() {
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-3">
-                              {categorySkills.map((skill) => (
-                                <div
-                                  key={skill.id}
-                                  className={`p-4 rounded-lg border ${getColorClasses(category.color)}`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <span className="font-medium">{skill.name}</span>
-                                        <Badge variant="outline" className="text-xs">
-                                          {skill.level}
-                                        </Badge>
+                              {categorySkills.length === 0 ? (
+                                <p className="text-gray-500 text-sm">No skills in this category yet.</p>
+                              ) : (
+                                categorySkills.map((skill) => (
+                                  <div
+                                    key={skill.id}
+                                    className={`p-4 rounded-lg border ${getColorClasses(category.color)}`}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <span className="font-medium">{skill.name}</span>
+                                          <Badge variant="outline" className="text-xs">
+                                            {skill.level}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-sm">{skill.description}</p>
                                       </div>
-                                      <p className="text-sm">{skill.description}</p>
-                                    </div>
-                                    <div className="flex gap-2 ml-4">
-                                      <Button variant="outline" size="sm" onClick={() => setEditingSkill(skill)}>
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDeleteSkill(skill.id)}
-                                        className="text-red-600 hover:text-red-700"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
+                                      <div className="flex gap-2 ml-4">
+                                        <Button variant="outline" size="sm" onClick={() => setEditingSkill(skill)}>
+                                          Edit
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleDeleteSkill(skill.id)}
+                                          className="text-red-600 hover:text-red-700"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -605,36 +543,40 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              log.action === "DELETE"
-                                ? "destructive"
-                                : log.action === "CREATE"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                          >
-                            {log.action}
-                          </Badge>
-                          <span className="text-sm font-medium">{log.user_name}</span>
-                          <span className="text-sm text-gray-500">({log.user_email})</span>
+                  {auditLogs.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No audit logs available.</p>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <div key={log.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                log.action === "DELETE"
+                                  ? "destructive"
+                                  : log.action === "CREATE"
+                                    ? "default"
+                                    : "secondary"
+                              }
+                            >
+                              {log.action}
+                            </Badge>
+                            <span className="text-sm font-medium">{log.user_name}</span>
+                            <span className="text-sm text-gray-500">({log.user_email})</span>
+                          </div>
+                          <span className="text-sm text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
                         </div>
-                        <span className="text-sm text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {log.action} {log.table_name} record #{log.record_id}
-                      </div>
-                      {log.new_values && (
-                        <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
-                          <strong>Changes:</strong> {JSON.stringify(log.new_values, null, 2)}
+                        <div className="text-sm text-gray-600">
+                          {log.action} {log.table_name} record #{log.record_id}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {log.new_values && (
+                          <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
+                            <strong>Changes:</strong> {JSON.stringify(log.new_values, null, 2)}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -674,19 +616,11 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="mt-2">
-                  <Input
-                    placeholder="Or enter custom level (e.g., S1, P3, etc.)"
-                    value={newSkill.level.startsWith("L") || newSkill.level.startsWith("M") ? "" : newSkill.level}
-                    onChange={(e) => setNewSkill({ ...newSkill, level: e.target.value.toUpperCase() })}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Format: Letter followed by number (L1, M2, S3, etc.)</p>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <Select
-                    value={newSkill.category_id.toString()}
-                    onValueChange={(value) => setNewSkill({ ...newSkill, category_id: Number.parseInt(value) })}
+                    value={newSkill.categoryId.toString()}
+                    onValueChange={(value) => setNewSkill({ ...newSkill, categoryId: Number.parseInt(value) })}
                   >
                     <SelectTrigger>
                       <SelectValue />

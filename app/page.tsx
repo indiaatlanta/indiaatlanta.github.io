@@ -1,79 +1,94 @@
-import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, Building2, User, Shield, LogOut } from "lucide-react"
-import Link from "next/link"
+import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Users, Target, BookOpen, LogOut } from "lucide-react"
+import Image from "next/image"
+import { AdminButton } from "@/components/admin-button"
 
-// Demo data for when database is not available
-const demoStats = {
-  totalRoles: 15,
+// Mock data for demo mode
+const mockDashboardStats = {
+  totalRoles: 5,
   totalSkills: 45,
-  totalUsers: 5,
-  departments: [
-    { name: "Engineering", slug: "engineering", roleCount: 5 },
-    { name: "Product Management", slug: "product-management", roleCount: 3 },
-    { name: "Sales", slug: "sales", roleCount: 4 },
-    { name: "Marketing", slug: "marketing", roleCount: 3 },
-  ],
+  totalUsers: 12,
 }
+
+const mockDepartments = [
+  { slug: "engineering", name: "Engineering", roleCount: 5, description: "Software development roles" },
+  { slug: "product", name: "Product", roleCount: 3, description: "Product management roles" },
+  { slug: "design", name: "Design", roleCount: 2, description: "UX/UI design roles" },
+  { slug: "data", name: "Data", roleCount: 2, description: "Data science and analytics roles" },
+]
 
 async function getDashboardStats() {
   if (!isDatabaseConfigured() || !sql) {
-    console.log("Database not configured, using demo stats")
-    return demoStats
+    return mockDashboardStats
   }
 
   try {
-    // Get total counts
     const [rolesResult, skillsResult, usersResult] = await Promise.all([
       sql`SELECT COUNT(*) as count FROM job_roles`,
       sql`SELECT COUNT(*) as count FROM skills_master`,
       sql`SELECT COUNT(*) as count FROM users`,
     ])
 
-    // Get departments with role counts
-    const departmentsResult = await sql`
-      SELECT 
-        d.name,
-        d.slug,
-        COUNT(jr.id) as role_count
-      FROM departments d
-      LEFT JOIN job_roles jr ON d.id = jr.department_id
-      GROUP BY d.id, d.name, d.slug
-      ORDER BY d.name
-    `
-
     return {
-      totalRoles: Number.parseInt(rolesResult[0].count),
-      totalSkills: Number.parseInt(skillsResult[0].count),
-      totalUsers: Number.parseInt(usersResult[0].count),
-      departments: departmentsResult.map((dept: any) => ({
-        name: dept.name,
-        slug: dept.slug,
-        roleCount: Number.parseInt(dept.role_count),
-      })),
+      totalRoles: Number.parseInt(rolesResult[0]?.count || "0"),
+      totalSkills: Number.parseInt(skillsResult[0]?.count || "0"),
+      totalUsers: Number.parseInt(usersResult[0]?.count || "0"),
     }
   } catch (error) {
     console.error("Error fetching dashboard stats:", error)
-    // Fallback to demo data if database query fails
-    return demoStats
+    return mockDashboardStats
   }
 }
 
-async function logoutAction() {
+async function getDepartments() {
+  if (!isDatabaseConfigured() || !sql) {
+    return mockDepartments
+  }
+
+  try {
+    const departments = await sql`
+      SELECT 
+        d.slug,
+        d.name,
+        d.description,
+        COUNT(jr.id) as role_count
+      FROM departments d
+      LEFT JOIN job_roles jr ON d.id = jr.department_id
+      GROUP BY d.id, d.slug, d.name, d.description
+      ORDER BY d.name
+    `
+
+    return departments.map((dept) => ({
+      slug: dept.slug,
+      name: dept.name,
+      roleCount: Number.parseInt(dept.role_count || "0"),
+      description: dept.description || "",
+    }))
+  } catch (error) {
+    console.error("Error fetching departments:", error)
+    return mockDepartments
+  }
+}
+
+async function logout() {
   "use server"
-
-  const { cookies } = await import("next/headers")
-  const cookieStore = await cookies()
-
-  // Clear the session cookie
-  cookieStore.delete("session")
-
-  // Redirect to login page
-  redirect("/login")
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/logout`, {
+      method: "POST",
+    })
+    if (response.ok) {
+      redirect("/login")
+    }
+  } catch (error) {
+    console.error("Logout error:", error)
+    redirect("/login")
+  }
 }
 
 export default async function HomePage() {
@@ -83,89 +98,72 @@ export default async function HomePage() {
     redirect("/login")
   }
 
-  const stats = await getDashboardStats()
+  const [stats, departments] = await Promise.all([getDashboardStats(), getDepartments()])
+
   const isDemoMode = !isDatabaseConfigured()
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Career Development Matrix</h1>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
+      <div className="bg-brand-800 px-4 py-3">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+              <span className="text-white text-sm">Careers Matrix</span>
               {isDemoMode && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-900">
                   Demo Mode
                 </Badge>
               )}
-              <div className="flex items-center space-x-2">
-                {user.role === "admin" ? (
-                  <Shield className="h-4 w-4 text-blue-600" />
-                ) : (
-                  <User className="h-4 w-4 text-gray-600" />
-                )}
-                <span className="text-sm font-medium text-gray-700">{user.name}</span>
-                <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
-              </div>
-              <form action={logoutAction}>
-                <Button variant="ghost" size="sm" type="submit">
-                  <LogOut className="h-4 w-4 mr-2" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-white text-sm">Welcome, {user.name}</span>
+              <Badge variant="secondary" className="bg-brand-100 text-brand-800">
+                {user.role}
+              </Badge>
+              <form action={logout}>
+                <Button variant="ghost" size="sm" type="submit" className="text-white hover:bg-brand-700">
+                  <LogOut className="w-4 h-4 mr-2" />
                   Logout
                 </Button>
               </form>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
-          <p className="text-gray-600">
-            Track your career development and explore growth opportunities within Henry Schein One.
-          </p>
-        </div>
-
-        {/* Stats Cards */}
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Dashboard Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Job Roles</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalRoles}</div>
               <p className="text-xs text-muted-foreground">Across all departments</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Skills Tracked</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Skills</CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalSkills}</div>
-              <p className="text-xs text-muted-foreground">Available for assessment</p>
+              <p className="text-xs text-muted-foreground">Skills in the matrix</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Using the platform</p>
+              <p className="text-xs text-muted-foreground">Registered users</p>
             </CardContent>
           </Card>
         </div>
@@ -175,84 +173,53 @@ export default async function HomePage() {
           <Card>
             <CardHeader>
               <CardTitle>Self Assessment</CardTitle>
-              <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
             </CardHeader>
             <CardContent>
+              <p className="text-gray-600 mb-4">Evaluate your current skills and identify areas for growth.</p>
               <Link href="/self-review">
-                <Button className="w-full">
-                  <User className="mr-2 h-4 w-4" />
-                  Start Self Assessment
-                </Button>
+                <Button className="w-full bg-brand-600 hover:bg-brand-700">Start Self Assessment</Button>
               </Link>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader>
-              <CardTitle>Compare Roles</CardTitle>
-              <CardDescription>Compare your skills against different job roles and career paths</CardDescription>
+              <CardTitle>Role Comparison</CardTitle>
             </CardHeader>
             <CardContent>
+              <p className="text-gray-600 mb-4">Compare different roles to understand career progression paths.</p>
               <Link href="/compare">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <Target className="mr-2 h-4 w-4" />
-                  Compare Roles
-                </Button>
+                <Button className="w-full bg-brand-600 hover:bg-brand-700">Compare Roles</Button>
               </Link>
             </CardContent>
           </Card>
         </div>
 
         {/* Departments */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Building2 className="mr-2 h-5 w-5" />
-              Browse by Department
-            </CardTitle>
-            <CardDescription>Explore career paths and roles within each department</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.departments.map((dept) => (
-                <Link key={dept.slug} href={`/department/${dept.slug}`}>
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-sm mb-2">{dept.name}</h3>
-                      <p className="text-xs text-gray-600">
-                        {dept.roleCount} {dept.roleCount === 1 ? "role" : "roles"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Admin Panel Link */}
-        {user.role === "admin" && (
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-blue-600">
-                  <Shield className="mr-2 h-5 w-5" />
-                  Admin Panel
-                </CardTitle>
-                <CardDescription>Manage users, roles, skills, and system configuration</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/admin">
-                  <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Access Admin Panel
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Browse by Department</h2>
+            <AdminButton />
           </div>
-        )}
-      </main>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {departments.map((department) => (
+              <Link key={department.slug} href={`/department/${department.slug}`}>
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{department.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 text-sm mb-3">{department.description}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">{department.roleCount} roles</span>
+                      <Badge variant="outline">{department.roleCount}</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
