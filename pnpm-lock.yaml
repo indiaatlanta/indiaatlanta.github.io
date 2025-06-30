@@ -48,8 +48,8 @@ importers:
         specifier: ^3.4.32
         version: 3.4.32(react@19.0.0)(sswr@2.2.0(svelte@5.34.8))(svelte@5.34.8)(vue@3.5.17(typescript@5.0.2))(zod@3.25.67)
       bcryptjs:
-        specifier: latest
-        version: 3.0.2
+        specifier: ^2.4.3
+        version: 2.4.3
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1494,9 +1494,8 @@ packages:
     resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
     engines: {node: '>= 0.6.0'}
 
-  bcryptjs@3.0.2:
-    resolution: {integrity: sha512-k38b3XOZKv60C4E2hVsXTolJWfkGRMbILBIe2IBITXciy5bOsTKot5kDrf3ZfufQtQOUN5mXceUEpU1rTl9Uog==}
-    hasBin: true
+  bcryptjs@2.4.3:
+    resolution: {integrity: sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -4355,7 +4354,7 @@ snapshots:
 
   base64-arraybuffer@1.0.2: {}
 
-  bcryptjs@3.0.2: {}
+  bcryptjs@2.4.3: {}
 
   binary-extensions@2.3.0: {}
 

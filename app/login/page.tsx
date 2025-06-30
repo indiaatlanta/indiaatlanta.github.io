@@ -1,47 +1,29 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Database, User, Lock } from "lucide-react"
+import { Loader2, User, Lock } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [isDemoMode, setIsDemoMode] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    checkDatabaseStatus()
-  }, [])
-
-  const checkDatabaseStatus = async () => {
-    try {
-      const response = await fetch("/api/roles")
-      const data = await response.json()
-      setIsDemoMode(data.isDemoMode || false)
-      console.log("Database status check:", { isDemoMode: data.isDemoMode })
-    } catch (error) {
-      console.error("Error checking database status:", error)
-      setIsDemoMode(true)
-    }
-  }
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setIsLoading(true)
     setError("")
 
-    console.log("Submitting login form:", { email, passwordLength: password.length })
-
     try {
+      console.log("Submitting login form for:", email)
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -54,8 +36,8 @@ export default function LoginPage() {
       console.log("Login response:", { status: response.status, data })
 
       if (response.ok && data.success) {
-        console.log("Login successful, redirecting to home")
-        // Force a hard redirect to ensure session is properly recognized
+        console.log("Login successful, redirecting to home page")
+        // Force a hard redirect to ensure session is recognized
         window.location.href = "/"
       } else {
         console.log("Login failed:", data.error)
@@ -63,41 +45,34 @@ export default function LoginPage() {
       }
     } catch (error) {
       console.error("Login error:", error)
-      setError("Network error. Please try again.")
+      setError("An error occurred during login")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleDemoLogin = async (userType: "admin" | "user") => {
-    const demoCredentials = {
-      admin: { email: "admin@henryscheinone.com", password: "admin123" },
-      user: { email: "user@henryscheinone.com", password: "user123" },
-    }
-
-    const creds = demoCredentials[userType]
-    console.log("Demo login attempt:", { userType, email: creds.email })
-
-    setEmail(creds.email)
-    setPassword(creds.password)
-    setLoading(true)
+  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
+    setEmail(demoEmail)
+    setPassword(demoPassword)
+    setIsLoading(true)
     setError("")
 
     try {
+      console.log("Demo login for:", demoEmail)
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(creds),
+        body: JSON.stringify({ email: demoEmail, password: demoPassword }),
       })
 
       const data = await response.json()
       console.log("Demo login response:", { status: response.status, data })
 
       if (response.ok && data.success) {
-        console.log("Demo login successful, redirecting to home")
-        // Force a hard redirect to ensure session is properly recognized
+        console.log("Demo login successful, redirecting to home page")
         window.location.href = "/"
       } else {
         console.log("Demo login failed:", data.error)
@@ -105,9 +80,9 @@ export default function LoginPage() {
       }
     } catch (error) {
       console.error("Demo login error:", error)
-      setError("Network error. Please try again.")
+      setError("An error occurred during demo login")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -116,20 +91,10 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <img src="/images/hs1-logo.png" alt="Henry Schein One" className="mx-auto h-12 w-auto mb-4" />
-          <h2 className="text-3xl font-bold text-gray-900">Career Development Matrix</h2>
+          <img src="/images/hs1-logo.png" alt="Henry Schein One" className="mx-auto h-12 w-auto" />
+          <h1 className="mt-6 text-3xl font-bold text-gray-900">Career Development Matrix</h1>
           <p className="mt-2 text-sm text-gray-600">Sign in to access your career development tools</p>
         </div>
-
-        {/* Demo Mode Banner */}
-        {isDemoMode && (
-          <Alert className="border-blue-200 bg-blue-50">
-            <Database className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>Demo Mode:</strong> Database not configured. Use demo credentials below.
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Login Form */}
         <Card>
@@ -148,8 +113,8 @@ export default function LoginPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@henryscheinone.com"
                     className="pl-10"
-                    placeholder="Enter your email"
                     required
                   />
                 </div>
@@ -164,60 +129,81 @@ export default function LoginPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
                     placeholder="Enter your password"
+                    className="pl-10"
                     required
                   />
                 </div>
               </div>
 
               {error && (
-                <Alert className="border-red-200 bg-red-50">
-                  <AlertDescription className="text-red-800">{error}</AlertDescription>
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign In"}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing In...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
+          </CardContent>
+        </Card>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-sm text-gray-600 mb-3">Demo Accounts:</p>
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full text-left justify-start bg-transparent"
-                  onClick={() => handleDemoLogin("admin")}
-                  disabled={loading}
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  Admin Demo (admin@henryscheinone.com)
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full text-left justify-start bg-transparent"
-                  onClick={() => handleDemoLogin("user")}
-                  disabled={loading}
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  User Demo (user@henryscheinone.com)
-                </Button>
-              </div>
-              <div className="mt-4 text-xs text-gray-500">
-                <p>
-                  <strong>Available Accounts:</strong>
-                </p>
-                <p>• admin@henryscheinone.com / admin123</p>
-                <p>• user@henryscheinone.com / user123</p>
-                <p>• manager@henryscheinone.com / manager123</p>
-                <p>• john.smith@henryscheinone.com / password123</p>
-                <p>• jane.doe@henryscheinone.com / password123</p>
-              </div>
+        {/* Demo Accounts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Demo Accounts</CardTitle>
+            <CardDescription className="text-xs">Click to login with demo credentials</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-1 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDemoLogin("admin@henryscheinone.com", "admin123")}
+                disabled={isLoading}
+                className="justify-start text-xs"
+              >
+                <User className="mr-2 h-3 w-3" />
+                Admin: admin@henryscheinone.com / admin123
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDemoLogin("user@henryscheinone.com", "user123")}
+                disabled={isLoading}
+                className="justify-start text-xs"
+              >
+                <User className="mr-2 h-3 w-3" />
+                User: user@henryscheinone.com / user123
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDemoLogin("manager@henryscheinone.com", "manager123")}
+                disabled={isLoading}
+                className="justify-start text-xs"
+              >
+                <User className="mr-2 h-3 w-3" />
+                Manager: manager@henryscheinone.com / manager123
+              </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Additional Demo Credentials */}
+        <div className="text-center text-xs text-gray-500">
+          <p>Additional demo credentials:</p>
+          <p>john.smith@henryscheinone.com / password123</p>
+          <p>jane.doe@henryscheinone.com / password123</p>
+        </div>
       </div>
     </div>
   )

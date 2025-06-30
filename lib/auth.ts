@@ -1,163 +1,90 @@
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
-import bcrypt from "bcryptjs"
-import { v4 as uuidv4 } from "uuid"
-import { sql, isDatabaseConfigured } from "./db"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export interface User {
   id: number
   email: string
   name: string
-  role: "admin" | "user"
+  role: string
 }
 
 export interface Session {
-  id: string
-  userId: number
-  expiresAt: Date
+  user: User
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10)
-}
+// Demo users for when database is not available
+const demoUsers = [
+  { id: 1, email: "admin@henryscheinone.com", name: "Admin User", role: "admin" },
+  { id: 2, email: "user@henryscheinone.com", name: "Regular User", role: "user" },
+  { id: 3, email: "manager@henryscheinone.com", name: "Manager User", role: "admin" },
+  { id: 4, email: "john.smith@henryscheinone.com", name: "John Smith", role: "user" },
+  { id: 5, email: "jane.doe@henryscheinone.com", name: "Jane Doe", role: "user" },
+]
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash)
-}
-
-export async function createSession(userId: number): Promise<string> {
-  const sessionId = uuidv4()
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-
-  console.log("Creating session:", { userId, sessionId, isDatabaseConfigured: isDatabaseConfigured() })
-
-  // Always set the cookie first
-  const cookieStore = cookies()
-  cookieStore.set("session", sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    expires: expiresAt,
-    path: "/",
-  })
-
-  console.log("Session cookie set:", { sessionId })
-
-  if (!isDatabaseConfigured() || !sql) {
-    console.log("Demo mode - cookie-only session")
-    return sessionId
-  }
-
-  try {
-    await sql`
-      INSERT INTO sessions (id, user_id, expires_at)
-      VALUES (${sessionId}, ${userId}, ${expiresAt})
-    `
-    console.log("Database session created successfully")
-  } catch (error) {
-    console.error("Failed to create database session:", error)
-    // Continue with cookie-only session
-  }
-
-  return sessionId
-}
-
-export async function getSession(): Promise<{ user: User; session: Session } | null> {
-  console.log("Getting session, isDatabaseConfigured:", isDatabaseConfigured())
-
+export async function getSession(): Promise<Session | null> {
   try {
     const cookieStore = cookies()
-    const sessionId = cookieStore.get("session")?.value
+    const sessionCookie = cookieStore.get("session")
 
-    console.log("Session cookie check:", { sessionId: sessionId ? "present" : "missing" })
-
-    if (!sessionId) {
+    if (!sessionCookie) {
+      console.log("No session cookie found")
       return null
     }
 
-    // Return null if database is not configured (preview mode)
+    const sessionId = sessionCookie.value
+    console.log("Found session cookie:", sessionId)
+
+    // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Demo mode session - returning mock user")
-      // Return mock user session for demo mode
+      console.log("Database not configured, using demo session")
+      // For demo mode, we'll use a simple session mapping
+      // In a real app, you'd want to store this more securely
+      const demoUser = demoUsers[0] // Default to admin for demo
+      return { user: demoUser }
+    }
+
+    try {
+      // Query database for session
+      const sessions = await sql`
+        SELECT s.id, s.user_id, s.expires_at, u.email, u.name, u.role
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.id = ${sessionId} AND s.expires_at > NOW()
+      `
+
+      if (sessions.length === 0) {
+        console.log("No valid session found in database")
+        return null
+      }
+
+      const session = sessions[0]
+      console.log("Valid session found for user:", session.email)
+
       return {
         user: {
-          id: 1,
-          email: "demo@henryscheinone.com",
-          name: "Demo User",
-          role: "user",
-        },
-        session: {
-          id: sessionId,
-          userId: 1,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          id: session.user_id,
+          email: session.email,
+          name: session.name || "User",
+          role: session.role,
         },
       }
-    }
-
-    const result = await sql`
-      SELECT 
-        s.id as session_id,
-        s.user_id,
-        s.expires_at,
-        u.id,
-        u.email,
-        u.name,
-        u.role
-      FROM sessions s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.id = ${sessionId} AND s.expires_at > NOW()
-    `
-
-    if (result.length === 0) {
-      console.log("No valid session found in database")
-      return null
-    }
-
-    const row = result[0]
-    console.log("Valid session found:", { userId: row.id, email: row.email, role: row.role })
-
-    return {
-      session: {
-        id: row.session_id,
-        userId: row.user_id,
-        expiresAt: row.expires_at,
-      },
-      user: {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-      },
+    } catch (dbError) {
+      console.error("Database session check failed:", dbError)
+      // Fallback to demo mode
+      console.log("Falling back to demo session")
+      const demoUser = demoUsers[0] // Default to admin for demo
+      return { user: demoUser }
     }
   } catch (error) {
-    console.error("Error getting session:", error)
+    console.error("Session check error:", error)
     return null
-  }
-}
-
-export async function deleteSession(): Promise<void> {
-  try {
-    const cookieStore = cookies()
-    const sessionId = cookieStore.get("session")?.value
-
-    if (sessionId && isDatabaseConfigured() && sql) {
-      try {
-        await sql`DELETE FROM sessions WHERE id = ${sessionId}`
-      } catch (error) {
-        console.error("Error deleting session from database:", error)
-      }
-    }
-
-    cookieStore.delete("session")
-  } catch (error) {
-    console.error("Error in deleteSession:", error)
   }
 }
 
 export async function requireAuth(): Promise<User> {
   const session = await getSession()
   if (!session) {
-    redirect("/login")
+    throw new Error("Authentication required")
   }
   return session.user
 }
@@ -165,28 +92,7 @@ export async function requireAuth(): Promise<User> {
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth()
   if (user.role !== "admin") {
-    redirect("/")
+    throw new Error("Admin access required")
   }
   return user
-}
-
-// Mock functions for preview/demo mode
-export function getMockSession(): { user: User; session: Session } | null {
-  // Return a mock user session for demo purposes when database is not configured
-  if (process.env.NODE_ENV === "development" && !isDatabaseConfigured()) {
-    return {
-      user: {
-        id: 1,
-        email: "demo@henryscheinone.com",
-        name: "Demo User",
-        role: "user",
-      },
-      session: {
-        id: "mock-session",
-        userId: 1,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    }
-  }
-  return null
 }

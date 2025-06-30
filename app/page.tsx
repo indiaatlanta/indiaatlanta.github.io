@@ -4,7 +4,7 @@ import { sql, isDatabaseConfigured } from "@/lib/db"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, TrendingUp, LogOut, Settings } from "lucide-react"
+import { Users, Target, BookOpen, TrendingUp, LogOut, Settings, Building2 } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
@@ -26,10 +26,10 @@ async function getDashboardStats() {
   }
 
   try {
-    // Get total counts
+    // Get total counts - fixed the column name issue
     const [rolesResult, skillsResult, usersResult] = await Promise.all([
       sql`SELECT COUNT(*) as count FROM job_roles`,
-      sql`SELECT COUNT(DISTINCT skill_name) as count FROM skills_master`,
+      sql`SELECT COUNT(*) as count FROM skills_master`, // Fixed: removed DISTINCT skill_name
       sql`SELECT COUNT(*) as count FROM users`,
     ])
 
@@ -239,7 +239,10 @@ export default async function HomePage() {
               <Link key={department.slug} href={`/department/${department.slug}`}>
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
-                    <CardTitle className="text-lg">{department.name}</CardTitle>
+                    <CardTitle className="flex items-center">
+                      <Building2 className="h-5 w-5 mr-2" />
+                      {department.name}
+                    </CardTitle>
                     <CardDescription>
                       {department.roleCount} role{department.roleCount !== 1 ? "s" : ""} available
                     </CardDescription>
