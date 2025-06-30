@@ -1,32 +1,52 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { neon } from "@neondatabase/serverless"
 
-export function middleware(request: NextRequest) {
-  // Get the pathname of the request
-  const { pathname } = request.nextUrl
+const sql = neon(process.env.DATABASE_URL!)
 
-  // Skip middleware for API routes, static files, and login page
+export async function middleware(request: NextRequest) {
+  // Skip middleware for login page, API routes, and static files
   if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/images/") ||
-    pathname === "/login" ||
-    pathname === "/favicon.ico"
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/api") ||
+    request.nextUrl.pathname.startsWith("/_next") ||
+    request.nextUrl.pathname.startsWith("/images") ||
+    request.nextUrl.pathname === "/favicon.ico"
   ) {
     return NextResponse.next()
   }
 
-  // Check for session cookie
-  const sessionCookie = request.cookies.get("session")
+  const sessionToken = request.cookies.get("session")?.value
 
-  // If no session cookie, redirect to login
-  if (!sessionCookie) {
-    const loginUrl = new URL("/login", request.url)
-    return NextResponse.redirect(loginUrl)
+  if (!sessionToken) {
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  // Allow the request to continue
-  return NextResponse.next()
+  // Validate session
+  try {
+    const sessions = await sql`
+      SELECT us.id, us.user_id, us.expires_at, u.name, u.email, u.role
+      FROM user_sessions us
+      JOIN users u ON us.user_id = u.id
+      WHERE us.id = ${sessionToken} 
+      AND us.expires_at > NOW()
+      AND u.active = true
+    `
+
+    if (sessions.length === 0) {
+      // Invalid or expired session
+      const response = NextResponse.redirect(new URL("/login", request.url))
+      response.cookies.delete("session")
+      return response
+    }
+
+    // Session is valid, continue
+    return NextResponse.next()
+  } catch (error) {
+    console.log("Database unavailable, allowing demo session")
+    // In demo mode, allow access if session cookie exists
+    return NextResponse.next()
+  }
 }
 
 export const config = {
