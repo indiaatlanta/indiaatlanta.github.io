@@ -12,18 +12,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
+    // Demo users for fallback
+    const demoUsers = [
+      { email: "admin@henryscheinone.com", password: "admin123", name: "Admin User", role: "admin", id: 1 },
+      { email: "user@henryscheinone.com", password: "user123", name: "Regular User", role: "user", id: 2 },
+      { email: "manager@henryscheinone.com", password: "manager123", name: "Manager User", role: "admin", id: 3 },
+      { email: "john.smith@henryscheinone.com", password: "password123", name: "John Smith", role: "user", id: 4 },
+      { email: "jane.doe@henryscheinone.com", password: "password123", name: "Jane Doe", role: "user", id: 5 },
+    ]
+
     // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
       console.log("Database not configured, using demo mode")
-
-      // Demo mode authentication
-      const demoUsers = [
-        { email: "admin@henryscheinone.com", password: "admin123", name: "Admin User", role: "admin", id: 1 },
-        { email: "user@henryscheinone.com", password: "user123", name: "Regular User", role: "user", id: 2 },
-        { email: "manager@henryscheinone.com", password: "manager123", name: "Manager User", role: "admin", id: 3 },
-        { email: "john.smith@henryscheinone.com", password: "password123", name: "John Smith", role: "user", id: 4 },
-        { email: "jane.doe@henryscheinone.com", password: "password123", name: "Jane Doe", role: "user", id: 5 },
-      ]
 
       const demoUser = demoUsers.find((u) => u.email === email && u.password === password)
 
@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
 
-      // Create demo session
+      // Create demo session (cookie only)
       const sessionId = uuidv4()
-      const cookieStore = cookies()
+      const cookieStore = await cookies()
 
       cookieStore.set("session", sessionId, {
         httpOnly: true,
@@ -80,21 +80,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
 
-      // Create session
+      // Create session (cookie only for now, database session optional)
       const sessionId = uuidv4()
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      const cookieStore = await cookies()
 
-      // Store session in database
-      await sql`
-        INSERT INTO user_sessions (id, user_id, expires_at)
-        VALUES (${sessionId}, ${user.id}, ${expiresAt})
-        ON CONFLICT (id) DO UPDATE SET
-          user_id = EXCLUDED.user_id,
-          expires_at = EXCLUDED.expires_at
-      `
-
-      // Set session cookie
-      const cookieStore = cookies()
       cookieStore.set("session", sessionId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -102,6 +91,22 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 7, // 7 days
         path: "/",
       })
+
+      // Try to store session in database if user_sessions table exists
+      try {
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        await sql`
+          INSERT INTO user_sessions (id, user_id, expires_at)
+          VALUES (${sessionId}, ${user.id}, ${expiresAt})
+          ON CONFLICT (id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            expires_at = EXCLUDED.expires_at
+        `
+        console.log("Session stored in database for user:", email)
+      } catch (sessionError) {
+        console.log("Could not store session in database (table may not exist):", sessionError.message)
+        // Continue without database session storage
+      }
 
       console.log("Database login successful for:", email, "Session ID:", sessionId)
 
@@ -120,14 +125,6 @@ export async function POST(request: NextRequest) {
       // Fallback to demo authentication if database fails
       console.log("Falling back to demo authentication")
 
-      const demoUsers = [
-        { email: "admin@henryscheinone.com", password: "admin123", name: "Admin User", role: "admin", id: 1 },
-        { email: "user@henryscheinone.com", password: "user123", name: "Regular User", role: "user", id: 2 },
-        { email: "manager@henryscheinone.com", password: "manager123", name: "Manager User", role: "admin", id: 3 },
-        { email: "john.smith@henryscheinone.com", password: "password123", name: "John Smith", role: "user", id: 4 },
-        { email: "jane.doe@henryscheinone.com", password: "password123", name: "Jane Doe", role: "user", id: 5 },
-      ]
-
       const demoUser = demoUsers.find((u) => u.email === email && u.password === password)
 
       if (!demoUser) {
@@ -137,7 +134,7 @@ export async function POST(request: NextRequest) {
 
       // Create demo session
       const sessionId = uuidv4()
-      const cookieStore = cookies()
+      const cookieStore = await cookies()
 
       cookieStore.set("session", sessionId, {
         httpOnly: true,

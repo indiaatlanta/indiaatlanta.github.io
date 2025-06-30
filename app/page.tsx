@@ -1,35 +1,36 @@
-import { Suspense } from "react"
-import { getSession } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, TrendingUp, LogOut, Settings, Building2 } from "lucide-react"
+import { Users, Target, BookOpen, Building2, User, Shield, LogOut } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
+// Demo data for when database is not available
+const demoStats = {
+  totalRoles: 15,
+  totalSkills: 45,
+  totalUsers: 5,
+  departments: [
+    { name: "Engineering", slug: "engineering", roleCount: 5 },
+    { name: "Product Management", slug: "product-management", roleCount: 3 },
+    { name: "Sales", slug: "sales", roleCount: 4 },
+    { name: "Marketing", slug: "marketing", roleCount: 3 },
+  ],
+}
+
 async function getDashboardStats() {
   if (!isDatabaseConfigured() || !sql) {
-    // Return mock data for demo mode
-    return {
-      totalRoles: 12,
-      totalSkills: 45,
-      totalUsers: 5,
-      departments: [
-        { name: "Engineering", slug: "engineering", roleCount: 4 },
-        { name: "Product", slug: "product", roleCount: 3 },
-        { name: "Design", slug: "design", roleCount: 2 },
-        { name: "Marketing", slug: "marketing", roleCount: 3 },
-      ],
-      isDemoMode: true,
-    }
+    console.log("Database not configured, using demo stats")
+    return demoStats
   }
 
   try {
-    // Get total counts - fixed the column name issue
+    // Get total counts
     const [rolesResult, skillsResult, usersResult] = await Promise.all([
       sql`SELECT COUNT(*) as count FROM job_roles`,
-      sql`SELECT COUNT(*) as count FROM skills_master`, // Fixed: removed DISTINCT skill_name
+      sql`SELECT COUNT(*) as count FROM skills_master`,
       sql`SELECT COUNT(*) as count FROM users`,
     ])
 
@@ -54,53 +55,36 @@ async function getDashboardStats() {
         slug: dept.slug,
         roleCount: Number.parseInt(dept.role_count),
       })),
-      isDemoMode: false,
     }
   } catch (error) {
     console.error("Error fetching dashboard stats:", error)
-    // Return mock data on error
-    return {
-      totalRoles: 12,
-      totalSkills: 45,
-      totalUsers: 5,
-      departments: [
-        { name: "Engineering", slug: "engineering", roleCount: 4 },
-        { name: "Product", slug: "product", roleCount: 3 },
-        { name: "Design", slug: "design", roleCount: 2 },
-        { name: "Marketing", slug: "marketing", roleCount: 3 },
-      ],
-      isDemoMode: true,
-    }
+    // Fallback to demo data if database query fails
+    return demoStats
   }
 }
 
-async function LogoutButton() {
-  async function handleLogout() {
-    "use server"
-    const response = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/logout`, {
-      method: "POST",
-    })
-    redirect("/login")
-  }
+async function logoutAction() {
+  "use server"
 
-  return (
-    <form action={handleLogout}>
-      <Button variant="outline" size="sm" type="submit">
-        <LogOut className="h-4 w-4 mr-2" />
-        Logout
-      </Button>
-    </form>
-  )
+  const { cookies } = await import("next/headers")
+  const cookieStore = await cookies()
+
+  // Clear the session cookie
+  cookieStore.delete("session")
+
+  // Redirect to login page
+  redirect("/login")
 }
 
 export default async function HomePage() {
-  const session = await getSession()
+  const user = await getCurrentUser()
 
-  if (!session) {
+  if (!user) {
     redirect("/login")
   }
 
   const stats = await getDashboardStats()
+  const isDemoMode = !isDatabaseConfigured()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,34 +96,29 @@ export default async function HomePage() {
               <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Career Development Matrix</h1>
-                {stats.isDemoMode && (
-                  <Badge variant="secondary" className="text-xs">
-                    Demo Mode
-                  </Badge>
-                )}
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Welcome, <span className="font-medium">{session.user.name}</span>
-              </div>
-              {session.user.role === "admin" && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Admin Panel
-                  </Button>
-                </Link>
+              {isDemoMode && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  Demo Mode
+                </Badge>
               )}
-              <Suspense
-                fallback={
-                  <Button variant="outline" size="sm" disabled>
-                    Logout
-                  </Button>
-                }
-              >
-                <LogoutButton />
-              </Suspense>
+              <div className="flex items-center space-x-2">
+                {user.role === "admin" ? (
+                  <Shield className="h-4 w-4 text-blue-600" />
+                ) : (
+                  <User className="h-4 w-4 text-gray-600" />
+                )}
+                <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
+              </div>
+              <form action={logoutAction}>
+                <Button variant="ghost" size="sm" type="submit">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </form>
             </div>
           </div>
         </div>
@@ -147,25 +126,24 @@ export default async function HomePage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Accelerate Your Career Development</h2>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Explore career paths, assess your skills, and compare roles to find your next opportunity within Henry
-            Schein One.
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
+          <p className="text-gray-600">
+            Track your career development and explore growth opportunities within Henry Schein One.
           </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Job Roles</CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalRoles}</div>
-              <p className="text-xs text-muted-foreground">Career opportunities available</p>
+              <p className="text-xs text-muted-foreground">Across all departments</p>
             </CardContent>
           </Card>
 
@@ -176,7 +154,7 @@ export default async function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalSkills}</div>
-              <p className="text-xs text-muted-foreground">Skills in our matrix</p>
+              <p className="text-xs text-muted-foreground">Available for assessment</p>
             </CardContent>
           </Card>
 
@@ -187,43 +165,37 @@ export default async function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Team members using the matrix</p>
+              <p className="text-xs text-muted-foreground">Using the platform</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <Card className="hover:shadow-lg transition-shadow">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
-                Self Assessment
-              </CardTitle>
-              <CardDescription>
-                Evaluate your current skills and identify areas for growth based on your target role.
-              </CardDescription>
+              <CardTitle>Self Assessment</CardTitle>
+              <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/self-review">
-                <Button className="w-full">Start Assessment</Button>
+                <Button className="w-full">
+                  <User className="mr-2 h-4 w-4" />
+                  Start Self Assessment
+                </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Target className="h-5 w-5 mr-2 text-green-600" />
-                Role Comparison
-              </CardTitle>
-              <CardDescription>
-                Compare different roles to understand skill requirements and career progression paths.
-              </CardDescription>
+              <CardTitle>Compare Roles</CardTitle>
+              <CardDescription>Compare your skills against different job roles and career paths</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/compare">
                 <Button className="w-full bg-transparent" variant="outline">
+                  <Target className="mr-2 h-4 w-4" />
                   Compare Roles
                 </Button>
               </Link>
@@ -231,51 +203,55 @@ export default async function HomePage() {
           </Card>
         </div>
 
-        {/* Departments Grid */}
-        <div className="mb-8">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">Explore by Department</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.departments.map((department) => (
-              <Link key={department.slug} href={`/department/${department.slug}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Building2 className="h-5 w-5 mr-2" />
-                      {department.name}
-                    </CardTitle>
-                    <CardDescription>
-                      {department.roleCount} role{department.roleCount !== 1 ? "s" : ""} available
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="ghost" className="w-full justify-start p-0">
-                      Explore Roles →
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
+        {/* Departments */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Building2 className="mr-2 h-5 w-5" />
+              Browse by Department
+            </CardTitle>
+            <CardDescription>Explore career paths and roles within each department</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {stats.departments.map((dept) => (
+                <Link key={dept.slug} href={`/department/${dept.slug}`}>
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-sm mb-2">{dept.name}</h3>
+                      <p className="text-xs text-gray-600">
+                        {dept.roleCount} {dept.roleCount === 1 ? "role" : "roles"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* CTA Section */}
-        <div className="bg-blue-50 rounded-lg p-8 text-center">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">Ready to Advance Your Career?</h3>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            Take control of your professional development. Start with a self-assessment to understand where you stand
-            and where you want to go.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/self-review">
-              <Button size="lg">Begin Self Assessment</Button>
-            </Link>
-            <Link href="/compare">
-              <Button size="lg" variant="outline">
-                Explore Career Paths
-              </Button>
-            </Link>
+        {/* Admin Panel Link */}
+        {user.role === "admin" && (
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-blue-600">
+                  <Shield className="mr-2 h-5 w-5" />
+                  Admin Panel
+                </CardTitle>
+                <CardDescription>Manage users, roles, skills, and system configuration</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/admin">
+                  <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
+                    <Shield className="mr-2 h-4 w-4" />
+                    Access Admin Panel
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        )}
       </main>
     </div>
   )

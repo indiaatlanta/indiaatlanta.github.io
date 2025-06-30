@@ -1,37 +1,55 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { getSession } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  console.log("Middleware processing:", pathname)
 
-  console.log("Middleware checking path:", pathname)
+  // Public routes that don't require authentication
+  const publicRoutes = ["/login", "/forgot-password", "/reset-password"]
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
 
-  // Skip middleware for API routes, static files, and login page
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/images/") ||
-    pathname === "/login" ||
-    pathname.includes(".")
-  ) {
-    console.log("Skipping middleware for:", pathname)
+  // API routes that don't require authentication
+  const publicApiRoutes = [
+    "/api/auth/login",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/auth/verify-reset-token",
+  ]
+  const isPublicApiRoute = publicApiRoutes.some((route) => pathname.startsWith(route))
+
+  if (isPublicRoute || isPublicApiRoute) {
+    console.log("Public route, allowing access:", pathname)
     return NextResponse.next()
   }
 
+  // Check authentication for protected routes
   try {
-    const session = await getSession()
-    console.log("Middleware session check:", session ? "authenticated" : "not authenticated")
+    const user = await getCurrentUser()
+    console.log("Middleware auth check:", {
+      pathname,
+      user: user ? { id: user.id, email: user.email, role: user.role } : null,
+    })
 
-    if (!session) {
-      console.log("No session found, redirecting to login")
+    if (!user) {
+      console.log("No user found, redirecting to login")
       return NextResponse.redirect(new URL("/login", request.url))
     }
 
-    console.log("Session valid, allowing access to:", pathname)
+    // Admin-only routes
+    const adminRoutes = ["/admin"]
+    const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route))
+
+    if (isAdminRoute && user.role !== "admin") {
+      console.log("Non-admin user trying to access admin route, redirecting to home")
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+
+    console.log("Authentication successful, allowing access")
     return NextResponse.next()
   } catch (error) {
-    console.error("Middleware error:", error)
+    console.error("Middleware auth error:", error)
     return NextResponse.redirect(new URL("/login", request.url))
   }
 }
@@ -40,12 +58,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - login (login page)
+     * - public folder
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|login).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
   ],
 }
