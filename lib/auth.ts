@@ -31,17 +31,20 @@ export async function createSession(userId: number): Promise<string> {
 
   console.log("Creating session:", { userId, sessionId, isDatabaseConfigured: isDatabaseConfigured() })
 
-  if (!isDatabaseConfigured() || !sql) {
-    // In demo mode, just set a cookie without database storage
-    console.log("Creating demo session cookie")
-    const cookieStore = cookies()
-    cookieStore.set("session", sessionId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      expires: expiresAt,
-    })
+  // Always set the cookie first
+  const cookieStore = cookies()
+  cookieStore.set("session", sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    expires: expiresAt,
+    path: "/",
+  })
 
+  console.log("Session cookie set:", { sessionId })
+
+  if (!isDatabaseConfigured() || !sql) {
+    console.log("Demo mode - cookie-only session")
     return sessionId
   }
 
@@ -50,20 +53,11 @@ export async function createSession(userId: number): Promise<string> {
       INSERT INTO sessions (id, user_id, expires_at)
       VALUES (${sessionId}, ${userId}, ${expiresAt})
     `
-
     console.log("Database session created successfully")
   } catch (error) {
     console.error("Failed to create database session:", error)
     // Continue with cookie-only session
   }
-
-  const cookieStore = cookies()
-  cookieStore.set("session", sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    expires: expiresAt,
-  })
 
   return sessionId
 }
@@ -71,45 +65,33 @@ export async function createSession(userId: number): Promise<string> {
 export async function getSession(): Promise<{ user: User; session: Session } | null> {
   console.log("Getting session, isDatabaseConfigured:", isDatabaseConfigured())
 
-  // Return null if database is not configured (preview mode)
-  if (!isDatabaseConfigured() || !sql) {
-    // Check for demo session cookie
-    try {
-      const cookieStore = cookies()
-      const sessionId = cookieStore.get("session")?.value
-
-      console.log("Demo mode session check:", { sessionId: sessionId ? "present" : "missing" })
-
-      if (sessionId) {
-        // Return mock user session for demo mode
-        return {
-          user: {
-            id: 1,
-            email: "demo@henryscheinone.com",
-            name: "Demo User",
-            role: "user",
-          },
-          session: {
-            id: sessionId,
-            userId: 1,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        }
-      }
-    } catch (error) {
-      console.error("Error checking demo session:", error)
-    }
-    return null
-  }
-
   try {
     const cookieStore = cookies()
     const sessionId = cookieStore.get("session")?.value
 
-    console.log("Database session check:", { sessionId: sessionId ? "present" : "missing" })
+    console.log("Session cookie check:", { sessionId: sessionId ? "present" : "missing" })
 
     if (!sessionId) {
       return null
+    }
+
+    // Return null if database is not configured (preview mode)
+    if (!isDatabaseConfigured() || !sql) {
+      console.log("Demo mode session - returning mock user")
+      // Return mock user session for demo mode
+      return {
+        user: {
+          id: 1,
+          email: "demo@henryscheinone.com",
+          name: "Demo User",
+          role: "user",
+        },
+        session: {
+          id: sessionId,
+          userId: 1,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      }
     }
 
     const result = await sql`
@@ -154,26 +136,15 @@ export async function getSession(): Promise<{ user: User; session: Session } | n
 }
 
 export async function deleteSession(): Promise<void> {
-  if (!isDatabaseConfigured() || !sql) {
-    // Just clear the cookie if database is not configured
-    try {
-      const cookieStore = cookies()
-      cookieStore.delete("session")
-    } catch (error) {
-      console.error("Error clearing cookie:", error)
-    }
-    return
-  }
-
   try {
     const cookieStore = cookies()
     const sessionId = cookieStore.get("session")?.value
 
-    if (sessionId) {
+    if (sessionId && isDatabaseConfigured() && sql) {
       try {
         await sql`DELETE FROM sessions WHERE id = ${sessionId}`
       } catch (error) {
-        console.error("Error deleting session:", error)
+        console.error("Error deleting session from database:", error)
       }
     }
 

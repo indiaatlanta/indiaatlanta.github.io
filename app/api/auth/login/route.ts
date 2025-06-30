@@ -30,9 +30,11 @@ export async function POST(request: NextRequest) {
       console.log("Demo login successful:", { email, role: demoUser.role })
 
       // Create demo session
-      await createSession(demoUser.id)
+      const sessionId = await createSession(demoUser.id)
+      console.log("Demo session created:", { sessionId })
 
       return NextResponse.json({
+        success: true,
         user: {
           id: demoUser.id,
           email,
@@ -73,9 +75,11 @@ export async function POST(request: NextRequest) {
       console.log("Database login successful:", { email, role: user.role })
 
       // Create session
-      await createSession(user.id)
+      const sessionId = await createSession(user.id)
+      console.log("Database session created:", { sessionId })
 
       return NextResponse.json({
+        success: true,
         user: {
           id: user.id,
           email: user.email,
@@ -99,9 +103,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Create demo session
-      await createSession(demoUser.id)
+      const sessionId = await createSession(demoUser.id)
+      console.log("Fallback session created:", { sessionId })
 
       return NextResponse.json({
+        success: true,
         user: {
           id: demoUser.id,
           email,

@@ -53,10 +53,10 @@ export default function LoginPage() {
       const data = await response.json()
       console.log("Login response:", { status: response.status, data })
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         console.log("Login successful, redirecting to home")
-        router.push("/")
-        router.refresh()
+        // Force a hard redirect to ensure session is properly recognized
+        window.location.href = "/"
       } else {
         console.log("Login failed:", data.error)
         setError(data.error || "Login failed")
@@ -95,10 +95,10 @@ export default function LoginPage() {
       const data = await response.json()
       console.log("Demo login response:", { status: response.status, data })
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         console.log("Demo login successful, redirecting to home")
-        router.push("/")
-        router.refresh()
+        // Force a hard redirect to ensure session is properly recognized
+        window.location.href = "/"
       } else {
         console.log("Demo login failed:", data.error)
         setError(data.error || "Demo login failed")
