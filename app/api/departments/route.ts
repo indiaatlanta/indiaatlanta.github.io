@@ -1,96 +1,117 @@
 import { NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
-// Demo departments for when database is not configured
+// Demo departments data
 const demoDepartments = [
   {
     id: 1,
     name: "Software Engineering",
     slug: "software-engineering",
     description: "Build and maintain software applications and systems",
-    total_roles: 12,
-    total_skills: 45,
+    skillCount: 15,
+    roleCount: 8,
   },
   {
     id: 2,
     name: "Product Management",
     slug: "product-management",
     description: "Drive product strategy and development lifecycle",
-    total_roles: 8,
-    total_skills: 32,
+    skillCount: 12,
+    roleCount: 6,
   },
   {
     id: 3,
     name: "Data Science",
     slug: "data-science",
     description: "Analyze data to drive business insights and decisions",
-    total_roles: 6,
-    total_skills: 28,
+    skillCount: 18,
+    roleCount: 7,
   },
   {
     id: 4,
     name: "Design",
     slug: "design",
     description: "Create user experiences and visual designs",
-    total_roles: 7,
-    total_skills: 25,
+    skillCount: 10,
+    roleCount: 5,
   },
   {
     id: 5,
     name: "Marketing",
     slug: "marketing",
     description: "Promote products and engage with customers",
-    total_roles: 9,
-    total_skills: 30,
+    skillCount: 14,
+    roleCount: 9,
   },
   {
     id: 6,
     name: "Sales",
     slug: "sales",
     description: "Drive revenue through customer relationships",
-    total_roles: 5,
-    total_skills: 22,
+    skillCount: 11,
+    roleCount: 6,
+  },
+  {
+    id: 7,
+    name: "Customer Success",
+    slug: "customer-success",
+    description: "Ensure customer satisfaction and retention",
+    skillCount: 9,
+    roleCount: 4,
+  },
+  {
+    id: 8,
+    name: "Operations",
+    slug: "operations",
+    description: "Manage business processes and efficiency",
+    skillCount: 13,
+    roleCount: 7,
   },
 ]
 
 export async function GET() {
   try {
-    let departments = demoDepartments
+    let departments = []
 
-    // Try to fetch from database if configured
     if (isDatabaseConfigured()) {
       try {
-        const dbDepartments = await sql!`
+        const result = await sql!`
           SELECT 
             d.id,
             d.name,
             d.slug,
             d.description,
-            COUNT(DISTINCT jr.id) as total_roles,
-            COUNT(DISTINCT s.id) as total_skills
+            COUNT(DISTINCT ds.skill_id) as skill_count,
+            COUNT(DISTINCT jr.id) as role_count
           FROM departments d
+          LEFT JOIN department_skills ds ON d.id = ds.department_id
           LEFT JOIN job_roles jr ON d.id = jr.department_id
-          LEFT JOIN role_skills rs ON jr.id = rs.job_role_id
-          LEFT JOIN skills s ON rs.skill_id = s.id
           GROUP BY d.id, d.name, d.slug, d.description
           ORDER BY d.name
         `
 
-        if (dbDepartments.length > 0) {
-          departments = dbDepartments.map((dept) => ({
-            ...dept,
-            total_roles: Number(dept.total_roles) || 0,
-            total_skills: Number(dept.total_skills) || 0,
-          }))
-        }
-      } catch (dbError) {
-        console.error("Database error, using demo data:", dbError)
+        departments = result.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          description: row.description,
+          skillCount: Number.parseInt(row.skill_count) || 0,
+          roleCount: Number.parseInt(row.role_count) || 0,
+        }))
+
+        console.log("Fetched departments from database:", departments.length)
+      } catch (error) {
+        console.error("Database error fetching departments:", error)
+        departments = demoDepartments
       }
+    } else {
+      departments = demoDepartments
+      console.log("Using demo departments data")
     }
 
     return NextResponse.json(departments)
   } catch (error) {
     console.error("Error fetching departments:", error)
-    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
+    return NextResponse.json(demoDepartments)
   }
 }
