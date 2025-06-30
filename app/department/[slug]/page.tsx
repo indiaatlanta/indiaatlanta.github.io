@@ -1,10 +1,11 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Rocket, Settings } from "lucide-react"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { getSession } from "@/lib/auth"
-import { DepartmentClient } from "./department-client"
+import { getCurrentUser } from "@/lib/auth"
+import DepartmentClient from "./department-client"
 import Image from "next/image"
+import { Suspense } from "react"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -80,13 +81,19 @@ async function getDepartmentData(slug: string) {
   }
 }
 
-interface PageProps {
+interface DepartmentPageProps {
   params: {
     slug: string
   }
 }
 
-export default async function DepartmentPage({ params }: PageProps) {
+export default async function DepartmentPage({ params }: DepartmentPageProps) {
+  const user = await getCurrentUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
   try {
     const data = await getDepartmentData(params.slug)
 
@@ -95,16 +102,7 @@ export default async function DepartmentPage({ params }: PageProps) {
     }
 
     const { department, roles } = data
-    let session = null
-    let isAdmin = false
-
-    try {
-      session = await getSession()
-      isAdmin = session?.user?.role === "admin"
-    } catch (error) {
-      console.error("Error getting session:", error)
-      // Continue without session
-    }
+    const isAdmin = user.role === "admin"
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -149,7 +147,9 @@ export default async function DepartmentPage({ params }: PageProps) {
         </div>
 
         {/* Pass data to client component */}
-        <DepartmentClient department={department} roles={roles} isDemoMode={!isDatabaseConfigured()} />
+        <Suspense fallback={<div>Loading...</div>}>
+          <DepartmentClient department={department} roles={roles} user={user} isDemoMode={!isDatabaseConfigured()} />
+        </Suspense>
       </div>
     )
   } catch (error) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   MoreHorizontal,
   ClipboardCheck,
@@ -10,6 +10,8 @@ import {
   Filter,
   Download,
   FileSpreadsheet,
+  FileText,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,6 +20,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import * as XLSX from "xlsx"
+import type { User } from "@/lib/auth"
 
 interface Department {
   id: number
@@ -47,6 +54,9 @@ interface Skill {
   category_color: string
   skill_sort_order?: number
   category_sort_order?: number
+  category?: string
+  name?: string
+  description?: string
 }
 
 interface MatrixSkill {
@@ -59,10 +69,22 @@ interface MatrixSkill {
   demonstrations: Record<number, { level: string; description: string }>
 }
 
+interface JobRole {
+  id: number
+  title: string
+  description: string
+  requirements: string
+}
+
 interface Props {
   department: Department
   roles: Role[]
   isDemoMode: boolean
+}
+
+interface DepartmentClientProps {
+  slug: string
+  user: User
 }
 
 export function DepartmentClient({ department, roles, isDemoMode }: Props) {
@@ -79,6 +101,195 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
   const [isMatrixSkillDetailOpen, setIsMatrixSkillDetailOpen] = useState(false)
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all")
   const [isExportingMatrix, setIsExportingMatrix] = useState(false)
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [jobRoles, setJobRoles] = useState<JobRole[]>([])
+  const [filteredSkills, setFilteredSkills] = useState<Skill[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [levelFilter, setLevelFilter] = useState("all")
+
+  const departmentName = department?.name || ""
+  const slug = department?.slug || ""
+
+  useEffect(() => {
+    fetchDepartmentData()
+  }, [slug])
+
+  useEffect(() => {
+    filterSkills()
+  }, [skills, searchTerm, categoryFilter, levelFilter])
+
+  const fetchDepartmentData = async () => {
+    try {
+      setLoading(true)
+
+      // Fetch skills
+      const skillsResponse = await fetch("/api/skills")
+      const skillsData = await skillsResponse.json()
+      setSkills(skillsData)
+
+      // Fetch job roles for this department
+      const rolesResponse = await fetch(`/api/roles?department_slug=${slug}`)
+      const rolesData = await rolesResponse.json()
+      setJobRoles(rolesData)
+    } catch (error) {
+      console.error("Error fetching department data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filterSkills = () => {
+    let filtered = skills
+
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (skill) =>
+          skill.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          skill.description?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((skill) => skill.category === categoryFilter)
+    }
+
+    if (levelFilter !== "all") {
+      filtered = filtered.filter((skill) => skill.level === levelFilter)
+    }
+
+    // Sort by category first, then by name
+    filtered.sort((a, b) => {
+      if (a.category !== b.category) {
+        return a.category?.localeCompare(b.category || "") || 0
+      }
+      return a.name?.localeCompare(b.name || "") || 0
+    })
+
+    setFilteredSkills(filtered)
+  }
+
+  const getUniqueCategories = () => {
+    const categories = [...new Set(skills.map((skill) => skill.category))]
+    return categories.sort()
+  }
+
+  const getLevelColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case "beginner":
+        return "bg-green-100 text-green-800"
+      case "intermediate":
+        return "bg-yellow-100 text-yellow-800"
+      case "advanced":
+        return "bg-orange-100 text-orange-800"
+      case "expert":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const exportToExcel = () => {
+    const exportData = filteredSkills.map((skill) => ({
+      Name: skill.name,
+      Category: skill.category,
+      Level: skill.level,
+      Description: skill.description,
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Skills Matrix")
+    XLSX.writeFile(wb, `${departmentName}_Skills_Matrix.xlsx`)
+  }
+
+  const exportToPDF = () => {
+    const doc = new jsPDF()
+
+    // Add logo
+    const logoImg = new Image()
+    logoImg.crossOrigin = "anonymous"
+    logoImg.onload = () => {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      canvas.width = logoImg.width
+      canvas.height = logoImg.height
+      ctx?.drawImage(logoImg, 0, 0)
+
+      try {
+        const logoDataUrl = canvas.toDataURL("image/png")
+        doc.addImage(logoDataUrl, "PNG", 15, 15, 40, 12)
+      } catch (error) {
+        console.warn("Could not add logo to PDF:", error)
+      }
+
+      generatePDFContent(doc)
+    }
+
+    logoImg.onerror = () => {
+      generatePDFContent(doc)
+    }
+
+    logoImg.src = "/images/hs1-logo.png"
+  }
+
+  const generatePDFContent = (doc: jsPDF) => {
+    // Title
+    doc.setFontSize(20)
+    doc.text(`${departmentName} Skills Matrix`, 15, 40)
+
+    // Date
+    doc.setFontSize(10)
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 50)
+
+    let yPosition = 65
+
+    // Group skills by category
+    const skillsByCategory = filteredSkills.reduce(
+      (acc, skill) => {
+        if (!acc[skill.category!]) {
+          acc[skill.category!] = []
+        }
+        acc[skill.category!].push(skill)
+        return acc
+      },
+      {} as Record<string, Skill[]>,
+    )
+
+    Object.entries(skillsByCategory).forEach(([category, categorySkills]) => {
+      // Category header
+      doc.setFontSize(14)
+      doc.setFont(undefined, "bold")
+      doc.text(category, 15, yPosition)
+      yPosition += 10
+
+      // Skills in category
+      doc.setFontSize(10)
+      doc.setFont(undefined, "normal")
+
+      categorySkills.forEach((skill) => {
+        if (yPosition > 270) {
+          doc.addPage()
+          yPosition = 20
+        }
+
+        doc.text(`• ${skill.name} (${skill.level})`, 20, yPosition)
+        yPosition += 5
+
+        if (skill.description) {
+          const splitDescription = doc.splitTextToSize(`  ${skill.description}`, 170)
+          doc.text(splitDescription, 20, yPosition)
+          yPosition += splitDescription.length * 4
+        }
+        yPosition += 3
+      })
+
+      yPosition += 5
+    })
+
+    doc.save(`${departmentName}_Skills_Matrix.pdf`)
+  }
 
   const handleRoleClick = async (role: Role) => {
     setSelectedRole(role)
@@ -224,7 +435,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
     document.body.removeChild(link)
   }
 
-  const exportMatrixToPDF = async () => {
+  const exportMatrixToPDFOld = async () => {
     if (matrixData.length === 0) return
 
     setIsExportingMatrix(true)
@@ -447,6 +658,14 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
       ? sortedCategories
       : sortedCategories.filter(([categoryName]) => categoryName === selectedCategoryFilter)
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading department data...</div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Database Status Banner */}
@@ -486,6 +705,142 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
           </div>
         )}
       </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{departmentName} Department</h1>
+          <p className="text-gray-600 mt-2">Skills matrix and job roles for the {departmentName} department</p>
+        </div>
+
+        <div className="flex gap-2">
+          <Button onClick={exportToExcel} variant="outline" size="sm">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export Excel
+          </Button>
+          <Button onClick={exportToPDF} variant="outline" size="sm">
+            <FileText className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="skills" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="skills">Skills Matrix</TabsTrigger>
+          <TabsTrigger value="roles">Job Roles</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="skills" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search skills..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {getUniqueCategories().map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={levelFilter} onValueChange={setLevelFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Levels</SelectItem>
+                    <SelectItem value="Beginner">Beginner</SelectItem>
+                    <SelectItem value="Intermediate">Intermediate</SelectItem>
+                    <SelectItem value="Advanced">Advanced</SelectItem>
+                    <SelectItem value="Expert">Expert</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="text-sm text-gray-600 flex items-center">
+                  Showing {filteredSkills.length} of {skills.length} skills
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Skills Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredSkills.map((skill) => (
+              <Card key={skill.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-lg">{skill.name}</CardTitle>
+                    <Badge className={getLevelColor(skill.level)}>{skill.level}</Badge>
+                  </div>
+                  <Badge variant="outline" className="w-fit">
+                    {skill.category}
+                  </Badge>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-sm">{skill.description}</CardDescription>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {filteredSkills.length === 0 && (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-gray-500">No skills found matching your filters.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="roles" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {jobRoles.map((role) => (
+              <Card key={role.id}>
+                <CardHeader>
+                  <CardTitle>{role.title}</CardTitle>
+                  <CardDescription>{role.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Requirements:</h4>
+                    <p className="text-sm text-gray-600">{role.requirements}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {jobRoles.length === 0 && (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-gray-500">No job roles found for this department.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Regular Roles Section */}
       {regularRoles.length > 0 && (
@@ -590,7 +945,7 @@ export function DepartmentClient({ department, roles, isDemoMode }: Props) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={exportMatrixToPDF}
+                  onClick={exportMatrixToPDFOld}
                   disabled={matrixData.length === 0 || isExportingMatrix}
                   className="flex items-center gap-2 bg-transparent"
                 >

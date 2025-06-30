@@ -1,57 +1,47 @@
--- Create new demonstration templates table
+-- Create demonstration_templates table for reusable demonstrations
 CREATE TABLE IF NOT EXISTS demonstration_templates (
     id SERIAL PRIMARY KEY,
-    skill_master_id INTEGER NOT NULL REFERENCES skills_master(id) ON DELETE CASCADE,
-    level VARCHAR(10) NOT NULL,
-    demonstration_description TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create junction table for many-to-many relationship
+-- Create many-to-many relationship between demonstration templates and job roles
 CREATE TABLE IF NOT EXISTS demonstration_job_roles (
     id SERIAL PRIMARY KEY,
-    demonstration_template_id INTEGER NOT NULL REFERENCES demonstration_templates(id) ON DELETE CASCADE,
-    job_role_id INTEGER NOT NULL REFERENCES job_roles(id) ON DELETE CASCADE,
-    sort_order INTEGER DEFAULT 0,
+    demonstration_id INTEGER REFERENCES demonstration_templates(id) ON DELETE CASCADE,
+    job_role_id INTEGER REFERENCES job_roles(id) ON DELETE CASCADE,
+    is_required BOOLEAN DEFAULT FALSE,
+    weight INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(demonstration_template_id, job_role_id)
+    UNIQUE(demonstration_id, job_role_id)
 );
 
--- Migrate existing data from skill_demonstrations to new structure
-INSERT INTO demonstration_templates (skill_master_id, level, demonstration_description, created_at, updated_at)
-SELECT DISTINCT skill_master_id, level, demonstration_description, created_at, updated_at
-FROM skill_demonstrations;
-
--- Link existing demonstrations to their job roles
-INSERT INTO demonstration_job_roles (demonstration_template_id, job_role_id, sort_order)
-SELECT dt.id, sd.job_role_id, sd.sort_order
-FROM skill_demonstrations sd
-JOIN demonstration_templates dt ON (
-    sd.skill_master_id = dt.skill_master_id 
-    AND sd.level = dt.level 
-    AND sd.demonstration_description = dt.demonstration_description
+-- Create many-to-many relationship between demonstration templates and skills
+CREATE TABLE IF NOT EXISTS demonstration_skills (
+    id SERIAL PRIMARY KEY,
+    demonstration_id INTEGER REFERENCES demonstration_templates(id) ON DELETE CASCADE,
+    skill_id INTEGER REFERENCES skills(id) ON DELETE CASCADE,
+    proficiency_level VARCHAR(50) DEFAULT 'Intermediate',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(demonstration_id, skill_id)
 );
 
--- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_demonstration_templates_skill_master ON demonstration_templates(skill_master_id);
-CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_template ON demonstration_job_roles(demonstration_template_id);
-CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_job_role ON demonstration_job_roles(job_role_id);
+-- Insert some sample demonstration templates
+INSERT INTO demonstration_templates (title, description, category) VALUES
+('Build a REST API', 'Create a RESTful API with CRUD operations, authentication, and proper error handling', 'Backend Development'),
+('Create a React Dashboard', 'Build a responsive dashboard with charts, data tables, and real-time updates', 'Frontend Development'),
+('Database Design Project', 'Design and implement a normalized database schema with proper relationships', 'Database Management'),
+('DevOps Pipeline Setup', 'Set up CI/CD pipeline with automated testing and deployment', 'DevOps'),
+('Mobile App Development', 'Create a cross-platform mobile application with native features', 'Mobile Development'),
+('Data Analysis Report', 'Perform comprehensive data analysis and create visualizations and insights', 'Data Science'),
+('Security Audit', 'Conduct security assessment and implement security best practices', 'Cybersecurity'),
+('Cloud Architecture Design', 'Design scalable cloud infrastructure with proper monitoring and backup', 'Cloud Computing');
 
--- Add updated_at trigger for demonstration_templates
-CREATE OR REPLACE FUNCTION update_demonstration_templates_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_demonstration_templates_updated_at
-    BEFORE UPDATE ON demonstration_templates
-    FOR EACH ROW
-    EXECUTE FUNCTION update_demonstration_templates_updated_at();
-
--- Note: We'll keep the old skill_demonstrations table for now to ensure data safety
--- After confirming the migration works, we can drop it with:
--- DROP TABLE skill_demonstrations;
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_demonstration_id ON demonstration_job_roles(demonstration_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_job_roles_job_role_id ON demonstration_job_roles(job_role_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_skills_demonstration_id ON demonstration_skills(demonstration_id);
+CREATE INDEX IF NOT EXISTS idx_demonstration_skills_skill_id ON demonstration_skills(skill_id);

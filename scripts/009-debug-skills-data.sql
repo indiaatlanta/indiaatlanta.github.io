@@ -1,33 +1,35 @@
--- Debug script to check current skills data structure
-SELECT 'Current skill_demonstrations structure:' as info;
-SELECT 
-  sd.id,
-  sm.name as skill_name,
-  sd.level,
-  jr.name as role_name,
-  jr.code as role_code,
-  sc.name as category_name,
-  sc.color as category_color,
-  sc.sort_order as category_sort,
-  sm.sort_order as skill_sort,
-  sd.sort_order as demo_sort
-FROM skill_demonstrations sd
-JOIN skills_master sm ON sd.skill_master_id = sm.id
-JOIN job_roles jr ON sd.job_role_id = jr.id
-JOIN skill_categories sc ON sm.category_id = sc.id
-WHERE jr.department_id = (SELECT id FROM departments WHERE slug = 'engineering')
-ORDER BY jr.code, sc.sort_order, sm.sort_order, sd.sort_order;
+-- Debug and fix skills data
+SELECT 'Current skills count:' as info, COUNT(*) as count FROM skills;
 
-SELECT 'Skill categories:' as info;
-SELECT * FROM skill_categories ORDER BY sort_order;
+-- Check for duplicate skills
+SELECT name, COUNT(*) as count 
+FROM skills 
+GROUP BY name 
+HAVING COUNT(*) > 1;
 
-SELECT 'Skills master with sort order:' as info;
-SELECT 
-  sm.id,
-  sm.name,
-  sm.sort_order,
-  sc.name as category_name,
-  sc.sort_order as category_sort
-FROM skills_master sm
-JOIN skill_categories sc ON sm.category_id = sc.id
-ORDER BY sc.sort_order, sm.sort_order;
+-- Ensure we have proper skill categories
+UPDATE skills SET category = 'Programming' WHERE category IS NULL AND name IN ('JavaScript', 'Python', 'TypeScript');
+UPDATE skills SET category = 'Frontend' WHERE category IS NULL AND name IN ('React', 'Vue.js', 'Angular', 'HTML', 'CSS');
+UPDATE skills SET category = 'Backend' WHERE category IS NULL AND name IN ('Node.js', 'Express.js');
+UPDATE skills SET category = 'Database' WHERE category IS NULL AND name IN ('SQL', 'MongoDB', 'PostgreSQL', 'Redis');
+UPDATE skills SET category = 'DevOps' WHERE category IS NULL AND name IN ('Docker', 'Kubernetes', 'Jenkins', 'Terraform');
+UPDATE skills SET category = 'Cloud' WHERE category IS NULL AND name IN ('AWS');
+
+-- Add missing essential skills if they don't exist
+INSERT INTO skills (name, category, level, description, full_description) 
+SELECT 'Git', 'Tools', 'Advanced', 'Version control system', 'Git is a distributed version control system for tracking changes in source code during software development.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Git');
+
+INSERT INTO skills (name, category, level, description, full_description) 
+SELECT 'REST APIs', 'Backend', 'Advanced', 'RESTful web services', 'Understanding of REST architectural principles and ability to design and implement RESTful APIs.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'REST APIs');
+
+INSERT INTO skills (name, category, level, description, full_description) 
+SELECT 'Agile', 'Methodology', 'Intermediate', 'Agile development methodology', 'Experience with Agile development practices including Scrum, Kanban, and iterative development.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE name = 'Agile');
+
+-- Show final skills summary
+SELECT category, COUNT(*) as skill_count 
+FROM skills 
+GROUP BY category 
+ORDER BY category;

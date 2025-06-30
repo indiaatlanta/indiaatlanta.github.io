@@ -18,14 +18,10 @@ CREATE TABLE IF NOT EXISTS skills_master (
 -- Create skill_demonstrations table to link skills to job roles with specific demonstrations
 CREATE TABLE IF NOT EXISTS skill_demonstrations (
     id SERIAL PRIMARY KEY,
-    skill_master_id INTEGER REFERENCES skills_master(id) ON DELETE CASCADE,
-    job_role_id INTEGER REFERENCES job_roles(id) ON DELETE CASCADE,
-    level VARCHAR(10) NOT NULL CHECK (level ~ '^[A-Z][0-9]+$'),
-    demonstration_description TEXT NOT NULL, -- Specific demonstration for this level/role
-    sort_order INTEGER DEFAULT 0,
+    skill_id INTEGER REFERENCES skills(id) ON DELETE CASCADE,
+    demonstration TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(skill_master_id, job_role_id) -- One demonstration per skill per job role
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Migrate existing data from skills table to the new structure
@@ -41,18 +37,16 @@ GROUP BY s.name, s.category_id, s.full_description
 ON CONFLICT (name, category_id) DO NOTHING;
 
 -- Then, insert skill demonstrations
-INSERT INTO skill_demonstrations (skill_master_id, job_role_id, level, demonstration_description, sort_order)
-SELECT 
-    sm.id,
-    s.job_role_id,
-    s.level,
-    s.description,
-    s.sort_order
-FROM skills s
-JOIN skills_master sm ON s.name = sm.name AND s.category_id = sm.category_id;
+INSERT INTO skill_demonstrations (skill_id, demonstration)
+SELECT id, unnest(string_to_array(demonstrations, ',')) as demonstration
+FROM skills 
+WHERE demonstrations IS NOT NULL AND demonstrations != '';
+
+-- Drop the old demonstrations column
+ALTER TABLE skills DROP COLUMN IF EXISTS demonstrations;
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_skill_demonstrations_skill_master_id ON skill_demonstrations(skill_master_id);
+CREATE INDEX IF NOT EXISTS idx_skill_demonstrations_skill_id ON skill_demonstrations(skill_id);
 CREATE INDEX IF NOT EXISTS idx_skill_demonstrations_job_role_id ON skill_demonstrations(job_role_id);
 CREATE INDEX IF NOT EXISTS idx_skills_master_category_id ON skills_master(category_id);
 

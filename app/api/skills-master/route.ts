@@ -1,100 +1,78 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
 import { createAuditLog } from "@/lib/audit"
-import { z } from "zod"
 
-const skillMasterSchema = z.object({
-  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
-  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
-  categoryId: z.number().int().positive("Invalid category"),
-  sortOrder: z.number().int().min(0).optional(),
-})
+// Demo skills master data
+const demoSkillsMaster = [
+  {
+    id: 1,
+    name: "JavaScript",
+    category: "Programming",
+    description: "Modern JavaScript development",
+    created_at: new Date(),
+  },
+  { id: 2, name: "React", category: "Frontend", description: "React.js framework", created_at: new Date() },
+  { id: 3, name: "Node.js", category: "Backend", description: "Server-side JavaScript", created_at: new Date() },
+  { id: 4, name: "Python", category: "Programming", description: "Python programming", created_at: new Date() },
+  { id: 5, name: "SQL", category: "Database", description: "Database management", created_at: new Date() },
+]
 
-const skillDemonstrationSchema = z.object({
-  skillMasterId: z.number().int().positive("Invalid skill"),
-  jobRoleId: z.number().int().positive("Invalid job role"),
-  level: z.string().regex(/^[A-Z]\d+$/, "Level must be in format like L1, L2, M1, M2, etc."),
-  demonstrationDescription: z
-    .string()
-    .min(1, "Demonstration description is required")
-    .max(2000, "Description too long"),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-// Get all master skills
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    await requireAdmin()
-
-    const { searchParams } = new URL(request.url)
-    const categoryId = searchParams.get("categoryId")
-
-    let query
-    if (categoryId) {
-      query = sql`
-        SELECT 
-          sm.*,
-          sc.name as category_name,
-          sc.color as category_color,
-          COUNT(sd.id) as demonstration_count
-        FROM skills_master sm
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        LEFT JOIN skill_demonstrations sd ON sm.id = sd.skill_master_id
-        WHERE sm.category_id = ${Number.parseInt(categoryId)}
-        GROUP BY sm.id, sc.name, sc.color
-        ORDER BY sm.sort_order, sm.name
+    if (isDatabaseConfigured()) {
+      const skills = await sql!`
+        SELECT * FROM skills_master ORDER BY category, name
       `
-    } else {
-      query = sql`
-        SELECT 
-          sm.*,
-          sc.name as category_name,
-          sc.color as category_color,
-          COUNT(sd.id) as demonstration_count
-        FROM skills_master sm
-        JOIN skill_categories sc ON sm.category_id = sc.id
-        LEFT JOIN skill_demonstrations sd ON sm.id = sd.skill_master_id
-        GROUP BY sm.id, sc.name, sc.color
-        ORDER BY sc.sort_order, sm.sort_order, sm.name
-      `
+      return NextResponse.json(skills)
     }
 
-    const skills = await query
-    return NextResponse.json(skills)
+    // Fallback to demo data
+    return NextResponse.json(demoSkillsMaster)
   } catch (error) {
-    console.error("Get master skills error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Get skills master error:", error)
+    return NextResponse.json(demoSkillsMaster)
   }
 }
 
-// Create new master skill
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAdmin()
+    const user = await getCurrentUser()
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
-    const skillData = skillMasterSchema.parse(body)
+    const { name, category, description } = body
 
-    const result = await sql`
-      INSERT INTO skills_master (name, category_id, description, sort_order)
-      VALUES (${skillData.name}, ${skillData.categoryId}, ${skillData.description}, ${skillData.sortOrder || 0})
-      RETURNING *
-    `
+    if (!name || !category) {
+      return NextResponse.json({ error: "Name and category are required" }, { status: 400 })
+    }
 
-    const newSkill = result[0]
+    if (isDatabaseConfigured()) {
+      const newSkills = await sql!`
+        INSERT INTO skills_master (name, category, description)
+        VALUES (${name}, ${category}, ${description || ""})
+        RETURNING *
+      `
 
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: newSkill.id,
-      action: "CREATE",
-      newValues: skillData,
-    })
+      if (newSkills.length > 0) {
+        await createAuditLog(user.id, "CREATE", "skills_master", newSkills[0].id, null, newSkills[0])
+        return NextResponse.json(newSkills[0])
+      }
+    }
 
-    return NextResponse.json(newSkill, { status: 201 })
+    // Fallback response
+    const newSkill = {
+      id: Date.now(),
+      name,
+      category,
+      description: description || "",
+      created_at: new Date(),
+    }
+    return NextResponse.json(newSkill)
   } catch (error) {
-    console.error("Create master skill error:", error)
+    console.error("Create skill master error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

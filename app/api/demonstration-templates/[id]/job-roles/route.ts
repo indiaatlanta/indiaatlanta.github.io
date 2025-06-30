@@ -1,54 +1,65 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
-import { z } from "zod"
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
 
-const jobRoleLinksSchema = z.object({
-  jobRoleIds: z.array(z.number().int().positive()).min(1, "At least one job role is required"),
-})
-
-// Update job role links for a demonstration template
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await requireAdmin()
+    const templateId = Number.parseInt(params.id)
+
+    if (isDatabaseConfigured()) {
+      const jobRoles = await sql!`
+        SELECT jr.*, djr.is_required, djr.weight
+        FROM job_roles jr
+        JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
+        WHERE djr.demonstration_id = ${templateId}
+        ORDER BY jr.title
+      `
+
+      return NextResponse.json(jobRoles)
+    }
+
+    // Fallback to demo data
+    return NextResponse.json([])
+  } catch (error) {
+    console.error("Get demonstration job roles error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const templateId = Number.parseInt(params.id)
     const body = await request.json()
-    const { jobRoleIds } = jobRoleLinksSchema.parse(body)
+    const { job_role_id, is_required, weight } = body
 
-    // Get old links for audit
-    const oldLinks = await sql`
-      SELECT job_role_id FROM demonstration_job_roles 
-      WHERE demonstration_template_id = ${templateId}
-    `
+    if (!job_role_id) {
+      return NextResponse.json({ error: "Job role ID is required" }, { status: 400 })
+    }
 
-    // Start transaction
-    await sql.begin(async (sql) => {
-      // Remove existing links
-      await sql`DELETE FROM demonstration_job_roles WHERE demonstration_template_id = ${templateId}`
+    if (isDatabaseConfigured()) {
+      const newRelations = await sql!`
+        INSERT INTO demonstration_job_roles (demonstration_id, job_role_id, is_required, weight)
+        VALUES (${templateId}, ${job_role_id}, ${is_required || false}, ${weight || 1})
+        ON CONFLICT (demonstration_id, job_role_id) 
+        DO UPDATE SET 
+          is_required = EXCLUDED.is_required,
+          weight = EXCLUDED.weight
+        RETURNING *
+      `
 
-      // Add new links
-      for (const jobRoleId of jobRoleIds) {
-        await sql`
-          INSERT INTO demonstration_job_roles (demonstration_template_id, job_role_id, sort_order)
-          VALUES (${templateId}, ${jobRoleId}, 0)
-        `
+      if (newRelations.length > 0) {
+        return NextResponse.json(newRelations[0])
       }
-    })
+    }
 
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "demonstration_job_roles",
-      recordId: templateId,
-      action: "UPDATE",
-      oldValues: { job_role_ids: oldLinks.map((l) => l.job_role_id) },
-      newValues: { job_role_ids: jobRoleIds },
-    })
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ error: "Failed to create relation" }, { status: 500 })
   } catch (error) {
-    console.error("Update job role links error:", error)
+    console.error("Create demonstration job role relation error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

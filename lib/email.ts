@@ -1,18 +1,7 @@
 import { Resend } from "resend"
 
 // Initialize Resend with API key from environment variables
-let resend: Resend | null = null
-
-try {
-  if (process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY)
-    console.log("[EMAIL] Resend initialized successfully")
-  } else {
-    console.log("[EMAIL] RESEND_API_KEY not found in environment variables")
-  }
-} catch (error) {
-  console.error("[EMAIL] Failed to initialize Resend:", error)
-}
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export interface EmailOptions {
   to: string
@@ -26,15 +15,6 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions): Prom
     console.log(`[EMAIL] Attempting to send email to: ${to}`)
     console.log(`[EMAIL] Subject: ${subject}`)
     console.log(`[EMAIL] From: ${from || process.env.EMAIL_FROM || "noreply@henryscheinone.com"}`)
-
-    // Check if Resend is configured
-    if (!resend || !process.env.RESEND_API_KEY) {
-      console.log("[EMAIL] Resend not configured, falling back to console logging")
-      console.log(`[EMAIL] To: ${to}`)
-      console.log(`[EMAIL] Subject: ${subject}`)
-      console.log(`[EMAIL] HTML: ${html.substring(0, 200)}...`)
-      return false
-    }
 
     console.log("[EMAIL] Sending email via Resend...")
 
@@ -65,124 +45,42 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions): Prom
   }
 }
 
-export async function sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<boolean> {
-  console.log(`[EMAIL] Preparing password reset email for: ${email}`)
-
-  const subject = "Reset Your Password - Henry Schein One Career Matrix"
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Reset Your Password</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          background-color: #1e40af;
-          color: white;
-          padding: 20px;
-          text-align: center;
-          border-radius: 8px 8px 0 0;
-        }
-        .content {
-          background-color: #f9fafb;
-          padding: 30px;
-          border-radius: 0 0 8px 8px;
-          border: 1px solid #e5e7eb;
-          border-top: none;
-        }
-        .button {
-          display: inline-block;
-          background-color: #1e40af;
-          color: white;
-          padding: 12px 24px;
-          text-decoration: none;
-          border-radius: 6px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .footer {
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 14px;
-          color: #6b7280;
-        }
-        .warning {
-          background-color: #fef3c7;
-          border: 1px solid #f59e0b;
-          border-radius: 6px;
-          padding: 15px;
-          margin: 20px 0;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>🚀 Henry Schein One</h1>
-        <p>Career Development Matrix</p>
-      </div>
-      
-      <div class="content">
-        <h2>Reset Your Password</h2>
-        
-        <p>Hello ${name},</p>
-        
-        <p>We received a request to reset your password for the Henry Schein One Career Development Matrix. If you didn't make this request, you can safely ignore this email.</p>
-        
-        <p>To reset your password, click the button below:</p>
-        
-        <div style="text-align: center;">
-          <a href="${resetUrl}" class="button">Reset My Password</a>
-        </div>
-        
-        <p>Or copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace;">
-          ${resetUrl}
-        </p>
-        
-        <div class="warning">
-          <strong>⚠️ Important:</strong>
-          <ul>
-            <li>This link will expire in <strong>1 hour</strong></li>
-            <li>You can only use this link once</li>
-            <li>If you didn't request this reset, please contact your administrator</li>
-          </ul>
-        </div>
-        
-        <div class="footer">
-          <p>This email was sent from the Henry Schein One Career Development Matrix.</p>
-          <p>If you have any questions, please contact your system administrator.</p>
-          <p><strong>Do not reply to this email.</strong></p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  console.log(`[EMAIL] HTML email prepared (${html.length} characters)`)
+export async function sendPasswordResetEmail(email: string, resetToken: string) {
+  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`
 
   try {
-    const result = await sendEmail({
-      to: email,
-      subject,
-      html,
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "noreply@henryscheinone.com",
+      to: [email],
+      subject: "Reset Your Password - HS1 Careers Matrix",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Reset Your Password</h2>
+          <p>You requested to reset your password for the HS1 Careers Matrix.</p>
+          <p>Click the link below to reset your password:</p>
+          <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 16px 0;">
+            Reset Password
+          </a>
+          <p>If you didn't request this password reset, please ignore this email.</p>
+          <p>This link will expire in 1 hour.</p>
+          <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">
+            This email was sent from the HS1 Careers Matrix system.
+          </p>
+        </div>
+      `,
     })
 
-    console.log(`[EMAIL] Password reset email result: ${result}`)
-    return result
+    if (error) {
+      console.error("Email send error:", error)
+      return { success: false, error: error.message }
+    }
+
+    console.log("Password reset email sent:", data)
+    return { success: true, data }
   } catch (error) {
-    console.error("[EMAIL] Error in sendPasswordResetEmail:", error)
-    return false
+    console.error("Email service error:", error)
+    return { success: false, error: "Failed to send email" }
   }
 }
 

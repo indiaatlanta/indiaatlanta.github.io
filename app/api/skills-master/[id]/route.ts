@@ -1,105 +1,91 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth"
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
 import { createAuditLog } from "@/lib/audit"
-import { z } from "zod"
 
-const skillMasterSchema = z.object({
-  name: z.string().min(1, "Skill name is required").max(255, "Skill name too long"),
-  description: z.string().min(1, "Description is required").max(10000, "Description too long"),
-  categoryId: z.number().int().positive("Invalid category"),
-  sortOrder: z.number().int().min(0).optional(),
-})
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const skillId = Number.parseInt(params.id)
+
+    if (isDatabaseConfigured()) {
+      const skills = await sql!`
+        SELECT * FROM skills_master WHERE id = ${skillId}
+      `
+
+      if (skills.length > 0) {
+        return NextResponse.json(skills[0])
+      }
+    }
+
+    return NextResponse.json({ error: "Skill not found" }, { status: 404 })
+  } catch (error) {
+    console.error("Get skill master error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await requireAdmin()
-    const skillId = Number.parseInt(params.id)
-    const body = await request.json()
-    const skillData = skillMasterSchema.parse(body)
-
-    // Get old values for audit
-    const oldSkill = await sql`
-      SELECT * FROM skills_master WHERE id = ${skillId}
-    `
-
-    if (oldSkill.length === 0) {
-      return NextResponse.json({ error: "Skill not found" }, { status: 404 })
+    const user = await getCurrentUser()
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const result = await sql`
-      UPDATE skills_master 
-      SET 
-        name = ${skillData.name},
-        category_id = ${skillData.categoryId},
-        description = ${skillData.description},
-        sort_order = ${skillData.sortOrder || 0},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${skillId}
-      RETURNING *
-    `
+    const skillId = Number.parseInt(params.id)
+    const body = await request.json()
+    const { name, category, description } = body
 
-    const updatedSkill = result[0]
+    if (isDatabaseConfigured()) {
+      const oldSkills = await sql!`SELECT * FROM skills_master WHERE id = ${skillId}`
+      const oldSkill = oldSkills[0]
 
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: skillId,
-      action: "UPDATE",
-      oldValues: oldSkill[0],
-      newValues: skillData,
-    })
+      const updatedSkills = await sql!`
+        UPDATE skills_master 
+        SET name = ${name}, category = ${category}, description = ${description},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${skillId}
+        RETURNING *
+      `
 
-    return NextResponse.json(updatedSkill)
+      if (updatedSkills.length > 0) {
+        await createAuditLog(user.id, "UPDATE", "skills_master", skillId, oldSkill, updatedSkills[0])
+        return NextResponse.json(updatedSkills[0])
+      }
+    }
+
+    return NextResponse.json({ error: "Skill not found" }, { status: 404 })
   } catch (error) {
-    console.error("Update master skill error:", error)
+    console.error("Update skill master error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await requireAdmin()
+    const user = await getCurrentUser()
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const skillId = Number.parseInt(params.id)
 
-    // Get skill data for audit
-    const skill = await sql`
-      SELECT * FROM skills_master WHERE id = ${skillId}
-    `
+    if (isDatabaseConfigured()) {
+      const oldSkills = await sql!`SELECT * FROM skills_master WHERE id = ${skillId}`
+      const oldSkill = oldSkills[0]
 
-    if (skill.length === 0) {
-      return NextResponse.json({ error: "Skill not found" }, { status: 404 })
+      const deletedSkills = await sql!`
+        DELETE FROM skills_master WHERE id = ${skillId} RETURNING *
+      `
+
+      if (deletedSkills.length > 0) {
+        await createAuditLog(user.id, "DELETE", "skills_master", skillId, oldSkill, null)
+        return NextResponse.json({ success: true })
+      }
     }
 
-    // Check if skill has demonstrations
-    const demonstrations = await sql`
-      SELECT COUNT(*) as count FROM skill_demonstrations WHERE skill_master_id = ${skillId}
-    `
-
-    if (demonstrations[0].count > 0) {
-      return NextResponse.json(
-        {
-          error: "Cannot delete skill with existing demonstrations. Delete demonstrations first.",
-        },
-        { status: 400 },
-      )
-    }
-
-    await sql`DELETE FROM skills_master WHERE id = ${skillId}`
-
-    // Create audit log
-    await createAuditLog({
-      userId: user.id,
-      tableName: "skills_master",
-      recordId: skillId,
-      action: "DELETE",
-      oldValues: skill[0],
-    })
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ error: "Skill not found" }, { status: 404 })
   } catch (error) {
-    console.error("Delete master skill error:", error)
+    console.error("Delete skill master error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
