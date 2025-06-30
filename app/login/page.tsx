@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,10 +24,11 @@ export default function LoginPage() {
 
   const checkDatabaseStatus = async () => {
     try {
-      const response = await fetch("/api/skills")
+      const response = await fetch("/api/skills?checkOnly=true")
       const data = await response.json()
-      setIsDemoMode(data.isDemoMode)
+      setIsDemoMode(data.isDemoMode || false)
     } catch (error) {
+      console.error("Error checking database status:", error)
       setIsDemoMode(true)
     }
   }
@@ -51,10 +51,12 @@ export default function LoginPage() {
 
       if (response.ok) {
         router.push("/")
+        router.refresh()
       } else {
         setError(data.error || "Login failed")
       }
     } catch (error) {
+      console.error("Login error:", error)
       setError("Network error. Please try again.")
     } finally {
       setLoading(false)
@@ -63,8 +65,8 @@ export default function LoginPage() {
 
   const handleDemoLogin = async (userType: "admin" | "user") => {
     const demoCredentials = {
-      admin: { email: "admin@demo.com", password: "admin123" },
-      user: { email: "user@demo.com", password: "user123" },
+      admin: { email: "admin@henryscheinone.com", password: "admin123" },
+      user: { email: "user@henryscheinone.com", password: "user123" },
     }
 
     const creds = demoCredentials[userType]
@@ -88,10 +90,12 @@ export default function LoginPage() {
 
       if (response.ok) {
         router.push("/")
+        router.refresh()
       } else {
         setError(data.error || "Demo login failed")
       }
     } catch (error) {
+      console.error("Demo login error:", error)
       setError("Network error. Please try again.")
     } finally {
       setLoading(false)
@@ -181,7 +185,7 @@ export default function LoginPage() {
                     disabled={loading}
                   >
                     <User className="h-4 w-4 mr-2" />
-                    Admin Demo (admin@demo.com)
+                    Admin Demo (admin@henryscheinone.com)
                   </Button>
                   <Button
                     variant="outline"
@@ -190,7 +194,7 @@ export default function LoginPage() {
                     disabled={loading}
                   >
                     <User className="h-4 w-4 mr-2" />
-                    User Demo (user@demo.com)
+                    User Demo (user@henryscheinone.com)
                   </Button>
                 </div>
               </div>
@@ -199,7 +203,7 @@ export default function LoginPage() {
             {!isDemoMode && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  Demo credentials: admin@demo.com / admin123 or user@demo.com / user123
+                  Demo credentials: admin@henryscheinone.com / admin123 or user@henryscheinone.com / user123
                 </p>
               </div>
             )}

@@ -1,15 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 import { requireAdmin } from "@/lib/auth"
 import { skillSchema } from "@/lib/validation"
 import { createAuditLog } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin()
-
     const { searchParams } = new URL(request.url)
     const jobRoleId = searchParams.get("jobRoleId")
+    const checkOnly = searchParams.get("checkOnly") // New parameter for database status check
+
+    // If this is just a database status check, don't require auth
+    if (checkOnly === "true") {
+      if (!isDatabaseConfigured() || !sql) {
+        return NextResponse.json({ isDemoMode: true })
+      }
+
+      try {
+        // Simple query to test database connectivity
+        await sql`SELECT 1`
+        return NextResponse.json({ isDemoMode: false })
+      } catch (error) {
+        return NextResponse.json({ isDemoMode: true })
+      }
+    }
+
+    // For actual skills queries, require admin auth
+    await requireAdmin()
 
     let query
     if (jobRoleId) {

@@ -1,99 +1,78 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
-import bcrypt from "bcryptjs"
-import { v4 as uuidv4 } from "uuid"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql, isDatabaseConfigured } from "@/lib/db"
+import { verifyPassword, createSession } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
 
-    // Check if database is available
-    let isDemoMode = false
-    let user = null
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+    }
 
+    // Check if database is configured
+    if (!isDatabaseConfigured() || !sql) {
+      // Demo mode - check against hardcoded credentials
+      const demoUsers = {
+        "admin@henryscheinone.com": { id: 1, name: "Demo Admin", role: "admin", password: "admin123" },
+        "user@henryscheinone.com": { id: 2, name: "Demo User", role: "user", password: "user123" },
+      }
+
+      const demoUser = demoUsers[email as keyof typeof demoUsers]
+      if (!demoUser || demoUser.password !== password) {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
+
+      // Create demo session
+      await createSession(demoUser.id)
+
+      return NextResponse.json({
+        user: {
+          id: demoUser.id,
+          email,
+          name: demoUser.name,
+          role: demoUser.role,
+        },
+      })
+    }
+
+    // Database mode - query actual users table
     try {
-      // Try to query the database
       const users = await sql`
-        SELECT id, name, email, password_hash, role, created_at 
-        FROM users 
+        SELECT id, email, name, role, password_hash, active
+        FROM users
         WHERE email = ${email} AND active = true
       `
 
-      if (users.length > 0) {
-        const dbUser = users[0]
-        const isValidPassword = await bcrypt.compare(password, dbUser.password_hash)
-
-        if (isValidPassword) {
-          user = {
-            id: dbUser.id,
-            name: dbUser.name,
-            email: dbUser.email,
-            role: dbUser.role,
-          }
-        }
+      if (users.length === 0) {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
+
+      const user = users[0]
+
+      // Verify password
+      const isValidPassword = await verifyPassword(password, user.password_hash)
+      if (!isValidPassword) {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
+
+      // Create session
+      await createSession(user.id)
+
+      return NextResponse.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+      })
     } catch (dbError) {
-      console.log("Database unavailable, checking demo credentials")
-      isDemoMode = true
-
-      // Demo credentials
-      const demoUsers = [
-        { id: "demo-admin", name: "Admin User", email: "admin@demo.com", password: "admin123", role: "admin" },
-        { id: "demo-user", name: "Demo User", email: "user@demo.com", password: "user123", role: "user" },
-      ]
-
-      const demoUser = demoUsers.find((u) => u.email === email && u.password === password)
-      if (demoUser) {
-        user = {
-          id: demoUser.id,
-          name: demoUser.name,
-          email: demoUser.email,
-          role: demoUser.role,
-        }
-      }
+      console.error("Database login error:", dbError)
+      return NextResponse.json({ error: "Login failed" }, { status: 500 })
     }
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-    }
-
-    // Create session
-    const sessionToken = uuidv4()
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-
-    if (!isDemoMode) {
-      try {
-        // Store session in database
-        await sql`
-          INSERT INTO user_sessions (id, user_id, expires_at, created_at)
-          VALUES (${sessionToken}, ${user.id}, ${expiresAt}, NOW())
-        `
-      } catch (sessionError) {
-        console.error("Failed to create database session:", sessionError)
-        // Continue with demo mode session
-        isDemoMode = true
-      }
-    }
-
-    // Set session cookie
-    const response = NextResponse.json({
-      success: true,
-      user,
-      isDemoMode,
-    })
-
-    response.cookies.set("session", sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      expires: expiresAt,
-    })
-
-    return response
   } catch (error) {
     console.error("Login error:", error)
-    return NextResponse.json({ error: "Login failed" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
