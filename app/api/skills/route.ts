@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = Number.parseInt(searchParams.get("limit") || "10")
@@ -9,24 +9,31 @@ export async function GET(request: Request) {
     if (isDatabaseConfigured()) {
       try {
         const skills = await sql!`
-          SELECT id, name, category, level, description
-          FROM skills
-          ORDER BY created_at DESC
+          SELECT 
+            s.id,
+            s.name,
+            s.category,
+            s.level,
+            s.description
+          FROM skills s
+          ORDER BY s.created_at DESC
           LIMIT ${limit}
         `
+
+        const total = await sql!`SELECT COUNT(*) as count FROM skills`
 
         return NextResponse.json({
           skills: skills.map((skill) => ({
             id: skill.id,
             name: skill.name,
             category: skill.category,
-            level: skill.level || 3,
+            level: skill.level,
             description: skill.description,
           })),
-          total: skills.length,
+          total: total[0].count,
         })
       } catch (error) {
-        console.error("Database error fetching skills:", error)
+        console.error("Database error:", error)
         // Fall through to demo data
       }
     }
@@ -68,14 +75,14 @@ export async function GET(request: Request) {
         level: 3,
         description: "Managing projects and teams",
       },
-    ].slice(0, limit)
+    ]
 
     return NextResponse.json({
-      skills: demoSkills,
-      total: demoSkills.length,
+      skills: demoSkills.slice(0, limit),
+      total: 195,
     })
   } catch (error) {
-    console.error("Error fetching skills:", error)
+    console.error("Skills API error:", error)
     return NextResponse.json({ error: "Failed to fetch skills" }, { status: 500 })
   }
 }

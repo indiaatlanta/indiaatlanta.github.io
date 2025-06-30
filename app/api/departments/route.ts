@@ -15,7 +15,7 @@ export async function GET() {
             COUNT(DISTINCT s.id) as total_skills
           FROM departments d
           LEFT JOIN job_roles jr ON d.id = jr.department_id
-          LEFT JOIN role_skills rs ON jr.id = rs.job_role_id
+          LEFT JOIN role_skills rs ON jr.id = rs.role_id
           LEFT JOIN skills s ON rs.skill_id = s.id
           GROUP BY d.id, d.name, d.slug, d.description
           ORDER BY d.name
@@ -27,12 +27,12 @@ export async function GET() {
             name: dept.name,
             slug: dept.slug,
             description: dept.description,
-            skillCount: Number.parseInt(dept.total_skills) || 0,
-            roleCount: Number.parseInt(dept.total_roles) || 0,
+            total_roles: dept.total_roles,
+            total_skills: dept.total_skills,
           })),
         })
       } catch (error) {
-        console.error("Database error fetching departments:", error)
+        console.error("Database error:", error)
         // Fall through to demo data
       }
     }
@@ -44,54 +44,54 @@ export async function GET() {
         name: "Engineering",
         slug: "engineering",
         description: "Software development and technical roles",
-        skillCount: 45,
-        roleCount: 12,
+        total_roles: 12,
+        total_skills: 45,
       },
       {
         id: 2,
         name: "Product Management",
         slug: "product-management",
         description: "Product strategy and management roles",
-        skillCount: 32,
-        roleCount: 8,
+        total_roles: 8,
+        total_skills: 32,
       },
       {
         id: 3,
         name: "Design",
         slug: "design",
         description: "UX/UI design and creative roles",
-        skillCount: 28,
-        roleCount: 6,
+        total_roles: 6,
+        total_skills: 28,
       },
       {
         id: 4,
         name: "Data Science",
         slug: "data-science",
         description: "Analytics and data-driven roles",
-        skillCount: 38,
-        roleCount: 5,
+        total_roles: 5,
+        total_skills: 38,
       },
       {
         id: 5,
         name: "Marketing",
         slug: "marketing",
         description: "Marketing and growth roles",
-        skillCount: 25,
-        roleCount: 7,
+        total_roles: 10,
+        total_skills: 25,
       },
       {
         id: 6,
         name: "Sales",
         slug: "sales",
         description: "Sales and business development roles",
-        skillCount: 22,
-        roleCount: 9,
+        total_roles: 7,
+        total_skills: 22,
       },
     ]
 
     return NextResponse.json({ departments: demoDepartments })
   } catch (error) {
-    console.error("Error fetching departments:", error)
+    console.error("Departments API error:", error)
     return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
   }
 }

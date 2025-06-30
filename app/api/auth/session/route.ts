@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const user = await getCurrentUser()
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ user })
   } catch (error) {
-    console.error("Session check error:", error)
+    console.error("Session API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

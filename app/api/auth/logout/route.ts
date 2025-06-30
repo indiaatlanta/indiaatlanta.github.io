@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { deleteSession } from "@/lib/auth"
+import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionCookie = request.cookies.get("session")
+    const cookieStore = await cookies()
+    const sessionId = cookieStore.get("session")?.value
 
-    if (sessionCookie?.value) {
-      await deleteSession(sessionCookie.value)
+    if (sessionId) {
+      await deleteSession(sessionId)
     }
 
     const response = NextResponse.json({ success: true })
