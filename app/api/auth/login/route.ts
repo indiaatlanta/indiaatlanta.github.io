@@ -1,25 +1,44 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyPassword, createSession } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import { verifyPassword, createSession } from "@/lib/auth"
+import { loginSchema } from "@/lib/validation"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const { email, password } = loginSchema.parse(body)
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
-    }
-
-    // If database is not configured, use demo credentials
+    // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
-      // Demo mode - accept any credentials and create a demo session
-      const sessionId = await createSession(1) // Demo user ID
-      return NextResponse.json({ success: true })
+      // In demo mode, allow login with demo credentials
+      if (email === "admin@henryscheinone.com" && password === "admin123") {
+        // Return success for demo mode
+        return NextResponse.json({
+          user: {
+            id: 1,
+            email: "admin@henryscheinone.com",
+            name: "Demo Admin",
+            role: "admin",
+          },
+        })
+      } else if (email === "user@henryscheinone.com" && password === "user123") {
+        // Return success for demo user
+        return NextResponse.json({
+          user: {
+            id: 2,
+            email: "user@henryscheinone.com",
+            name: "Demo User",
+            role: "user",
+          },
+        })
+      } else {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
     }
 
-    // Find user by email
+    // Find user by email in database
     const users = await sql`
-      SELECT id, email, name, role, password_hash
+      SELECT id, email, password_hash, name, role
       FROM users
       WHERE email = ${email}
     `
@@ -39,7 +58,14 @@ export async function POST(request: NextRequest) {
     // Create session
     await createSession(user.id)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    })
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

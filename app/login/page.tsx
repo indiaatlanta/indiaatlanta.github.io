@@ -1,7 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
 import type React from "react"
-
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -19,13 +18,14 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if we're in demo mode
+    // Check if we're in demo mode by testing database connectivity
     const checkDemoMode = async () => {
       try {
         const response = await fetch("/api/roles")
         const data = await response.json()
-        setIsDemoMode(data.isDemoMode)
+        setIsDemoMode(data.isDemoMode || false)
       } catch (error) {
+        console.error("Error checking demo mode:", error)
         setIsDemoMode(true)
       }
     }
@@ -47,6 +47,8 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
+        const data = await response.json()
+        console.log("Login successful:", data)
         router.push("/")
         router.refresh()
       } else {
@@ -54,6 +56,7 @@ export default function LoginPage() {
         setError(data.error || "Login failed")
       }
     } catch (error) {
+      console.error("Login error:", error)
       setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
@@ -61,9 +64,16 @@ export default function LoginPage() {
   }
 
   const handleDemoLogin = () => {
-    // Set a demo session cookie and redirect
-    document.cookie = "session=demo-session; path=/; max-age=86400" // 24 hours
-    router.push("/")
+    // Set demo credentials and submit
+    setEmail("user@henryscheinone.com")
+    setPassword("user123")
+    // Trigger form submission programmatically
+    setTimeout(() => {
+      const form = document.getElementById("login-form") as HTMLFormElement
+      if (form) {
+        form.requestSubmit()
+      }
+    }, 100)
   }
 
   return (
@@ -85,7 +95,7 @@ export default function LoginPage() {
               <div className="text-center">
                 <h3 className="font-medium text-blue-900 mb-2">Demo Mode Active</h3>
                 <p className="text-sm text-blue-800 mb-4">
-                  Database is not configured. You can access the career matrix directly in demo mode.
+                  Database is not configured. You can access the career matrix with demo credentials.
                 </p>
                 <Button onClick={handleDemoLogin} className="w-full bg-blue-600 hover:bg-blue-700">
                   Access Career Matrix (Demo)
@@ -101,7 +111,7 @@ export default function LoginPage() {
             <CardTitle>Sign In</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form id="login-form" onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -136,11 +146,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-brand-600 hover:bg-brand-700"
-                disabled={isLoading || isDemoMode}
-              >
+              <Button type="submit" className="w-full bg-brand-600 hover:bg-brand-700" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
@@ -155,19 +161,20 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Demo Credentials - only show if not in demo mode */}
-        {!isDemoMode && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="pt-6">
-              <h3 className="font-medium text-blue-900 mb-2">Demo Credentials</h3>
-              <p className="text-sm text-blue-800">
-                Email: admin@henryscheinone.com
-                <br />
-                Password: admin123
+        {/* Demo Credentials */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-6">
+            <h3 className="font-medium text-blue-900 mb-2">Demo Credentials</h3>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>
+                <strong>Admin:</strong> admin@henryscheinone.com / admin123
               </p>
-            </CardContent>
-          </Card>
-        )}
+              <p>
+                <strong>User:</strong> user@henryscheinone.com / user123
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

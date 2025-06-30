@@ -1,12 +1,21 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { deleteSession } from "@/lib/auth"
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     await deleteSession()
-    return NextResponse.redirect(new URL("/login", request.url))
+
+    // Create response and clear session cookie
+    const response = NextResponse.redirect(new URL("/login", process.env.NEXTAUTH_URL || "http://localhost:3000"))
+    response.cookies.delete("session")
+
+    return response
   } catch (error) {
     console.error("Logout error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Logout failed" }, { status: 500 })
   }
+}
+
+export async function GET() {
+  return POST()
 }

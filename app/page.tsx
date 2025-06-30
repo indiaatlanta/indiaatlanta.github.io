@@ -1,275 +1,230 @@
-import Link from "next/link"
-import { ArrowRight, Users, Target, TrendingUp, Rocket, Settings, LogOut } from "lucide-react"
-import { getSession } from "@/lib/auth"
+import { requireAuth } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import Image from "next/image"
-import { redirect } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
+import Image from "next/image"
+import { Users, Target, TrendingUp, Award } from "lucide-react"
 
-// Force dynamic rendering since we use cookies and database
-export const dynamic = "force-dynamic"
+// Mock data for when database is not available
+const mockDepartments = [
+  {
+    id: 1,
+    name: "Engineering",
+    slug: "engineering",
+    description: "Software development and technical roles",
+    color: "bg-blue-500",
+    role_count: 8,
+    skill_count: 45,
+  },
+  {
+    id: 2,
+    name: "Product",
+    slug: "product",
+    description: "Product management and strategy roles",
+    color: "bg-green-500",
+    role_count: 5,
+    skill_count: 32,
+  },
+  {
+    id: 3,
+    name: "Design",
+    slug: "design",
+    description: "User experience and visual design roles",
+    color: "bg-purple-500",
+    role_count: 4,
+    skill_count: 28,
+  },
+  {
+    id: 4,
+    name: "Sales",
+    slug: "sales",
+    description: "Sales and business development roles",
+    color: "bg-orange-500",
+    role_count: 6,
+    skill_count: 35,
+  },
+]
 
 async function getDepartments() {
   if (!isDatabaseConfigured() || !sql) {
-    // Return mock data for demo mode
-    return [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical innovation",
-        role_count: 5,
-        skill_count: 45,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product strategy and user experience",
-        role_count: 4,
-        skill_count: 32,
-      },
-      {
-        id: 3,
-        name: "Design",
-        slug: "design",
-        description: "User interface and experience design",
-        role_count: 3,
-        skill_count: 28,
-      },
-    ]
+    return { departments: mockDepartments, isDemoMode: true }
   }
 
   try {
     const departments = await sql`
-    SELECT 
-      d.id,
-      d.name,
-      d.slug,
-      d.description,
-      COUNT(DISTINCT jr.id) as role_count,
-      COUNT(DISTINCT sm.id) as skill_count
-    FROM departments d
-    LEFT JOIN job_roles jr ON d.id = jr.department_id
-    LEFT JOIN demonstration_job_roles djr ON jr.id = djr.job_role_id
-    LEFT JOIN demonstration_templates dt ON djr.demonstration_template_id = dt.id
-    LEFT JOIN skills_master sm ON dt.skill_master_id = sm.id
-    GROUP BY d.id, d.name, d.slug, d.description
-    ORDER BY d.name
-  `
-
-    return departments.map((dept: any) => ({
-      ...dept,
-      role_count: Number(dept.role_count),
-      skill_count: Number(dept.skill_count),
-    }))
+      SELECT 
+        d.id,
+        d.name,
+        d.slug,
+        d.description,
+        d.color,
+        COUNT(DISTINCT jr.id) as role_count,
+        COUNT(DISTINCT sm.id) as skill_count
+      FROM departments d
+      LEFT JOIN job_roles jr ON d.id = jr.department_id
+      LEFT JOIN skills_master sm ON d.id = sm.department_id
+      GROUP BY d.id, d.name, d.slug, d.description, d.color
+      ORDER BY d.name
+    `
+    return { departments, isDemoMode: false }
   } catch (error) {
     console.error("Error fetching departments:", error)
-    // Return mock data as fallback
-    return [
-      {
-        id: 1,
-        name: "Engineering",
-        slug: "engineering",
-        description: "Software development and technical innovation",
-        role_count: 5,
-        skill_count: 45,
-      },
-      {
-        id: 2,
-        name: "Product",
-        slug: "product",
-        description: "Product strategy and user experience",
-        role_count: 4,
-        skill_count: 32,
-      },
-      {
-        id: 3,
-        name: "Design",
-        slug: "design",
-        description: "User interface and experience design",
-        role_count: 3,
-        skill_count: 28,
-      },
-    ]
+    return { departments: mockDepartments, isDemoMode: true }
   }
 }
 
-async function LogoutButton() {
-  return (
-    <form action="/api/auth/logout" method="POST" className="inline">
-      <Button variant="ghost" size="sm" className="text-white hover:bg-brand-700 h-8">
-        <LogOut className="w-4 h-4 mr-2" />
-        Logout
-      </Button>
-    </form>
-  )
-}
-
-export default async function Home() {
-  let session = null
-  let isAdmin = false
-
-  try {
-    session = await getSession()
-
-    // If no session, redirect to login
-    if (!session) {
-      redirect("/login")
-    }
-
-    isAdmin = session?.user?.role === "admin"
-  } catch (error) {
-    console.error("Error getting session:", error)
-    // Redirect to login on error
-    redirect("/login")
-  }
-
-  const departments = await getDepartments()
+export default async function HomePage() {
+  const user = await requireAuth()
+  const { departments, isDemoMode } = await getDepartments()
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-brand-800 px-4 py-3">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
-              <Rocket className="w-4 h-4 text-white" />
-              <span className="text-white text-sm">Career Matrix</span>
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="h-10 w-auto" />
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Career Matrix</h1>
+                <p className="text-sm text-gray-500">Henry Schein One</p>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              {session && (
-                <div className="flex items-center gap-2 text-white text-sm">
-                  <span>Welcome, {session.user.name}</span>
-                  {session.user.role === "admin" && (
-                    <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-xs font-medium">Admin</span>
-                  )}
-                </div>
-              )}
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="bg-brand-100 text-brand-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-brand-200 transition-colors flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  Admin Panel
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-700">Welcome, {user.name}</span>
+              {user.role === "admin" && (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm">
+                    Admin Panel
+                  </Button>
                 </Link>
               )}
-              <LogoutButton />
+              <form action="/api/auth/logout" method="POST">
+                <Button type="submit" variant="outline" size="sm">
+                  Logout
+                </Button>
+              </form>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Hero Section */}
-      <div className="bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-16">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Henry Schein One Career Matrix</h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Explore career paths, understand skill requirements, and plan your professional development journey with
-              our comprehensive career framework.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/self-review"
-                className="bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors flex items-center gap-2"
-              >
-                <Target className="w-5 h-5" />
-                Start Self Assessment
-              </Link>
-              <Link
-                href="/compare"
-                className="bg-white text-brand-600 border border-brand-600 px-6 py-3 rounded-lg font-medium hover:bg-brand-50 transition-colors flex items-center gap-2"
-              >
-                <TrendingUp className="w-5 h-5" />
-                Compare Roles
-              </Link>
+      {/* Database Status Banner */}
+      {isDemoMode && (
+        <div className="bg-blue-50 border-b border-blue-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="flex items-center justify-center space-x-2">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-sm font-medium">
+                Demo Mode
+              </Badge>
+              <span className="text-blue-800 text-sm">Database not configured - showing sample data</span>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Departments Grid */}
-      <div className="max-w-6xl mx-auto px-4 py-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore by Department</h2>
-          <p className="text-lg text-gray-600">
-            Browse career paths and skill requirements across different departments
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Explore Your Career Path</h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+            Discover roles, assess your skills, and plan your professional development journey at Henry Schein One.
           </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {departments.map((department) => (
-            <Link
-              key={department.id}
-              href={`/department/${department.slug}`}
-              className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-6 group"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-900 group-hover:text-brand-600 transition-colors">
-                  {department.name}
-                </h3>
-                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-brand-600 transition-colors" />
-              </div>
-              <p className="text-gray-600 mb-6">{department.description}</p>
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1 text-gray-500">
-                  <Users className="w-4 h-4" />
-                  <span>{department.role_count} Roles</span>
-                </div>
-                <div className="flex items-center gap-1 text-gray-500">
-                  <Target className="w-4 h-4" />
-                  <span>{department.skill_count} Skills</span>
-                </div>
-              </div>
+          <div className="flex justify-center space-x-4">
+            <Link href="/self-review">
+              <Button size="lg" className="bg-brand-600 hover:bg-brand-700">
+                Start Self Assessment
+              </Button>
             </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div className="bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Career Development Tools</h2>
-            <p className="text-lg text-gray-600">Everything you need to plan and track your career growth</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Target className="w-8 h-8 text-brand-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Self Assessment</h3>
-              <p className="text-gray-600">
-                Evaluate your current skills against role requirements and identify areas for development.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-8 h-8 text-brand-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Role Comparison</h3>
-              <p className="text-gray-600">
-                Compare different roles to understand career progression paths and skill requirements.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-brand-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-brand-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Skills Matrix</h3>
-              <p className="text-gray-600">
-                Explore comprehensive skill frameworks for each department and role level.
-              </p>
-            </div>
+            <Link href="/compare">
+              <Button size="lg" variant="outline">
+                Compare Roles
+              </Button>
+            </Link>
           </div>
         </div>
-      </div>
+
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <Target className="h-12 w-12 text-brand-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Skill Assessment</h3>
+              <p className="text-gray-600 text-sm">Evaluate your current skills and identify areas for growth</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <Users className="h-12 w-12 text-brand-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Role Comparison</h3>
+              <p className="text-gray-600 text-sm">Compare different roles to understand career progression paths</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <TrendingUp className="h-12 w-12 text-brand-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Career Planning</h3>
+              <p className="text-gray-600 text-sm">Plan your development journey with clear skill requirements</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <Award className="h-12 w-12 text-brand-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Track Progress</h3>
+              <p className="text-gray-600 text-sm">Monitor your skill development and career advancement</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Departments Grid */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Explore by Department</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {departments.map((dept) => (
+              <Link key={dept.id} href={`/department/${dept.slug}`}>
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader className="pb-3">
+                    <div className={`w-12 h-12 rounded-lg ${dept.color} flex items-center justify-center mb-3`}>
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-lg">{dept.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 text-sm mb-4">{dept.description}</p>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>{dept.role_count} roles</span>
+                      <span>{dept.skill_count} skills</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        <div className="bg-brand-50 rounded-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to Start Your Journey?</h2>
+          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+            Take control of your career development. Assess your skills, explore new roles, and create a personalized
+            development plan.
+          </p>
+          <div className="flex justify-center space-x-4">
+            <Link href="/self-review">
+              <Button size="lg" className="bg-brand-600 hover:bg-brand-700">
+                Begin Assessment
+              </Button>
+            </Link>
+            <Link href="/compare">
+              <Button size="lg" variant="outline">
+                Explore Roles
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
