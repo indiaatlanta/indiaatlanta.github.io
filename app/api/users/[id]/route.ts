@@ -5,13 +5,17 @@ import bcrypt from "bcryptjs"
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getCurrentUser()
-
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Check if user is admin
+    const currentUser = await getCurrentUser()
+    if (!currentUser || currentUser.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     const userId = Number.parseInt(params.id)
+    if (isNaN(userId)) {
+      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
+    }
+
     const body = await request.json()
     const { name, email, role, password } = body
 
@@ -32,7 +36,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Invalid role" }, { status: 400 })
     }
 
+    // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
+      console.log("Database not configured, simulating user update")
       return NextResponse.json({
         message: "User updated successfully (Demo Mode)",
         user: { id: userId, name, email, role },
@@ -55,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       `
 
       if (emailCheck.length > 0) {
-        return NextResponse.json({ error: "Email already taken by another user" }, { status: 400 })
+        return NextResponse.json({ error: "Email is already taken by another user" }, { status: 400 })
       }
 
       // Check if name column exists
@@ -73,47 +79,61 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         const passwordHash = await bcrypt.hash(password, 12)
 
         if (hasNameColumn) {
-          updatedUser = await sql`
+          const result = await sql`
             UPDATE users 
-            SET name = ${name}, email = ${email}, role = ${role}, password_hash = ${passwordHash}
+            SET email = ${email}, name = ${name}, role = ${role}, password_hash = ${passwordHash}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ${userId}
-            RETURNING id, name, email, role, created_at
+            RETURNING id, email, name, role, created_at
           `
+          updatedUser = result[0]
         } else {
-          updatedUser = await sql`
+          const result = await sql`
             UPDATE users 
-            SET email = ${email}, role = ${role}, password_hash = ${passwordHash}
+            SET email = ${email}, role = ${role}, password_hash = ${passwordHash}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ${userId}
             RETURNING id, email, role, created_at
           `
-          updatedUser[0].name = name
+          updatedUser = {
+            ...result[0],
+            name: email
+              .split("@")[0]
+              .replace(/[._]/g, " ")
+              .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          }
         }
       } else {
         // Update without password
         if (hasNameColumn) {
-          updatedUser = await sql`
+          const result = await sql`
             UPDATE users 
-            SET name = ${name}, email = ${email}, role = ${role}
+            SET email = ${email}, name = ${name}, role = ${role}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ${userId}
-            RETURNING id, name, email, role, created_at
+            RETURNING id, email, name, role, created_at
           `
+          updatedUser = result[0]
         } else {
-          updatedUser = await sql`
+          const result = await sql`
             UPDATE users 
-            SET email = ${email}, role = ${role}
+            SET email = ${email}, role = ${role}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ${userId}
             RETURNING id, email, role, created_at
           `
-          updatedUser[0].name = name
+          updatedUser = {
+            ...result[0],
+            name: email
+              .split("@")[0]
+              .replace(/[._]/g, " ")
+              .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          }
         }
       }
 
       return NextResponse.json({
         message: "User updated successfully",
-        user: updatedUser[0],
+        user: updatedUser,
       })
     } catch (dbError) {
-      console.error("Database error:", dbError)
+      console.error("Database error updating user:", dbError)
       return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
     }
   } catch (error) {
@@ -124,20 +144,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getCurrentUser()
-
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Check if user is admin
+    const currentUser = await getCurrentUser()
+    if (!currentUser || currentUser.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     const userId = Number.parseInt(params.id)
+    if (isNaN(userId)) {
+      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
+    }
 
     // Prevent admin from deleting themselves
-    if (user.id === userId) {
+    if (currentUser.id === userId) {
       return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 })
     }
 
+    // Check if database is configured
     if (!isDatabaseConfigured() || !sql) {
+      console.log("Database not configured, simulating user deletion")
       return NextResponse.json({ message: "User deleted successfully (Demo Mode)" })
     }
 
@@ -152,11 +177,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       }
 
       // Delete user
-      await sql`DELETE FROM users WHERE id = ${userId}`
+      await sql`
+        DELETE FROM users WHERE id = ${userId}
+      `
 
       return NextResponse.json({ message: "User deleted successfully" })
     } catch (dbError) {
-      console.error("Database error:", dbError)
+      console.error("Database error deleting user:", dbError)
       return NextResponse.json({ error: "Failed to delete user" }, { status: 500 })
     }
   } catch (error) {

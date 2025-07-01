@@ -1,5 +1,3 @@
-"use client"
-
 import Link from "next/link"
 import { ArrowLeft, Users, Settings, Database } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"

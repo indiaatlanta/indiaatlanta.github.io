@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { UserPlus, Edit, Trash2, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { UserPlus, Edit, Trash2, Eye, EyeOff, Loader2 } from "lucide-react"
 
 interface User {
   id: number
-  name: string
   email: string
+  name: string
   role: string
   created_at?: string
   last_login?: string
@@ -26,8 +26,8 @@ export default function AdminClient() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showEditPassword, setShowEditPassword] = useState(false)
@@ -54,7 +54,6 @@ export default function AdminClient() {
     try {
       setLoading(true)
       const response = await fetch("/api/users")
-
       if (response.ok) {
         const data = await response.json()
         setUsers(data.users || [])
@@ -80,14 +79,13 @@ export default function AdminClient() {
         body: JSON.stringify(newUser),
       })
 
-      const data = await response.json()
-
       if (response.ok) {
         setSuccess("User created successfully")
         setNewUser({ name: "", email: "", role: "user", password: "" })
-        setShowCreateDialog(false)
+        setIsCreateDialogOpen(false)
         loadUsers()
       } else {
+        const data = await response.json()
         setError(data.error || "Failed to create user")
       }
     } catch (error) {
@@ -109,15 +107,14 @@ export default function AdminClient() {
         body: JSON.stringify(editUser),
       })
 
-      const data = await response.json()
-
       if (response.ok) {
         setSuccess("User updated successfully")
         setEditUser({ name: "", email: "", role: "user", password: "" })
+        setIsEditDialogOpen(false)
         setEditingUser(null)
-        setShowEditDialog(false)
         loadUsers()
       } else {
+        const data = await response.json()
         setError(data.error || "Failed to update user")
       }
     } catch (error) {
@@ -136,12 +133,11 @@ export default function AdminClient() {
         method: "DELETE",
       })
 
-      const data = await response.json()
-
       if (response.ok) {
         setSuccess("User deleted successfully")
         loadUsers()
       } else {
+        const data = await response.json()
         setError(data.error || "Failed to delete user")
       }
     } catch (error) {
@@ -157,7 +153,7 @@ export default function AdminClient() {
       role: user.role,
       password: "",
     })
-    setShowEditDialog(true)
+    setIsEditDialogOpen(true)
   }
 
   const formatDate = (dateString?: string) => {
@@ -166,11 +162,18 @@ export default function AdminClient() {
       year: "numeric",
       month: "short",
       day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     })
   }
 
   if (loading) {
-    return <div className="text-center py-8">Loading users...</div>
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <span className="ml-2">Loading users...</span>
+      </div>
+    )
   }
 
   return (
@@ -188,32 +191,33 @@ export default function AdminClient() {
       )}
 
       {/* Create User Button */}
-      <div className="flex justify-end">
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Users ({users.length})</h3>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2">
               <UserPlus className="w-4 h-4" />
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New User</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="create-name">Name</Label>
                 <Input
-                  id="name"
+                  id="create-name"
                   value={newUser.name}
                   onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="create-email">Email</Label>
                 <Input
-                  id="email"
+                  id="create-email"
                   type="email"
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
@@ -221,7 +225,7 @@ export default function AdminClient() {
                 />
               </div>
               <div>
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="create-role">Role</Label>
                 <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -233,10 +237,10 @@ export default function AdminClient() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="create-password">Password</Label>
                 <div className="relative">
                   <Input
-                    id="password"
+                    id="create-password"
                     type={showPassword ? "text" : "password"}
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
@@ -247,7 +251,7 @@ export default function AdminClient() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-auto p-1"
+                    className="absolute right-2 top-1/2 -translate-y-1/2"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -256,7 +260,7 @@ export default function AdminClient() {
               </div>
               <div className="flex gap-2 pt-4">
                 <Button type="submit">Create User</Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>
+                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancel
                 </Button>
               </div>
@@ -266,10 +270,10 @@ export default function AdminClient() {
       </div>
 
       {/* Users Table */}
-      <div className="rounded-md border">
+      <div className="border rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead>
-            <tr className="border-b bg-gray-50">
+          <thead className="bg-gray-50 border-b">
+            <tr>
               <th className="text-left p-4 font-medium">Name</th>
               <th className="text-left p-4 font-medium">Email</th>
               <th className="text-left p-4 font-medium">Role</th>
@@ -282,7 +286,7 @@ export default function AdminClient() {
             {users.map((user) => (
               <tr key={user.id} className="border-b hover:bg-gray-50">
                 <td className="p-4 font-medium">{user.name}</td>
-                <td className="p-4">{user.email}</td>
+                <td className="p-4 text-gray-600">{user.email}</td>
                 <td className="p-4">
                   <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
                 </td>
@@ -310,8 +314,8 @@ export default function AdminClient() {
       </div>
 
       {/* Edit User Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md">
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
@@ -361,7 +365,7 @@ export default function AdminClient() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-auto p-1"
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
                   onClick={() => setShowEditPassword(!showEditPassword)}
                 >
                   {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -370,7 +374,7 @@ export default function AdminClient() {
             </div>
             <div className="flex gap-2 pt-4">
               <Button type="submit">Update User</Button>
-              <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
             </div>

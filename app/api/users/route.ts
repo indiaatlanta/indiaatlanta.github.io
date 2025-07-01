@@ -52,7 +52,7 @@ export async function GET() {
     const user = await getCurrentUser()
 
     if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     if (!isDatabaseConfigured() || !sql) {
@@ -69,8 +69,8 @@ export async function GET() {
         AND column_name IN ('name', 'last_login')
       `
 
-      const hasNameColumn = columnCheck.some((col) => col.column_name === "name")
-      const hasLastLoginColumn = columnCheck.some((col) => col.column_name === "last_login")
+      const hasNameColumn = columnCheck.some((col: any) => col.column_name === "name")
+      const hasLastLoginColumn = columnCheck.some((col: any) => col.column_name === "last_login")
 
       let users
       if (hasNameColumn && hasLastLoginColumn) {
@@ -86,19 +86,19 @@ export async function GET() {
           ORDER BY created_at DESC
         `
       } else {
-        users = await sql`
-          SELECT id, email, 
-                 CASE 
-                   WHEN email LIKE 'admin%' THEN 'Admin User'
-                   WHEN email LIKE 'manager%' THEN 'Manager User'
-                   WHEN email LIKE 'john.smith%' THEN 'John Smith'
-                   WHEN email LIKE 'jane.doe%' THEN 'Jane Doe'
-                   ELSE INITCAP(SPLIT_PART(email, '@', 1))
-                 END as name,
-                 role, created_at, NULL as last_login
+        const basicUsers = await sql`
+          SELECT id, email, role, created_at
           FROM users
           ORDER BY created_at DESC
         `
+        users = basicUsers.map((user: any) => ({
+          ...user,
+          name: user.email
+            .split("@")[0]
+            .replace(/[._]/g, " ")
+            .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          last_login: null,
+        }))
       }
 
       return NextResponse.json({ users })
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser()
 
     if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     const body = await request.json()
@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isDatabaseConfigured() || !sql) {
+      console.log("Database not configured, simulating user creation")
       return NextResponse.json({
         message: "User created successfully (Demo Mode)",
         user: { id: Date.now(), name, email, role },
@@ -172,9 +173,9 @@ export async function POST(request: NextRequest) {
       let newUser
       if (hasNameColumn) {
         newUser = await sql`
-          INSERT INTO users (name, email, password_hash, role)
-          VALUES (${name}, ${email}, ${passwordHash}, ${role})
-          RETURNING id, name, email, role, created_at
+          INSERT INTO users (email, password_hash, name, role)
+          VALUES (${email}, ${passwordHash}, ${name}, ${role})
+          RETURNING id, email, name, role, created_at
         `
       } else {
         newUser = await sql`
@@ -182,7 +183,6 @@ export async function POST(request: NextRequest) {
           VALUES (${email}, ${passwordHash}, ${role})
           RETURNING id, email, role, created_at
         `
-        // Add name to the returned object
         newUser[0].name = name
       }
 
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
         user: newUser[0],
       })
     } catch (dbError) {
-      console.error("Database error:", dbError)
+      console.error("Database error creating user:", dbError)
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
     }
   } catch (error) {

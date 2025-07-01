@@ -26,10 +26,16 @@ WHERE name IS NULL;
 -- Make name column NOT NULL after populating existing records
 ALTER TABLE users ALTER COLUMN name SET NOT NULL;
 
--- Add index on last_login for better performance
+-- Add index on last_login for better query performance
 CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login);
 
--- Update password for demo users if they exist
-UPDATE users SET password_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhTnd8xa/H/jLpVePkXdJi' WHERE email = 'admin@henryscheinone.com';
-UPDATE users SET password_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhTnd8xa/H/jLpVePkXdJi' WHERE email = 'user@henryscheinone.com';
-UPDATE users SET password_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhTnd8xa/H/jLpVePkXdJi' WHERE email = 'manager@henryscheinone.com';
+-- Update demo user passwords (hashed version of 'password123')
+UPDATE users 
+SET password_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uO.G'
+WHERE email IN (
+    'admin@henryscheinone.com',
+    'user@henryscheinone.com', 
+    'manager@henryscheinone.com',
+    'john.smith@henryscheinone.com',
+    'jane.doe@henryscheinone.com'
+);
