@@ -1,21 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAdmin } from "@/lib/auth"
 import { getAuditLogs } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    await requireAdmin()
 
     const { searchParams } = new URL(request.url)
-    const limit = Number.parseInt(searchParams.get("limit") || "100")
+    const tableName = searchParams.get("tableName") || undefined
+    const recordId = searchParams.get("recordId") ? Number.parseInt(searchParams.get("recordId")!) : undefined
+    const limit = searchParams.get("limit") ? Number.parseInt(searchParams.get("limit")!) : 100
 
-    const logs = await getAuditLogs(limit)
-    return NextResponse.json(logs)
+    const auditLogs = await getAuditLogs(tableName, recordId, limit)
+
+    return NextResponse.json(auditLogs)
   } catch (error) {
-    console.error("Audit logs API error:", error)
+    console.error("Get audit logs error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

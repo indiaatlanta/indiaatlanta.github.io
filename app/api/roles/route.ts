@@ -1,133 +1,88 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
-import { createAuditLog } from "@/lib/audit"
 
-// Demo job roles data
-const demoJobRoles = [
-  {
-    id: 1,
-    title: "Frontend Developer",
-    department_id: 1,
-    department_name: "Engineering",
-    description: "Develop user-facing web applications",
-    requirements: "React, JavaScript, CSS, HTML",
-    created_at: new Date(),
-  },
-  {
-    id: 2,
-    title: "Backend Developer",
-    department_id: 1,
-    department_name: "Engineering",
-    description: "Develop server-side applications and APIs",
-    requirements: "Node.js, Python, SQL, REST APIs",
-    created_at: new Date(),
-  },
-  {
-    id: 3,
-    title: "Full Stack Developer",
-    department_id: 1,
-    department_name: "Engineering",
-    description: "Develop both frontend and backend applications",
-    requirements: "React, Node.js, JavaScript, SQL, Git",
-    created_at: new Date(),
-  },
-  {
-    id: 4,
-    title: "DevOps Engineer",
-    department_id: 1,
-    department_name: "Engineering",
-    description: "Manage infrastructure and deployment pipelines",
-    requirements: "Docker, Kubernetes, AWS, Jenkins, Terraform",
-    created_at: new Date(),
-  },
-  {
-    id: 5,
-    title: "Data Analyst",
-    department_id: 2,
-    department_name: "Data Science",
-    description: "Analyze data to provide business insights",
-    requirements: "Python, SQL, Excel, Tableau, Statistics",
-    created_at: new Date(),
-  },
-]
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const departmentId = searchParams.get("department_id")
-
-    if (isDatabaseConfigured()) {
-      let query = `
-        SELECT jr.*, d.name as department_name 
-        FROM job_roles jr
-        LEFT JOIN departments d ON jr.department_id = d.id
-      `
-      const params = []
-
-      if (departmentId) {
-        query += ` WHERE jr.department_id = $1`
-        params.push(Number.parseInt(departmentId))
-      }
-
-      query += ` ORDER BY jr.title`
-
-      const roles = await sql!`${query}`
-      return NextResponse.json(roles)
+    if (!isDatabaseConfigured() || !sql) {
+      // Return mock data for demo mode
+      return NextResponse.json({
+        roles: [
+          { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering", skill_count: 25 },
+          { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering", skill_count: 30 },
+          { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering", skill_count: 35 },
+          { id: 4, name: "Lead Engineer", code: "E4", level: 4, department_name: "Engineering", skill_count: 40 },
+          { id: 5, name: "Principal Engineer", code: "E5", level: 5, department_name: "Engineering", skill_count: 45 },
+        ],
+        isDemoMode: true,
+      })
     }
 
-    // Fallback to demo data
-    let filteredRoles = demoJobRoles
-    if (departmentId) {
-      filteredRoles = demoJobRoles.filter((role) => role.department_id === Number.parseInt(departmentId))
-    }
+    // Get all roles that have skill demonstrations
+    const roles = await sql`
+      SELECT 
+        jr.id,
+        jr.name,
+        jr.code,
+        jr.level,
+        jr.salary_min,
+        jr.salary_max,
+        jr.location_type,
+        d.name as department_name,
+        COUNT(sd.id) as skill_count
+      FROM job_roles jr
+      JOIN departments d ON jr.department_id = d.id
+      LEFT JOIN skill_demonstrations sd ON jr.id = sd.job_role_id
+      GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type, d.name
+      HAVING COUNT(sd.id) > 0
+      ORDER BY d.name, jr.level, jr.name
+    `
 
-    return NextResponse.json(filteredRoles)
+    return NextResponse.json({
+      roles,
+      isDemoMode: false,
+    })
   } catch (error) {
-    console.error("Get job roles error:", error)
-    return NextResponse.json(demoJobRoles)
-  }
-}
+    console.error("Error fetching roles:", error)
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getCurrentUser()
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    // Fallback to old structure
+    try {
+      if (sql) {
+        const fallbackRoles = await sql`
+          SELECT 
+            jr.id,
+            jr.name,
+            jr.code,
+            jr.level,
+            jr.salary_min,
+            jr.salary_max,
+            jr.location_type,
+            d.name as department_name,
+            COUNT(s.id) as skill_count
+          FROM job_roles jr
+          JOIN departments d ON jr.department_id = d.id
+          LEFT JOIN skills s ON jr.id = s.job_role_id
+          GROUP BY jr.id, jr.name, jr.code, jr.level, jr.salary_min, jr.salary_max, jr.location_type, d.name
+          HAVING COUNT(s.id) > 0
+          ORDER BY d.name, jr.level, jr.name
+        `
 
-    const body = await request.json()
-    const { title, department_id, description, requirements } = body
-
-    if (!title || !department_id) {
-      return NextResponse.json({ error: "Title and department ID are required" }, { status: 400 })
-    }
-
-    if (isDatabaseConfigured()) {
-      const newRoles = await sql!`
-        INSERT INTO job_roles (title, department_id, description, requirements)
-        VALUES (${title}, ${department_id}, ${description || ""}, ${requirements || ""})
-        RETURNING *
-      `
-
-      if (newRoles.length > 0) {
-        await createAuditLog(user.id, "CREATE", "job_roles", newRoles[0].id, null, newRoles[0])
-        return NextResponse.json(newRoles[0])
+        return NextResponse.json({
+          roles: fallbackRoles,
+          isDemoMode: false,
+        })
       }
+    } catch (fallbackError) {
+      console.error("Error with fallback query:", fallbackError)
     }
 
-    // Fallback response
-    const newRole = {
-      id: Date.now(),
-      title,
-      department_id,
-      description: description || "",
-      requirements: requirements || "",
-      created_at: new Date(),
-    }
-    return NextResponse.json(newRole)
-  } catch (error) {
-    console.error("Create job role error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Return mock data as final fallback
+    return NextResponse.json({
+      roles: [
+        { id: 1, name: "Junior Engineer", code: "E1", level: 1, department_name: "Engineering", skill_count: 25 },
+        { id: 2, name: "Software Engineer", code: "E2", level: 2, department_name: "Engineering", skill_count: 30 },
+        { id: 3, name: "Senior Engineer", code: "E3", level: 3, department_name: "Engineering", skill_count: 35 },
+      ],
+      isDemoMode: true,
+    })
   }
 }

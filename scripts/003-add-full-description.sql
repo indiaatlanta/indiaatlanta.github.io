@@ -1,5 +1,5 @@
 -- Add full_description column to skills table
-ALTER TABLE skills ADD COLUMN IF NOT EXISTS full_description TEXT;
+ALTER TABLE skills ADD COLUMN full_description TEXT;
 
 -- Update existing skills with sample full descriptions
 UPDATE skills SET full_description = 
@@ -14,7 +14,9 @@ At the L1 level, engineers should:
 - Understand the basics of data encryption and secure communication
 - Know when to escalate security concerns to senior team members
 - Follow established security guidelines and protocols
-- Participate in security training and stay updated on security best practices'
+- Participate in security training and stay updated on security best practices
+
+This foundational understanding ensures that security considerations are integrated into the development process from the beginning, rather than being an afterthought. Engineers at this level should be able to identify potential security issues and seek guidance when needed.'
     
     WHEN name = 'Work Breakdown' THEN
       'Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.
@@ -32,37 +34,9 @@ Key principles include:
 - Work items should be independently testable and deployable
 - Dependencies between work items should be minimized
 - Each piece should deliver some measurable value
-- Work breakdown should consider technical architecture and team capabilities'
-    
-    WHEN name = 'JavaScript' THEN
-      'Comprehensive understanding and application of JavaScript programming language, including ES6+ features, asynchronous programming, and modern development practices.'
-    
-    WHEN name = 'React' THEN
-      'Proficiency in React.js framework for building user interfaces, including hooks, state management, component lifecycle, and modern React patterns.'
-    
-    WHEN name = 'Node.js' THEN
-      'Experience with Node.js runtime environment for server-side JavaScript development, including npm ecosystem, modules, and backend application development.'
-    
-    WHEN name = 'Python' THEN
-      'Knowledge of Python programming language, including syntax, data structures, object-oriented programming, and popular frameworks like Django or Flask.'
-    
-    WHEN name = 'SQL' THEN
-      'Understanding of SQL database management, including query optimization, database design, normalization, and working with relational databases.'
-    
-    WHEN name = 'HTML' THEN
-      'Proficiency in HTML5 markup language for structuring web content, including semantic elements, accessibility best practices, and modern HTML features.'
-    
-    WHEN name = 'CSS' THEN
-      'Expertise in CSS3 for styling web applications, including flexbox, grid, animations, responsive design, and CSS preprocessors.'
-    
-    WHEN name = 'Git' THEN
-      'Experience with Git version control system, including branching strategies, merge conflict resolution, and collaborative development workflows.'
-    
-    WHEN name = 'Docker' THEN
-      'Knowledge of Docker containerization technology, including creating Dockerfiles, managing containers, and orchestration with Docker Compose.'
-    
-    WHEN name = 'AWS' THEN
-      'Understanding of AWS cloud services, including EC2, S3, Lambda, RDS, and other core services for building scalable cloud applications.'
+- Work breakdown should consider technical architecture and team capabilities
+
+Understanding work breakdown at this level helps engineers contribute to more predictable delivery cycles and enables the team to respond quickly to changing requirements.'
     
     ELSE description
   END

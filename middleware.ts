@@ -1,81 +1,56 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { verifySession } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   console.log("Middleware processing:", pathname)
 
-  // Skip middleware for static files and Next.js internals
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/_next") ||
-    pathname.includes(".") ||
-    pathname === "/favicon.ico" ||
-    pathname.startsWith("/images/")
-  ) {
-    return NextResponse.next()
-  }
-
-  // Public paths that don't require authentication
-  const publicPaths = ["/login", "/forgot-password", "/reset-password"]
-  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
+  // Public routes that don't require authentication
+  const publicRoutes = ["/login", "/forgot-password", "/reset-password"]
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
 
   // API routes that don't require authentication
-  const publicApiPaths = [
+  const publicApiRoutes = [
     "/api/auth/login",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/auth/verify-reset-token",
   ]
-  const isPublicApiPath = publicApiPaths.some((path) => pathname.startsWith(path))
+  const isPublicApiRoute = publicApiRoutes.some((route) => pathname.startsWith(route))
 
-  // Allow public paths and API routes
-  if (isPublicPath || isPublicApiPath) {
-    console.log("Public path, allowing access:", pathname)
+  if (isPublicRoute || isPublicApiRoute) {
+    console.log("Public route, allowing access:", pathname)
     return NextResponse.next()
   }
 
-  // Check for session cookie
-  const sessionCookie = request.cookies.get("session")
-  console.log("Session cookie present:", !!sessionCookie?.value)
-
-  if (!sessionCookie?.value) {
-    console.log("No session found, redirecting to login")
-    return NextResponse.redirect(new URL("/login", request.url))
-  }
-
-  // Verify session
+  // Check authentication for protected routes
   try {
-    const user = await verifySession(sessionCookie.value)
-    console.log("Session verification result:", user ? `User: ${user.email}` : "No user")
+    const user = await getCurrentUser()
+    console.log("Middleware auth check:", {
+      pathname,
+      user: user ? { id: user.id, email: user.email, role: user.role } : null,
+    })
 
     if (!user) {
-      console.log("Invalid session, redirecting to login")
-      const response = NextResponse.redirect(new URL("/login", request.url))
-      response.cookies.delete("session")
-      return response
+      console.log("No user found, redirecting to login")
+      return NextResponse.redirect(new URL("/login", request.url))
     }
 
-    // Check admin access for admin routes
-    if (pathname.startsWith("/admin") && user.role !== "admin") {
-      console.log("Non-admin user trying to access admin route")
+    // Admin-only routes
+    const adminRoutes = ["/admin"]
+    const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route))
+
+    if (isAdminRoute && user.role !== "admin") {
+      console.log("Non-admin user trying to access admin route, redirecting to home")
       return NextResponse.redirect(new URL("/", request.url))
     }
 
-    // If user is authenticated and trying to access login page, redirect to home
-    if (pathname === "/login") {
-      console.log("Authenticated user accessing login page, redirecting to home")
-      return NextResponse.redirect(new URL("/", request.url))
-    }
-
-    console.log("Session valid, allowing access to:", pathname)
+    console.log("Authentication successful, allowing access")
     return NextResponse.next()
   } catch (error) {
-    console.error("Session verification error:", error)
-    const response = NextResponse.redirect(new URL("/login", request.url))
-    response.cookies.delete("session")
-    return response
+    console.error("Middleware auth error:", error)
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 }
 
@@ -88,6 +63,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
   ],
 }

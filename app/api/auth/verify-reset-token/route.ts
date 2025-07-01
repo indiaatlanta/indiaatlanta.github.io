@@ -7,31 +7,63 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get("token")
 
     if (!token) {
-      return NextResponse.json({ error: "Token is required", valid: false }, { status: 400 })
+      return NextResponse.json({ error: "Token is required" }, { status: 400 })
     }
 
-    if (!isDatabaseConfigured()) {
-      // For demo purposes, accept any token that looks like a UUID
-      const isValidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)
-      return NextResponse.json({ valid: isValidFormat })
+    // Check if database is configured
+    if (!isDatabaseConfigured() || !sql) {
+      // In demo mode, accept demo tokens
+      if (token.startsWith("demo-token-")) {
+        return NextResponse.json({ valid: true })
+      }
+      return NextResponse.json({ error: "Invalid token" }, { status: 400 })
     }
 
-    const tokens = await sql!`
-      SELECT prt.*, u.email 
+    try {
+      // Check if password_reset_tokens table exists
+      await sql`SELECT 1 FROM password_reset_tokens LIMIT 1`
+    } catch (tableError) {
+      // Table doesn't exist, treat as demo mode
+      if (token.startsWith("demo-token-")) {
+        return NextResponse.json({ valid: true })
+      }
+      return NextResponse.json({ error: "Invalid token" }, { status: 400 })
+    }
+
+    // Check if token exists and is not expired
+    const tokens = await sql`
+      SELECT 
+        prt.id,
+        prt.user_id,
+        prt.expires_at,
+        prt.used_at,
+        u.email
       FROM password_reset_tokens prt
       JOIN users u ON prt.user_id = u.id
-      WHERE prt.token = ${token} 
-        AND prt.expires_at > CURRENT_TIMESTAMP 
-        AND prt.used = FALSE
+      WHERE prt.token = ${token}
+        AND prt.expires_at > NOW()
+        AND prt.used_at IS NULL
     `
 
     if (tokens.length === 0) {
-      return NextResponse.json({ error: "Invalid or expired token", valid: false }, { status: 400 })
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 400 })
     }
 
-    return NextResponse.json({ valid: true, email: tokens[0].email })
+    return NextResponse.json({ valid: true })
   } catch (error) {
     console.error("Verify reset token error:", error)
-    return NextResponse.json({ error: "Internal server error", valid: false }, { status: 500 })
+
+    // If it's a database-related error, fall back to demo mode
+    if (error instanceof Error && error.message.includes("relation") && error.message.includes("does not exist")) {
+      const { searchParams } = new URL(request.url)
+      const token = searchParams.get("token")
+
+      if (token && token.startsWith("demo-token-")) {
+        return NextResponse.json({ valid: true })
+      }
+      return NextResponse.json({ error: "Invalid token" }, { status: 400 })
+    }
+
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { LogIn, User, LogOut, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
 
 interface UserInterface {
   id: number
@@ -12,12 +12,11 @@ interface UserInterface {
   role: string
 }
 
-export default function LoginButton() {
+export function LoginButton() {
   const [user, setUser] = useState<UserInterface | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [hasDemoSession, setHasDemoSession] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     checkAuthStatus()
@@ -76,10 +75,6 @@ export default function LoginButton() {
     window.location.href = "/admin"
   }
 
-  const handleLogin = () => {
-    router.push("/login")
-  }
-
   if (isLoading) {
     return <div className="w-20 h-8 bg-brand-700 rounded animate-pulse"></div>
   }
@@ -136,9 +131,11 @@ export default function LoginButton() {
 
   // Show login button
   return (
-    <Button onClick={handleLogin} variant="outline" size="sm">
-      <LogIn className="h-4 w-4 mr-2" />
-      Sign In
-    </Button>
+    <Link href="/login">
+      <Button variant="ghost" size="sm" className="text-white hover:bg-brand-700">
+        <LogIn className="w-4 h-4 mr-2" />
+        Login
+      </Button>
+    </Link>
   )
 }

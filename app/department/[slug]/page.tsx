@@ -1,11 +1,10 @@
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Rocket, Settings } from "lucide-react"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
-import DepartmentClient from "./department-client"
+import { getSession } from "@/lib/auth"
+import { DepartmentClient } from "./department-client"
 import Image from "next/image"
-import { Suspense } from "react"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -81,19 +80,13 @@ async function getDepartmentData(slug: string) {
   }
 }
 
-interface DepartmentPageProps {
+interface PageProps {
   params: {
     slug: string
   }
 }
 
-export default async function DepartmentPage({ params }: DepartmentPageProps) {
-  const user = await getCurrentUser()
-
-  if (!user) {
-    redirect("/login")
-  }
-
+export default async function DepartmentPage({ params }: PageProps) {
   try {
     const data = await getDepartmentData(params.slug)
 
@@ -102,7 +95,16 @@ export default async function DepartmentPage({ params }: DepartmentPageProps) {
     }
 
     const { department, roles } = data
-    const isAdmin = user.role === "admin"
+    let session = null
+    let isAdmin = false
+
+    try {
+      session = await getSession()
+      isAdmin = session?.user?.role === "admin"
+    } catch (error) {
+      console.error("Error getting session:", error)
+      // Continue without session
+    }
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -147,9 +149,7 @@ export default async function DepartmentPage({ params }: DepartmentPageProps) {
         </div>
 
         {/* Pass data to client component */}
-        <Suspense fallback={<div>Loading...</div>}>
-          <DepartmentClient department={department} roles={roles} user={user} isDemoMode={!isDatabaseConfigured()} />
-        </Suspense>
+        <DepartmentClient department={department} roles={roles} isDemoMode={!isDatabaseConfigured()} />
       </div>
     )
   } catch (error) {
