@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, FileText, Info } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Download, FileText, Info, Save, Check } from "lucide-react"
 import jsPDF from "jspdf"
 import { autoTable } from "jspdf-autotable"
 
@@ -59,6 +62,10 @@ export function SelfReviewClient() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [isLoadingRoles, setIsLoadingRoles] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [assessmentName, setAssessmentName] = useState("")
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
     fetchRoles()
@@ -121,6 +128,13 @@ export function SelfReviewClient() {
       setSkills(roleSkills)
       setRatings([])
       setIsLoading(false)
+      // Generate default assessment name
+      const now = new Date()
+      const defaultName = `${role.name} Assessment - ${now.toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      })}`
+      setAssessmentName(defaultName)
     }
   }
 
@@ -136,6 +150,60 @@ export function SelfReviewClient() {
 
   const getRatingForSkill = (skillId: number) => {
     return ratings.find((r) => r.skillId === skillId)?.rating || ""
+  }
+
+  const handleSaveAssessment = async () => {
+    if (!selectedRole || !assessmentName.trim()) {
+      alert("Please provide an assessment name")
+      return
+    }
+
+    if (ratings.length === 0) {
+      alert("Please rate at least one skill before saving")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const assessmentData = {
+        roleId: selectedRole.id,
+        assessmentName: assessmentName.trim(),
+        assessmentData: {
+          ratings: ratings,
+          roleName: selectedRole.name,
+          roleCode: selectedRole.code,
+          departmentName: selectedRole.department_name,
+          completedAt: new Date().toISOString(),
+        },
+      }
+
+      const response = await fetch("/api/assessments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(assessmentData),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSaveSuccess(true)
+        setSaveDialogOpen(false)
+
+        // Show success message briefly
+        setTimeout(() => {
+          setSaveSuccess(false)
+        }, 3000)
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to save assessment: ${errorData.error}`)
+      }
+    } catch (error) {
+      console.error("Error saving assessment:", error)
+      alert("Failed to save assessment. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const generatePDF = async () => {
@@ -282,6 +350,16 @@ export function SelfReviewClient() {
         </div>
       )}
 
+      {/* Success Message */}
+      {saveSuccess && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-600" />
+            <span className="text-green-800 text-sm font-medium">Assessment saved successfully!</span>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Self Assessment</h1>
         <p className="text-gray-600">Evaluate your skills against role requirements and identify development areas.</p>
@@ -385,9 +463,64 @@ export function SelfReviewClient() {
         </Card>
       )}
 
-      {/* Export Button */}
+      {/* Action Buttons */}
       {selectedRole && skills.length > 0 && totalRated > 0 && (
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex justify-end gap-3">
+          <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+                <Save className="w-4 h-4" />
+                Save Assessment
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Save Assessment</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="assessment-name">Assessment Name</Label>
+                  <Input
+                    id="assessment-name"
+                    value={assessmentName}
+                    onChange={(e) => setAssessmentName(e.target.value)}
+                    placeholder="Enter a name for this assessment"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="text-sm text-gray-600">
+                  <p>
+                    <strong>Role:</strong> {selectedRole.name} ({selectedRole.code})
+                  </p>
+                  <p>
+                    <strong>Skills Rated:</strong> {totalRated} of {skills.length}
+                  </p>
+                  <p>
+                    <strong>Completion:</strong> {completionPercentage}%
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveAssessment} disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Assessment
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Button onClick={generatePDF} disabled={isGeneratingPDF} className="flex items-center gap-2">
             {isGeneratingPDF ? (
               <>
@@ -397,7 +530,7 @@ export function SelfReviewClient() {
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                Export Assessment
+                Export PDF
               </>
             )}
           </Button>
