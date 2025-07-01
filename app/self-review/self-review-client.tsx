@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Download, FileText, Info, Save, Check } from "lucide-react"
 import jsPDF from "jspdf"
-import { autoTable } from "jspdf-autotable"
+import autoTable from "jspdf-autotable"
 
 interface Role {
   id: number
