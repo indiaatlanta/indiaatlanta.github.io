@@ -3,8 +3,8 @@ import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
-// Demo users for fallback
-const demoUsers = [
+// Mock users for demo mode
+const mockUsers = [
   {
     id: 1,
     email: "admin@henryscheinone.com",
@@ -19,7 +19,7 @@ const demoUsers = [
     name: "Regular User",
     role: "user",
     created_at: "2024-01-02T00:00:00Z",
-    last_login: "2024-01-14T14:20:00Z",
+    last_login: "2024-01-14T15:45:00Z",
   },
   {
     id: 3,
@@ -35,7 +35,7 @@ const demoUsers = [
     name: "John Smith",
     role: "user",
     created_at: "2024-01-04T00:00:00Z",
-    last_login: null,
+    last_login: "2024-01-12T14:20:00Z",
   },
   {
     id: 5,
@@ -43,21 +43,21 @@ const demoUsers = [
     name: "Jane Doe",
     role: "user",
     created_at: "2024-01-05T00:00:00Z",
-    last_login: "2024-01-12T16:45:00Z",
+    last_login: "2024-01-11T11:30:00Z",
   },
 ]
 
 export async function GET() {
   try {
-    // Check if user is admin
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== "admin") {
+    const user = await getCurrentUser()
+
+    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, returning demo users")
-      return NextResponse.json({ users: demoUsers })
+      console.log("Database not configured, returning mock users")
+      return NextResponse.json({ users: mockUsers })
     }
 
     try {
@@ -69,62 +69,54 @@ export async function GET() {
         AND column_name IN ('name', 'last_login')
       `
 
-      const hasNameColumn = columnCheck.some((col: any) => col.column_name === "name")
-      const hasLastLoginColumn = columnCheck.some((col: any) => col.column_name === "last_login")
+      const hasNameColumn = columnCheck.some((col) => col.column_name === "name")
+      const hasLastLoginColumn = columnCheck.some((col) => col.column_name === "last_login")
 
       let users
       if (hasNameColumn && hasLastLoginColumn) {
-        // Use full query with all columns
         users = await sql`
           SELECT id, email, name, role, created_at, last_login
           FROM users
           ORDER BY created_at DESC
         `
       } else if (hasNameColumn) {
-        // Use query without last_login
         users = await sql`
           SELECT id, email, name, role, created_at, NULL as last_login
           FROM users
           ORDER BY created_at DESC
         `
       } else {
-        // Use basic query and generate names
-        const basicUsers = await sql`
-          SELECT id, email, role, created_at
+        users = await sql`
+          SELECT id, email, 
+                 CASE 
+                   WHEN email LIKE 'admin%' THEN 'Admin User'
+                   WHEN email LIKE 'manager%' THEN 'Manager User'
+                   WHEN email LIKE 'john.smith%' THEN 'John Smith'
+                   WHEN email LIKE 'jane.doe%' THEN 'Jane Doe'
+                   ELSE INITCAP(SPLIT_PART(email, '@', 1))
+                 END as name,
+                 role, created_at, NULL as last_login
           FROM users
           ORDER BY created_at DESC
         `
-
-        users = basicUsers.map((user: any) => ({
-          ...user,
-          name: user.email.includes("admin")
-            ? "Admin User"
-            : user.email.includes("manager")
-              ? "Manager User"
-              : user.email
-                  .split("@")[0]
-                  .replace(/[._]/g, " ")
-                  .replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          last_login: null,
-        }))
       }
 
       return NextResponse.json({ users })
     } catch (dbError) {
       console.error("Database error, falling back to mock data:", dbError.message)
-      return NextResponse.json({ users: demoUsers })
+      return NextResponse.json({ users: mockUsers })
     }
   } catch (error) {
-    console.error("Error fetching users:", error)
+    console.error("Error in GET /api/users:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== "admin") {
+    const user = await getCurrentUser()
+
+    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -140,35 +132,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    if (!["admin", "user"].includes(role)) {
-      return NextResponse.json({ error: "Invalid role" }, { status: 400 })
-    }
-
     if (password.length < 6) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
     }
 
+    if (!["user", "admin"].includes(role)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 })
+    }
+
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, simulating user creation")
-      const newUser = {
-        id: Math.max(...demoUsers.map((u) => u.id)) + 1,
-        email,
-        name,
-        role,
-        created_at: new Date().toISOString(),
-        last_login: null,
-      }
-      return NextResponse.json({ user: newUser })
+      return NextResponse.json({
+        message: "User created successfully (Demo Mode)",
+        user: { id: Date.now(), name, email, role },
+      })
     }
 
     try {
-      // Check if email already exists
+      // Check if user already exists
       const existingUsers = await sql`
         SELECT id FROM users WHERE email = ${email}
       `
 
       if (existingUsers.length > 0) {
-        return NextResponse.json({ error: "Email already exists" }, { status: 400 })
+        return NextResponse.json({ error: "User with this email already exists" }, { status: 400 })
       }
 
       // Hash password
@@ -185,30 +171,31 @@ export async function POST(request: NextRequest) {
 
       let newUser
       if (hasNameColumn) {
-        // Insert with name column
-        const result = await sql`
-          INSERT INTO users (email, password_hash, name, role)
-          VALUES (${email}, ${passwordHash}, ${name}, ${role})
-          RETURNING id, email, name, role, created_at
+        newUser = await sql`
+          INSERT INTO users (name, email, password_hash, role)
+          VALUES (${name}, ${email}, ${passwordHash}, ${role})
+          RETURNING id, name, email, role, created_at
         `
-        newUser = result[0]
       } else {
-        // Insert without name column
-        const result = await sql`
+        newUser = await sql`
           INSERT INTO users (email, password_hash, role)
           VALUES (${email}, ${passwordHash}, ${role})
           RETURNING id, email, role, created_at
         `
-        newUser = { ...result[0], name }
+        // Add name to the returned object
+        newUser[0].name = name
       }
 
-      return NextResponse.json({ user: newUser })
+      return NextResponse.json({
+        message: "User created successfully",
+        user: newUser[0],
+      })
     } catch (dbError) {
-      console.error("Database error creating user:", dbError.message)
+      console.error("Database error:", dbError)
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
     }
   } catch (error) {
-    console.error("Error creating user:", error)
+    console.error("Error in POST /api/users:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
