@@ -1,607 +1,60 @@
 "use client"
-import { useState, useEffect } from "react"
+
 import Link from "next/link"
-import {
-  ArrowLeft,
-  Save,
-  Plus,
-  Trash2,
-  Download,
-  Upload,
-  History,
-  LogOut,
-  AlertCircle,
-  Users,
-  Edit,
-  Eye,
-  EyeOff,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft, Users, Settings, Database, UserPlus, Edit, Trash2, Eye, EyeOff } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { isDatabaseConfigured } from "@/lib/db"
 import Image from "next/image"
 
-interface Skill {
-  id: number
-  name: string
-  level: string
-  description: string
-  full_description: string
-  category_id: number
-  category_name: string
-  category_color: string
-  job_role_id: number
-  sort_order: number
-}
+// Force dynamic rendering since we use cookies and database
+export const dynamic = "force-dynamic"
 
-interface User {
-  id: number
-  email: string
-  name: string
-  role: string
-  created_at?: string
-  last_login?: string
-}
-
-interface AuditLog {
-  id: number
-  user_name: string
-  user_email: string
-  action: string
-  table_name: string
-  record_id: number
-  old_values: any
-  new_values: any
-  created_at: string
-}
-
-const skillCategories = [
-  { id: 1, name: "Technical Skills", color: "blue" },
-  { id: 2, name: "Delivery", color: "green" },
-  { id: 3, name: "Feedback, Communication & Collaboration", color: "purple" },
-  { id: 4, name: "Leadership", color: "indigo" },
-  { id: 5, name: "Strategic Impact", color: "orange" },
-]
-
-const skillLevels = ["L1", "L2", "L3", "L4", "L5", "M1", "M2", "M3", "M4", "M5"]
-
-// Mock data for demo mode
-const mockSkills: Skill[] = [
-  {
-    id: 1,
-    name: "Security",
-    level: "L1",
-    description: "Understands the importance of security.",
-    full_description:
-      "Security is a fundamental aspect of software engineering that encompasses understanding and implementing measures to protect systems, data, and users from various threats and vulnerabilities.\n\nAt the L1 level, engineers should understand basic security principles, common vulnerabilities, and secure coding practices.",
-    category_id: 1,
-    category_name: "Technical Skills",
-    category_color: "blue",
-    job_role_id: 1,
-    sort_order: 0,
-  },
-  {
-    id: 2,
-    name: "Work Breakdown",
-    level: "L2",
-    description: "Understands value of rightsizing pieces of work to enable continuous deployment.",
-    full_description:
-      "Work Breakdown is the practice of decomposing large, complex work items into smaller, manageable pieces that can be delivered incrementally and continuously deployed.\n\nAt the L2 level, engineers should understand the value of small, independent work items for faster feedback cycles.",
-    category_id: 2,
-    category_name: "Delivery",
-    category_color: "green",
-    job_role_id: 1,
-    sort_order: 0,
-  },
-]
-
-const mockUsers: User[] = [
-  {
-    id: 1,
-    email: "admin@henryscheinone.com",
-    name: "Admin User",
-    role: "admin",
-    created_at: "2024-01-01T00:00:00Z",
-    last_login: "2024-01-15T10:30:00Z",
-  },
-  {
-    id: 2,
-    email: "user@henryscheinone.com",
-    name: "Regular User",
-    role: "user",
-    created_at: "2024-01-02T00:00:00Z",
-    last_login: "2024-01-14T15:45:00Z",
-  },
-  {
-    id: 3,
-    email: "manager@henryscheinone.com",
-    name: "Manager User",
-    role: "admin",
-    created_at: "2024-01-03T00:00:00Z",
-    last_login: "2024-01-13T09:15:00Z",
-  },
-  {
-    id: 4,
-    email: "john.smith@henryscheinone.com",
-    name: "John Smith",
-    role: "user",
-    created_at: "2024-01-04T00:00:00Z",
-    last_login: "2024-01-12T14:20:00Z",
-  },
-  {
-    id: 5,
-    email: "jane.doe@henryscheinone.com",
-    name: "Jane Doe",
-    role: "user",
-    created_at: "2024-01-05T00:00:00Z",
-    last_login: "2024-01-11T11:30:00Z",
-  },
-]
-
-const mockAuditLogs: AuditLog[] = [
-  {
-    id: 1,
-    user_name: "Demo Admin",
-    user_email: "admin@henryscheinone.com",
-    action: "CREATE",
-    table_name: "skills",
-    record_id: 1,
-    old_values: null,
-    new_values: { name: "Security", level: "L1" },
-    created_at: new Date().toISOString(),
-  },
-]
-
-export default function AdminPage() {
-  const [selectedJobRoleId, setSelectedJobRoleId] = useState<number | null>(null)
-  const [skills, setSkills] = useState<Skill[]>([])
-  const [users, setUsers] = useState<User[]>([])
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [isAddingSkill, setIsAddingSkill] = useState(false)
-  const [isAddingUser, setIsAddingUser] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-  const [bulkFile, setBulkFile] = useState<File | null>(null)
-  const [isDemoMode, setIsDemoMode] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const router = useRouter()
-
-  const [newSkill, setNewSkill] = useState({
-    name: "",
-    level: "L1",
-    description: "",
-    fullDescription: "",
-    category_id: 1,
-    sort_order: 0,
-  })
-
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    role: "user",
-    password: "",
-  })
-
-  useEffect(() => {
-    // Check if we're in demo mode (no database configured)
-    const checkDemoMode = async () => {
-      try {
-        const response = await fetch("/api/skills?jobRoleId=1")
-        if (response.status === 500) {
-          setIsDemoMode(true)
-          setSkills(mockSkills)
-          setUsers(mockUsers)
-          setAuditLogs(mockAuditLogs)
-        }
-      } catch (error) {
-        setIsDemoMode(true)
-        setSkills(mockSkills)
-        setUsers(mockUsers)
-        setAuditLogs(mockAuditLogs)
-      }
-    }
-
-    checkDemoMode()
-    loadUsers()
-  }, [])
-
-  useEffect(() => {
-    if (selectedJobRoleId && !isDemoMode) {
-      loadSkills()
-      loadAuditLogs()
-    } else if (selectedJobRoleId && isDemoMode) {
-      setSkills(mockSkills)
-      setAuditLogs(mockAuditLogs)
-    }
-  }, [selectedJobRoleId, isDemoMode])
-
-  const loadSkills = async () => {
-    if (!selectedJobRoleId) return
-
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/skills?jobRoleId=${selectedJobRoleId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setSkills(data)
-      } else {
-        setError("Failed to load skills")
-      }
-    } catch (error) {
-      setError("Failed to load skills")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loadUsers = async () => {
-    if (isDemoMode) {
-      setUsers(mockUsers)
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const response = await fetch("/api/users")
-      if (response.ok) {
-        const data = await response.json()
-        setUsers(data)
-      } else {
-        // Fallback to mock data if API fails
-        setUsers(mockUsers)
-      }
-    } catch (error) {
-      // Fallback to mock data if API fails
-      setUsers(mockUsers)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loadAuditLogs = async () => {
-    try {
-      const response = await fetch(`/api/audit?tableName=skills&limit=50`)
-      if (response.ok) {
-        const data = await response.json()
-        setAuditLogs(data)
-      }
-    } catch (error) {
-      console.error("Failed to load audit logs:", error)
-    }
-  }
-
-  const handleSaveSkill = async (skill: Partial<Skill>) => {
-    if (isDemoMode) {
-      // Simulate saving in demo mode
-      setSuccess("Skill saved successfully (Demo Mode)")
-      setEditingSkill(null)
-      setIsAddingSkill(false)
-      setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
-      return
-    }
-
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
-
-    try {
-      const skillData = {
-        ...skill,
-        jobRoleId: selectedJobRoleId,
-        categoryId: skill.category_id,
-      }
-
-      let response
-      if (editingSkill) {
-        response = await fetch(`/api/skills/${editingSkill.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(skillData),
-        })
-      } else {
-        response = await fetch("/api/skills", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(skillData),
-        })
-      }
-
-      if (response.ok) {
-        setSuccess(editingSkill ? "Skill updated successfully" : "Skill created successfully")
-        setEditingSkill(null)
-        setIsAddingSkill(false)
-        setNewSkill({ name: "", level: "L1", description: "", fullDescription: "", category_id: 1, sort_order: 0 })
-        loadSkills()
-        loadAuditLogs()
-      } else {
-        const data = await response.json()
-        setError(data.error || "Failed to save skill")
-      }
-    } catch (error) {
-      setError("Failed to save skill")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSaveUser = async (user: Partial<User & { password?: string }>) => {
-    if (isDemoMode) {
-      // Simulate saving in demo mode
-      setSuccess("User saved successfully (Demo Mode)")
-      setEditingUser(null)
-      setIsAddingUser(false)
-      setNewUser({ name: "", email: "", role: "user", password: "" })
-      return
-    }
-
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
-
-    try {
-      let response
-      if (editingUser) {
-        response = await fetch(`/api/users/${editingUser.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(user),
-        })
-      } else {
-        response = await fetch("/api/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(user),
-        })
-      }
-
-      if (response.ok) {
-        setSuccess(editingUser ? "User updated successfully" : "User created successfully")
-        setEditingUser(null)
-        setIsAddingUser(false)
-        setNewUser({ name: "", email: "", role: "user", password: "" })
-        loadUsers()
-        loadAuditLogs()
-      } else {
-        const data = await response.json()
-        setError(data.error || "Failed to save user")
-      }
-    } catch (error) {
-      setError("Failed to save user")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleDeleteSkill = async (skillId: number) => {
-    if (!confirm("Are you sure you want to delete this skill?")) return
-
-    if (isDemoMode) {
-      setSuccess("Skill deleted successfully (Demo Mode)")
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/skills/${skillId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        setSuccess("Skill deleted successfully")
-        loadSkills()
-        loadAuditLogs()
-      } else {
-        setError("Failed to delete skill")
-      }
-    } catch (error) {
-      setError("Failed to delete skill")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm("Are you sure you want to delete this user?")) return
-
-    if (isDemoMode) {
-      setSuccess("User deleted successfully (Demo Mode)")
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        setSuccess("User deleted successfully")
-        loadUsers()
-        loadAuditLogs()
-      } else {
-        setError("Failed to delete user")
-      }
-    } catch (error) {
-      setError("Failed to delete user")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleExport = async (format: "json" | "csv") => {
-    if (isDemoMode) {
-      // Create mock export data
-      const mockData =
-        format === "json"
-          ? JSON.stringify(mockSkills, null, 2)
-          : "name,level,description,full_description\nSecurity,L1,Understands the importance of security.,Security is a fundamental aspect..."
-      const blob = new Blob([mockData], { type: format === "json" ? "application/json" : "text/csv" })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `skills-export-demo.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-      return
-    }
-
-    try {
-      const url = selectedJobRoleId
-        ? `/api/skills/export?jobRoleId=${selectedJobRoleId}&format=${format}`
-        : `/api/skills/export?format=${format}`
-
-      const response = await fetch(url)
-      if (response.ok) {
-        const blob = await response.blob()
-        const downloadUrl = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = downloadUrl
-        a.download = `skills-export-${new Date().toISOString().split("T")[0]}.${format}`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(downloadUrl)
-      }
-    } catch (error) {
-      setError("Failed to export skills")
-    }
-  }
-
-  const handleBulkImport = async () => {
-    if (!bulkFile || !selectedJobRoleId) return
-
-    if (isDemoMode) {
-      setSuccess("Bulk import completed successfully (Demo Mode)")
-      setBulkFile(null)
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const text = await bulkFile.text()
-      let skillsData
-
-      if (bulkFile.name.endsWith(".json")) {
-        skillsData = JSON.parse(text)
-      } else if (bulkFile.name.endsWith(".csv")) {
-        // Simple CSV parsing (in production, use a proper CSV parser)
-        const lines = text.split("\n")
-        const headers = lines[0].split(",")
-        skillsData = lines
-          .slice(1)
-          .map((line) => {
-            const values = line.split(",")
-            return {
-              name: values[4]?.replace(/"/g, ""),
-              level: values[5]?.replace(/"/g, "") || "L1", // Default to L1 if no level specified
-              description: values[6]?.replace(/"/g, ""),
-              fullDescription: values[7]?.replace(/"/g, "") || values[6]?.replace(/"/g, ""),
-              categoryId: skillCategories.find((c) => c.name === values[3]?.replace(/"/g, ""))?.id || 1,
-              jobRoleId: selectedJobRoleId,
-              sortOrder: Number.parseInt(values[8]) || 0,
-            }
-          })
-          .filter((skill) => skill.name)
-      }
-
-      const response = await fetch("/api/skills/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skills: skillsData }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        setSuccess(`Successfully imported ${result.count} skills`)
-        setBulkFile(null)
-        loadSkills()
-        loadAuditLogs()
-      } else {
-        setError("Failed to import skills")
-      }
-    } catch (error) {
-      setError("Failed to import skills")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    if (isDemoMode) {
-      router.push("/")
-      return
-    }
-
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      router.push("/login")
-    } catch (error) {
-      console.error("Logout error:", error)
-    }
-  }
-
-  const getCategoryColor = (categoryId: number) => {
-    const category = skillCategories.find((c) => c.id === categoryId)
-    return category?.color || "gray"
-  }
-
-  const getColorClasses = (color: string) => {
-    const colorMap: Record<string, string> = {
-      blue: "bg-blue-50 text-blue-900 border-blue-200",
-      green: "bg-green-50 text-green-900 border-green-200",
-      purple: "bg-purple-50 text-purple-900 border-purple-200",
-      indigo: "bg-indigo-50 text-indigo-900 border-indigo-200",
-      orange: "bg-orange-50 text-orange-900 border-orange-200",
-    }
-    return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+async function loadUsers() {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/users`, {
+      cache: "no-store",
     })
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch users")
+    }
+
+    const data = await response.json()
+    return data.users || []
+  } catch (error) {
+    console.error("Error loading users:", error)
+    return []
   }
+}
+
+export default async function AdminPage() {
+  const user = await getCurrentUser()
+
+  if (!user || user.role !== "admin") {
+    redirect("/")
+  }
+
+  const users = await loadUsers()
+  const dbConfigured = isDatabaseConfigured()
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-brand-800 px-4 py-3">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
-              <span className="text-white text-sm">Admin Panel</span>
-              {isDemoMode && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-900">
-                  Demo Mode
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="bg-brand-100 text-brand-800">
-                Admin
-              </Badge>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-brand-700">
-                <LogOut className="w-4 h-4 mr-2" />
-                {isDemoMode ? "Exit Demo" : "Logout"}
-              </Button>
-            </div>
+          <div className="flex items-center gap-3">
+            <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={32} height={32} className="h-8 w-auto" />
+            <Settings className="w-4 h-4 text-white" />
+            <span className="text-white text-sm">/ Admin Panel</span>
           </div>
         </div>
       </div>
@@ -612,603 +65,331 @@ export default function AdminPage() {
           <div className="flex items-center gap-6 py-3">
             <Link href="/" className="text-gray-600 hover:text-gray-800 flex items-center gap-2">
               <ArrowLeft className="w-4 h-4" />
-              Back to Site
+              Back to Home
             </Link>
-            <h1 className="text-lg font-semibold text-gray-900">Admin Panel</h1>
           </div>
         </div>
       </div>
 
+      {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Demo Mode Alert */}
-        {isDemoMode && (
-          <Alert className="mb-6 border-blue-200 bg-blue-50">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
+        {!dbConfigured && (
+          <Alert className="mb-6">
+            <Database className="h-4 w-4" />
+            <AlertDescription>
               <strong>Demo Mode:</strong> Database is not configured. All operations are simulated for demonstration
               purposes. To enable full functionality, configure the DATABASE_URL environment variable.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Alerts */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
-          </Alert>
-        )}
-
-        <Tabs defaultValue="skills" className="space-y-6">
+        <Tabs defaultValue="users" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="skills">Skills Management</TabsTrigger>
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="bulk">Bulk Operations</TabsTrigger>
-            <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              User Management
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="skills" className="space-y-6">
-            {/* Role Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Select Job Role</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select
-                  value={selectedJobRoleId?.toString() || ""}
-                  onValueChange={(value) => setSelectedJobRoleId(Number.parseInt(value))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a job role to manage skills" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">E1 - Junior Engineer</SelectItem>
-                    <SelectItem value="2">E2 - Software Engineer</SelectItem>
-                    <SelectItem value="3">E3 - Senior Engineer</SelectItem>
-                    <SelectItem value="4">E4 - Lead Engineer</SelectItem>
-                    <SelectItem value="5">E5 - Principal Engineer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {/* Skills Management */}
-            {selectedJobRoleId && (
-              <>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">Skills Management</h2>
-                  <Button onClick={() => setIsAddingSkill(true)} className="bg-brand-600 hover:bg-brand-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Skill
-                  </Button>
-                </div>
-
-                {isLoading ? (
-                  <div className="text-center py-8">Loading...</div>
-                ) : (
-                  <div className="space-y-4">
-                    {skillCategories.map((category) => {
-                      const categorySkills = skills.filter((skill) => skill.category_id === category.id)
-                      if (categorySkills.length === 0) return null
-
-                      return (
-                        <Card key={category.id}>
-                          <CardHeader>
-                            <CardTitle className={`text-${category.color}-700`}>{category.name}</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-3">
-                              {categorySkills.map((skill) => (
-                                <div
-                                  key={skill.id}
-                                  className={`p-4 rounded-lg border ${getColorClasses(category.color)}`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <span className="font-medium">{skill.name}</span>
-                                        <Badge variant="outline" className="text-xs">
-                                          {skill.level}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-sm">{skill.description}</p>
-                                    </div>
-                                    <div className="flex gap-2 ml-4">
-                                      <Button variant="outline" size="sm" onClick={() => setEditingSkill(skill)}>
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDeleteSkill(skill.id)}
-                                        className="text-red-600 hover:text-red-700"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-          </TabsContent>
-
           <TabsContent value="users" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                User Management
-              </h2>
-              <Button onClick={() => setIsAddingUser(true)} className="bg-brand-600 hover:bg-brand-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        <th className="text-left p-4 font-medium text-gray-900">Name</th>
-                        <th className="text-left p-4 font-medium text-gray-900">Email</th>
-                        <th className="text-left p-4 font-medium text-gray-900">Role</th>
-                        <th className="text-left p-4 font-medium text-gray-900">Created</th>
-                        <th className="text-left p-4 font-medium text-gray-900">Last Login</th>
-                        <th className="text-left p-4 font-medium text-gray-900">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user) => (
-                        <tr key={user.id} className="border-b hover:bg-gray-50">
-                          <td className="p-4">
-                            <div className="font-medium text-gray-900">{user.name}</div>
-                          </td>
-                          <td className="p-4 text-gray-600">{user.email}</td>
-                          <td className="p-4">
-                            <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
-                          </td>
-                          <td className="p-4 text-gray-600 text-sm">
-                            {user.created_at ? formatDate(user.created_at) : "N/A"}
-                          </td>
-                          <td className="p-4 text-gray-600 text-sm">
-                            {user.last_login ? formatDate(user.last_login) : "Never"}
-                          </td>
-                          <td className="p-4">
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm" onClick={() => setEditingUser(user)}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="bulk" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Export */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Download className="w-5 h-5" />
-                    Export Skills
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-600">Export skills data for backup or analysis</p>
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleExport("json")} variant="outline">
-                      Export JSON
-                    </Button>
-                    <Button onClick={() => handleExport("csv")} variant="outline">
-                      Export CSV
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Import */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Upload className="w-5 h-5" />
-                    Import Skills
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-600">Import skills from JSON or CSV file</p>
-                  <Input type="file" accept=".json,.csv" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} />
-                  <Button onClick={handleBulkImport} disabled={!bulkFile || !selectedJobRoleId} className="w-full">
-                    Import Skills
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="audit" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="w-5 h-5" />
-                  Audit Trail
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      User Management
+                    </CardTitle>
+                    <CardDescription>Manage user accounts, roles, and permissions</CardDescription>
+                  </div>
+                  <UserCreateForm />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              log.action === "DELETE"
-                                ? "destructive"
-                                : log.action === "CREATE"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                          >
-                            {log.action}
-                          </Badge>
-                          <span className="text-sm font-medium">{log.user_name}</span>
-                          <span className="text-sm text-gray-500">({log.user_email})</span>
-                        </div>
-                        <span className="text-sm text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {log.action} {log.table_name} record #{log.record_id}
-                      </div>
-                      {log.new_values && (
-                        <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
-                          <strong>Changes:</strong> {JSON.stringify(log.new_values, null, 2)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <UserTable users={users} />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Add/Edit Skill Dialogs */}
-        <Dialog open={isAddingSkill} onOpenChange={setIsAddingSkill}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Skill</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Skill Name</label>
-                <Input
-                  value={newSkill.name}
-                  onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
-                  placeholder="Enter skill name"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Level <span className="text-red-500">*</span>
-                  </label>
-                  <Select value={newSkill.level} onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select level (L1, L2, M1, etc.)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {skillLevels.map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="mt-2">
-                  <Input
-                    placeholder="Or enter custom level (e.g., S1, P3, etc.)"
-                    value={newSkill.level.startsWith("L") || newSkill.level.startsWith("M") ? "" : newSkill.level}
-                    onChange={(e) => setNewSkill({ ...newSkill, level: e.target.value.toUpperCase() })}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Format: Letter followed by number (L1, M2, S3, etc.)</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <Select
-                    value={newSkill.category_id.toString()}
-                    onValueChange={(value) => setNewSkill({ ...newSkill, category_id: Number.parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {skillCategories.map((category) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
-                <Textarea
-                  value={newSkill.description}
-                  onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
-                  placeholder="Enter brief demonstration description (shown in skill list)"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
-                <Textarea
-                  value={newSkill.fullDescription}
-                  onChange={(e) => setNewSkill({ ...newSkill, fullDescription: e.target.value })}
-                  placeholder="Enter detailed skill description (shown in skill details)"
-                  rows={6}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setIsAddingSkill(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleSaveSkill(newSkill)}
-                  className="bg-brand-600 hover:bg-brand-700"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Adding..." : "Add Skill"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!editingSkill} onOpenChange={() => setEditingSkill(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Skill</DialogTitle>
-            </DialogHeader>
-            {editingSkill && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Skill Name</label>
-                  <Input
-                    value={editingSkill.name}
-                    onChange={(e) => setEditingSkill({ ...editingSkill, name: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Level <span className="text-red-500">*</span>
-                    </label>
-                    <Select
-                      value={editingSkill.level}
-                      onValueChange={(value) => setEditingSkill({ ...editingSkill, level: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {skillLevels.map((level) => (
-                          <SelectItem key={level} value={level}>
-                            {level}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <Select
-                      value={editingSkill.category_id.toString()}
-                      onValueChange={(value) =>
-                        setEditingSkill({ ...editingSkill, category_id: Number.parseInt(value) })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {skillCategories.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Demonstration Description</label>
-                  <Textarea
-                    value={editingSkill.description}
-                    onChange={(e) => setEditingSkill({ ...editingSkill, description: e.target.value })}
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Skill Description</label>
-                  <Textarea
-                    value={editingSkill.full_description}
-                    onChange={(e) => setEditingSkill({ ...editingSkill, full_description: e.target.value })}
-                    rows={6}
-                  />
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setEditingSkill(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => handleSaveSkill(editingSkill)}
-                    className="bg-brand-600 hover:bg-brand-700"
-                    disabled={isLoading}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {isLoading ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Add/Edit User Dialogs */}
-        <Dialog open={isAddingUser} onOpenChange={setIsAddingUser}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <Input
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <Input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    placeholder="Enter password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setIsAddingUser(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleSaveUser(newUser)}
-                  className="bg-brand-600 hover:bg-brand-700"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Adding..." : "Add User"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
-            </DialogHeader>
-            {editingUser && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <Input
-                    value={editingUser.name}
-                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <Input
-                    type="email"
-                    value={editingUser.email}
-                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <Select
-                    value={editingUser.role}
-                    onValueChange={(value) => setEditingUser({ ...editingUser, role: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setEditingUser(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => handleSaveUser(editingUser)}
-                    className="bg-brand-600 hover:bg-brand-700"
-                    disabled={isLoading}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {isLoading ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
+    </div>
+  )
+}
+
+function UserCreateForm() {
+  return (
+    <div className="space-y-4">
+      <Button
+        className="flex items-center gap-2"
+        onClick={() => {
+          const dialog = document.getElementById("create-user-dialog") as HTMLDialogElement
+          dialog?.showModal()
+        }}
+      >
+        <UserPlus className="w-4 h-4" />
+        Add User
+      </Button>
+
+      <dialog id="create-user-dialog" className="p-6 rounded-lg shadow-lg max-w-md w-full">
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const data = {
+              name: formData.get("name"),
+              email: formData.get("email"),
+              role: formData.get("role"),
+              password: formData.get("password"),
+            }
+
+            try {
+              const response = await fetch("/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+              })
+
+              if (response.ok) {
+                window.location.reload()
+              } else {
+                const error = await response.json()
+                alert(error.error || "Failed to create user")
+              }
+            } catch (error) {
+              alert("Failed to create user")
+            }
+          }}
+        >
+          <h3 className="text-lg font-semibold">Create New User</h3>
+
+          <div>
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" name="name" required />
+          </div>
+
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" required />
+          </div>
+
+          <div>
+            <Label htmlFor="role">Role</Label>
+            <Select name="role" required>
+              <SelectTrigger>
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+              <Input id="password" name="password" type="password" required minLength={6} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                onClick={(e) => {
+                  const input = e.currentTarget.previousElementSibling as HTMLInputElement
+                  const icon = e.currentTarget.querySelector("svg")
+                  if (input.type === "password") {
+                    input.type = "text"
+                    icon?.classList.add("hidden")
+                    e.currentTarget.querySelector(".eye-off")?.classList.remove("hidden")
+                  } else {
+                    input.type = "password"
+                    icon?.classList.remove("hidden")
+                    e.currentTarget.querySelector(".eye-off")?.classList.add("hidden")
+                  }
+                }}
+              >
+                <Eye className="w-4 h-4" />
+                <EyeOff className="w-4 h-4 hidden eye-off" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button type="submit">Create User</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const dialog = document.getElementById("create-user-dialog") as HTMLDialogElement
+                dialog?.close()
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+  )
+}
+
+function UserTable({ users }: { users: any[] }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b bg-gray-50">
+              <th className="text-left p-4 font-medium">Name</th>
+              <th className="text-left p-4 font-medium">Email</th>
+              <th className="text-left p-4 font-medium">Role</th>
+              <th className="text-left p-4 font-medium">Created</th>
+              <th className="text-left p-4 font-medium">Last Login</th>
+              <th className="text-left p-4 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id} className="border-b hover:bg-gray-50">
+                <td className="p-4">{user.name}</td>
+                <td className="p-4">{user.email}</td>
+                <td className="p-4">
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
+                </td>
+                <td className="p-4">{user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}</td>
+                <td className="p-4">{user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}</td>
+                <td className="p-4">
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        // Populate edit form
+                        const dialog = document.getElementById("edit-user-dialog") as HTMLDialogElement
+                        const form = dialog?.querySelector("form") as HTMLFormElement
+                        if (form) {
+                          ;(form.querySelector('[name="userId"]') as HTMLInputElement).value = user.id.toString()
+                          ;(form.querySelector('[name="name"]') as HTMLInputElement).value = user.name
+                          ;(form.querySelector('[name="email"]') as HTMLInputElement).value = user.email
+                          ;(form.querySelector('[name="role"]') as HTMLSelectElement).value = user.role
+                        }
+                        dialog?.showModal()
+                      }}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (confirm("Are you sure you want to delete this user?")) {
+                          try {
+                            const response = await fetch(`/api/users/${user.id}`, {
+                              method: "DELETE",
+                            })
+
+                            if (response.ok) {
+                              window.location.reload()
+                            } else {
+                              const error = await response.json()
+                              alert(error.error || "Failed to delete user")
+                            }
+                          } catch (error) {
+                            alert("Failed to delete user")
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Edit User Dialog */}
+      <dialog id="edit-user-dialog" className="p-6 rounded-lg shadow-lg max-w-md w-full">
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const userId = formData.get("userId")
+            const data = {
+              name: formData.get("name"),
+              email: formData.get("email"),
+              role: formData.get("role"),
+              password: formData.get("password") || undefined,
+            }
+
+            try {
+              const response = await fetch(`/api/users/${userId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+              })
+
+              if (response.ok) {
+                window.location.reload()
+              } else {
+                const error = await response.json()
+                alert(error.error || "Failed to update user")
+              }
+            } catch (error) {
+              alert("Failed to update user")
+            }
+          }}
+        >
+          <input type="hidden" name="userId" />
+          <h3 className="text-lg font-semibold">Edit User</h3>
+
+          <div>
+            <Label htmlFor="edit-name">Name</Label>
+            <Input id="edit-name" name="name" required />
+          </div>
+
+          <div>
+            <Label htmlFor="edit-email">Email</Label>
+            <Input id="edit-email" name="email" type="email" required />
+          </div>
+
+          <div>
+            <Label htmlFor="edit-role">Role</Label>
+            <Select name="role" required>
+              <SelectTrigger>
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+            <Input id="edit-password" name="password" type="password" minLength={6} />
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button type="submit">Update User</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const dialog = document.getElementById("edit-user-dialog") as HTMLDialogElement
+                dialog?.close()
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </dialog>
     </div>
   )
 }

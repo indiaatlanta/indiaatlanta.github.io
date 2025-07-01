@@ -86,6 +86,12 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+// Add getSession as an alias for getCurrentUser for backward compatibility
+export const getSession = async () => {
+  const user = await getCurrentUser()
+  return user ? { user } : null
+}
+
 export async function createSession(userId: number): Promise<string> {
   const { v4: uuidv4 } = await import("uuid")
   const sessionId = uuidv4()
