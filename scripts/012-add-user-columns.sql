@@ -3,17 +3,23 @@ ALTER TABLE users
 ADD COLUMN IF NOT EXISTS name VARCHAR(255),
 ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
 
--- Update existing users with default names based on email
+-- Update existing users with default names based on their email
 UPDATE users 
 SET name = CASE 
-    WHEN email = 'admin@henryscheinone.com' THEN 'Admin User'
-    WHEN email = 'user@henryscheinone.com' THEN 'Regular User'
+    WHEN email LIKE '%admin%' THEN 'Admin User'
+    WHEN email LIKE '%manager%' THEN 'Manager User'
     ELSE SPLIT_PART(email, '@', 1)
 END
 WHERE name IS NULL;
 
--- Set name as NOT NULL after updating existing records
-ALTER TABLE users ALTER COLUMN name SET NOT NULL;
+-- Make name column NOT NULL after populating existing records
+ALTER TABLE users 
+ALTER COLUMN name SET NOT NULL;
 
--- Create index for better performance on last_login queries
+-- Add index for better performance on last_login queries
 CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login);
+
+-- Update last_login for existing users (set to created_at as default)
+UPDATE users 
+SET last_login = created_at 
+WHERE last_login IS NULL;

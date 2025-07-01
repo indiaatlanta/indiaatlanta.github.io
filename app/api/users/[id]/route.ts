@@ -1,184 +1,153 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql, isDatabaseConfigured } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
 import bcrypt from "bcryptjs"
+import { verifySession } from "@/lib/auth"
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check if user is authenticated and is admin
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== "admin") {
+    // Verify admin session
+    const session = await verifySession()
+    if (!session || session.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const userId = Number.parseInt(params.id)
-    if (isNaN(userId)) {
-      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
+    if (!isDatabaseConfigured() || !sql) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    const { name, email, role, password } = await request.json()
+    const userId = Number.parseInt(params.id)
+    const body = await request.json()
+    const { name, email, role, password } = body
 
-    // Validate required fields (password is optional for updates)
+    // Validation
     if (!name || !email || !role) {
       return NextResponse.json({ error: "Name, email, and role are required" }, { status: 400 })
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!email.includes("@")) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    // Validate role
     if (!["user", "admin"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 })
     }
 
-    // Validate password if provided
-    if (password && password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
+    // Check if user exists
+    const existingUser = await sql`
+      SELECT id FROM users WHERE id = ${userId}
+    `
+
+    if (existingUser.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Return success for demo mode
-    if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, simulating user update")
-      return NextResponse.json({
-        id: userId,
-        name,
-        email,
-        role,
-        updated_at: new Date().toISOString(),
-      })
+    // Check if email is already taken by another user
+    const emailCheck = await sql`
+      SELECT id FROM users WHERE email = ${email} AND id != ${userId}
+    `
+
+    if (emailCheck.length > 0) {
+      return NextResponse.json({ error: "Email already taken by another user" }, { status: 400 })
     }
 
-    try {
-      // Check if user exists
-      const existingUsers = await sql`
-        SELECT id FROM users WHERE id = ${userId}
-      `
+    // Check if the new columns exist
+    const columnCheck = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      AND column_name IN ('name', 'last_login')
+    `
 
-      if (existingUsers.length === 0) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 })
+    const hasNameColumn = columnCheck.some((col: any) => col.column_name === "name")
+
+    let updatedUser
+    if (password) {
+      // Update with password
+      if (password.length < 6) {
+        return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
       }
 
-      // Check if email is already taken by another user
-      const emailCheck = await sql`
-        SELECT id FROM users WHERE email = ${email.toLowerCase()} AND id != ${userId}
-      `
+      const passwordHash = await bcrypt.hash(password, 12)
 
-      if (emailCheck.length > 0) {
-        return NextResponse.json({ error: "Email is already taken by another user" }, { status: 400 })
-      }
-
-      // Check if name column exists
-      const tableInfo = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'users' 
-        AND column_name = 'name'
-      `
-
-      const hasNameColumn = tableInfo.length > 0
-
-      let updatedUsers
-      if (password) {
-        // Hash the new password
-        const saltRounds = 12
-        const hashedPassword = await bcrypt.hash(password, saltRounds)
-
-        if (hasNameColumn) {
-          updatedUsers = await sql`
-            UPDATE users 
-            SET name = ${name}, email = ${email.toLowerCase()}, role = ${role}, password_hash = ${hashedPassword}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${userId}
-            RETURNING id, name, email, role, updated_at
-          `
-        } else {
-          updatedUsers = await sql`
-            UPDATE users 
-            SET email = ${email.toLowerCase()}, role = ${role}, password_hash = ${hashedPassword}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${userId}
-            RETURNING id, email, role, updated_at
-          `
-          updatedUsers[0].name = name
-        }
+      if (hasNameColumn) {
+        updatedUser = await sql`
+          UPDATE users 
+          SET email = ${email}, role = ${role}, name = ${name}, password_hash = ${passwordHash}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userId}
+          RETURNING id, email, name, role, created_at
+        `
       } else {
-        // Update without changing password
-        if (hasNameColumn) {
-          updatedUsers = await sql`
-            UPDATE users 
-            SET name = ${name}, email = ${email.toLowerCase()}, role = ${role}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${userId}
-            RETURNING id, name, email, role, updated_at
-          `
-        } else {
-          updatedUsers = await sql`
-            UPDATE users 
-            SET email = ${email.toLowerCase()}, role = ${role}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${userId}
-            RETURNING id, email, role, updated_at
-          `
-          updatedUsers[0].name = name
-        }
+        updatedUser = await sql`
+          UPDATE users 
+          SET email = ${email}, role = ${role}, password_hash = ${passwordHash}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userId}
+          RETURNING id, email, role, created_at
+        `
+        updatedUser[0].name = name
       }
-
-      return NextResponse.json(updatedUsers[0])
-    } catch (dbError) {
-      console.error("Database error updating user:", dbError)
-      return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
+    } else {
+      // Update without password
+      if (hasNameColumn) {
+        updatedUser = await sql`
+          UPDATE users 
+          SET email = ${email}, role = ${role}, name = ${name}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userId}
+          RETURNING id, email, name, role, created_at
+        `
+      } else {
+        updatedUser = await sql`
+          UPDATE users 
+          SET email = ${email}, role = ${role}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userId}
+          RETURNING id, email, role, created_at
+        `
+        updatedUser[0].name = name
+      }
     }
+
+    return NextResponse.json(updatedUser[0])
   } catch (error) {
-    console.error("Update user API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error updating user:", error)
+    return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check if user is authenticated and is admin
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== "admin") {
+    // Verify admin session
+    const session = await verifySession()
+    if (!session || session.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const userId = Number.parseInt(params.id)
-    if (isNaN(userId)) {
-      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 })
-    }
-
-    // Prevent admin from deleting themselves
-    if (currentUser.id === userId) {
-      return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 })
-    }
-
-    // Return success for demo mode
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, simulating user deletion")
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    try {
-      // Check if user exists
-      const existingUsers = await sql`
-        SELECT id FROM users WHERE id = ${userId}
-      `
+    const userId = Number.parseInt(params.id)
 
-      if (existingUsers.length === 0) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 })
-      }
-
-      // Delete the user
-      await sql`
-        DELETE FROM users WHERE id = ${userId}
-      `
-
-      return NextResponse.json({ success: true })
-    } catch (dbError) {
-      console.error("Database error deleting user:", dbError)
-      return NextResponse.json({ error: "Failed to delete user" }, { status: 500 })
+    // Prevent admin from deleting their own account
+    if (session.userId === userId) {
+      return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 })
     }
+
+    // Check if user exists
+    const existingUser = await sql`
+      SELECT id FROM users WHERE id = ${userId}
+    `
+
+    if (existingUser.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    // Delete user
+    await sql`
+      DELETE FROM users WHERE id = ${userId}
+    `
+
+    return NextResponse.json({ message: "User deleted successfully" })
   } catch (error) {
-    console.error("Delete user API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error deleting user:", error)
+    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 })
   }
 }
