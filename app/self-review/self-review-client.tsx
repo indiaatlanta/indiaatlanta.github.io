@@ -166,8 +166,10 @@ export function SelfReviewClient() {
     setIsSaving(true)
     try {
       const assessmentData = {
-        roleId: selectedRole.id,
-        assessmentName: assessmentName.trim(),
+        name: assessmentName.trim(),
+        jobRoleId: selectedRole.id,
+        jobRoleName: selectedRole.name,
+        departmentName: selectedRole.department_name,
         assessmentData: {
           ratings: ratings,
           roleName: selectedRole.name,
@@ -175,6 +177,8 @@ export function SelfReviewClient() {
           departmentName: selectedRole.department_name,
           completedAt: new Date().toISOString(),
         },
+        completedSkills: totalRated,
+        totalSkills: skills.length,
       }
 
       const response = await fetch("/api/assessments", {

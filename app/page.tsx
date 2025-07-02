@@ -3,7 +3,7 @@ import { sql, isDatabaseConfigured } from "@/lib/db"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, Building2, User, Shield, LogOut } from "lucide-react"
+import { Users, Target, BookOpen, Building2, User, Shield, LogOut, FileText } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
@@ -197,6 +197,21 @@ export default async function HomePage() {
                 <Button className="w-full bg-transparent" variant="outline">
                   <Target className="mr-2 h-4 w-4" />
                   Compare Roles
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Saved Assessments</CardTitle>
+              <CardDescription>View and manage your previously saved skill assessments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/assessments">
+                <Button className="w-full bg-transparent" variant="outline">
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Assessments
                 </Button>
               </Link>
             </CardContent>
