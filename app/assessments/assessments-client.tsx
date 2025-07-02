@@ -18,15 +18,15 @@ import {
   Search,
   FileText,
   Calendar,
-  TrendingUp,
+  Target,
   Download,
-  Eye,
   Trash2,
+  Eye,
   AlertCircle,
-  ArrowLeft,
-  Plus,
+  RefreshCw,
+  BarChart3,
+  Clock,
 } from "lucide-react"
-import Link from "next/link"
 
 interface SavedAssessment {
   id: number
@@ -39,10 +39,13 @@ interface SavedAssessment {
   assessment_data?: string
 }
 
-interface AssessmentStats {
-  totalAssessments: number
-  averageCompletion: number
-  lastAssessmentDate: string | null
+interface AssessmentData {
+  ratings?: Array<{
+    skillId: number
+    rating: string
+    skillName: string
+    notes?: string
+  }>
 }
 
 export default function AssessmentsClient() {
@@ -52,11 +55,6 @@ export default function AssessmentsClient() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedAssessment, setSelectedAssessment] = useState<SavedAssessment | null>(null)
-  const [stats, setStats] = useState<AssessmentStats>({
-    totalAssessments: 0,
-    averageCompletion: 0,
-    lastAssessmentDate: null,
-  })
 
   useEffect(() => {
     loadAssessments()
@@ -77,46 +75,13 @@ export default function AssessmentsClient() {
       }
 
       const data = await response.json()
-
-      if (data.error) {
-        setError(data.error)
-        setAssessments([])
-      } else {
-        setAssessments(data.assessments || [])
-        calculateStats(data.assessments || [])
-      }
+      setAssessments(data.assessments || [])
     } catch (error) {
       console.error("Failed to load assessments:", error)
       setError("Failed to load assessments. Please try again.")
-      setAssessments([])
     } finally {
       setLoading(false)
     }
-  }
-
-  const calculateStats = (assessmentList: SavedAssessment[]) => {
-    if (assessmentList.length === 0) {
-      setStats({
-        totalAssessments: 0,
-        averageCompletion: 0,
-        lastAssessmentDate: null,
-      })
-      return
-    }
-
-    const totalCompletion = assessmentList.reduce((sum, assessment) => {
-      const percentage = assessment.total_skills > 0 ? (assessment.completed_skills / assessment.total_skills) * 100 : 0
-      return sum + percentage
-    }, 0)
-
-    const averageCompletion = Math.round(totalCompletion / assessmentList.length)
-    const lastAssessmentDate = assessmentList[0]?.created_at || null
-
-    setStats({
-      totalAssessments: assessmentList.length,
-      averageCompletion,
-      lastAssessmentDate,
-    })
   }
 
   const filterAssessments = () => {
@@ -146,7 +111,6 @@ export default function AssessmentsClient() {
 
       if (response.ok) {
         setAssessments((prev) => prev.filter((a) => a.id !== assessmentId))
-        setSelectedAssessment(null)
       } else {
         alert("Failed to delete assessment")
       }
@@ -163,9 +127,8 @@ export default function AssessmentsClient() {
       department: assessment.department_name,
       completedSkills: assessment.completed_skills,
       totalSkills: assessment.total_skills,
-      completionPercentage: getCompletionPercentage(assessment.completed_skills, assessment.total_skills),
       createdAt: assessment.created_at,
-      assessmentData: assessment.assessment_data ? JSON.parse(assessment.assessment_data) : {},
+      assessmentData: assessment.assessment_data ? JSON.parse(assessment.assessment_data) : null,
     }
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" })
@@ -179,18 +142,6 @@ export default function AssessmentsClient() {
     URL.revokeObjectURL(url)
   }
 
-  const getCompletionPercentage = (completed: number, total: number) => {
-    if (total === 0) return 0
-    return Math.round((completed / total) * 100)
-  }
-
-  const getCompletionColor = (percentage: number) => {
-    if (percentage >= 80) return "bg-green-500"
-    if (percentage >= 60) return "bg-blue-500"
-    if (percentage >= 40) return "bg-yellow-500"
-    return "bg-red-500"
-  }
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -201,12 +152,42 @@ export default function AssessmentsClient() {
     })
   }
 
-  const formatDateShort = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
+  const getCompletionPercentage = (completed: number, total: number) => {
+    if (total === 0) return 0
+    return Math.round((completed / total) * 100)
+  }
+
+  const getCompletionColor = (percentage: number) => {
+    if (percentage >= 80) return "text-green-600 bg-green-50"
+    if (percentage >= 60) return "text-blue-600 bg-blue-50"
+    if (percentage >= 40) return "text-yellow-600 bg-yellow-50"
+    return "text-red-600 bg-red-50"
+  }
+
+  const parseAssessmentData = (dataString?: string): AssessmentData => {
+    if (!dataString) return {}
+    try {
+      return JSON.parse(dataString)
+    } catch {
+      return {}
+    }
+  }
+
+  const getAverageCompletion = () => {
+    if (assessments.length === 0) return 0
+    const total = assessments.reduce(
+      (sum, assessment) => sum + getCompletionPercentage(assessment.completed_skills, assessment.total_skills),
+      0,
+    )
+    return Math.round(total / assessments.length)
+  }
+
+  const getLastAssessmentDate = () => {
+    if (assessments.length === 0) return "Never"
+    const latest = assessments.reduce((latest, assessment) =>
+      new Date(assessment.created_at) > new Date(latest.created_at) ? assessment : latest,
+    )
+    return formatDate(latest.created_at)
   }
 
   if (loading) {
@@ -226,24 +207,22 @@ export default function AssessmentsClient() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Saved Assessments</h1>
-            <p className="text-gray-600 mt-1">Manage and review your skill assessments</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Saved Assessments</h1>
+          <p className="text-gray-600 mt-2">View and manage your skill assessments</p>
         </div>
-        <Link href="/self-review">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            New Assessment
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadAssessments} disabled={loading}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
           </Button>
-        </Link>
+          <Button asChild>
+            <a href="/self-review">
+              <Target className="w-4 h-4 mr-2" />
+              New Assessment
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Error Alert */}
@@ -251,9 +230,9 @@ export default function AssessmentsClient() {
         <Alert className="mb-6">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
-            <span>{error}</span>
+            {error}
             <Button variant="outline" size="sm" onClick={loadAssessments}>
-              Retry
+              Try Again
             </Button>
           </AlertDescription>
         </Alert>
@@ -267,9 +246,9 @@ export default function AssessmentsClient() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalAssessments}</div>
+            <div className="text-2xl font-bold">{assessments.length}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.totalAssessments === 1 ? "assessment" : "assessments"} completed
+              {assessments.length === 1 ? "assessment" : "assessments"} completed
             </p>
           </CardContent>
         </Card>
@@ -277,10 +256,10 @@ export default function AssessmentsClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Completion</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.averageCompletion}%</div>
+            <div className="text-2xl font-bold">{getAverageCompletion()}%</div>
             <p className="text-xs text-muted-foreground">across all assessments</p>
           </CardContent>
         </Card>
@@ -288,13 +267,17 @@ export default function AssessmentsClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Last Assessment</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.lastAssessmentDate ? formatDateShort(stats.lastAssessmentDate) : "None"}
+              {assessments.length > 0
+                ? new Date(getLastAssessmentDate()).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                : "Never"}
             </div>
-            <p className="text-xs text-muted-foreground">most recent completion</p>
+            <p className="text-xs text-muted-foreground">
+              {assessments.length > 0 ? "most recent" : "no assessments yet"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -314,22 +297,24 @@ export default function AssessmentsClient() {
 
       {/* Assessments Grid */}
       {filteredAssessments.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="w-12 h-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {searchTerm ? "No matching assessments" : "No assessments yet"}
             </h3>
-            <p className="text-gray-600 mb-6">
-              {searchTerm ? "Try adjusting your search terms" : "Start by creating your first skill assessment"}
+            <p className="text-gray-600 text-center mb-4">
+              {searchTerm
+                ? "Try adjusting your search terms or clear the search to see all assessments."
+                : "Start by creating your first skill assessment to track your progress."}
             </p>
             {!searchTerm && (
-              <Link href="/self-review">
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
+              <Button asChild>
+                <a href="/self-review">
+                  <Target className="w-4 h-4 mr-2" />
                   Create Assessment
-                </Button>
-              </Link>
+                </a>
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -337,7 +322,6 @@ export default function AssessmentsClient() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAssessments.map((assessment) => {
             const completionPercentage = getCompletionPercentage(assessment.completed_skills, assessment.total_skills)
-
             return (
               <Card key={assessment.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -348,7 +332,7 @@ export default function AssessmentsClient() {
                         {assessment.job_role_name} • {assessment.department_name}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="ml-2">
+                    <Badge variant="outline" className={`${getCompletionColor(completionPercentage)} border-0`}>
                       {completionPercentage}%
                     </Badge>
                   </div>
@@ -365,7 +349,15 @@ export default function AssessmentsClient() {
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${getCompletionColor(completionPercentage)}`}
+                          className={`h-2 rounded-full ${
+                            completionPercentage >= 80
+                              ? "bg-green-500"
+                              : completionPercentage >= 60
+                                ? "bg-blue-500"
+                                : completionPercentage >= 40
+                                  ? "bg-yellow-500"
+                                  : "bg-red-500"
+                          }`}
                           style={{ width: `${completionPercentage}%` }}
                         ></div>
                       </div>
@@ -374,7 +366,7 @@ export default function AssessmentsClient() {
                     {/* Date */}
                     <div className="flex items-center text-sm text-gray-500">
                       <Calendar className="w-4 h-4 mr-2" />
-                      {formatDateShort(assessment.created_at)}
+                      {formatDate(assessment.created_at)}
                     </div>
 
                     {/* Actions */}
@@ -387,7 +379,7 @@ export default function AssessmentsClient() {
                             className="flex-1 bg-transparent"
                             onClick={() => setSelectedAssessment(assessment)}
                           >
-                            <Eye className="w-4 h-4 mr-2" />
+                            <Eye className="w-4 h-4 mr-1" />
                             View
                           </Button>
                         </DialogTrigger>
@@ -402,30 +394,63 @@ export default function AssessmentsClient() {
                             <div className="space-y-4">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <h4 className="font-medium mb-2">Completion</h4>
-                                  <div className="text-2xl font-bold">
-                                    {getCompletionPercentage(
-                                      selectedAssessment.completed_skills,
-                                      selectedAssessment.total_skills,
-                                    )}
-                                    %
+                                  <h4 className="font-medium mb-2">Assessment Details</h4>
+                                  <div className="space-y-1 text-sm">
+                                    <p>
+                                      <strong>Completed:</strong> {formatDate(selectedAssessment.created_at)}
+                                    </p>
+                                    <p>
+                                      <strong>Skills Assessed:</strong> {selectedAssessment.completed_skills}/
+                                      {selectedAssessment.total_skills}
+                                    </p>
+                                    <p>
+                                      <strong>Completion:</strong>{" "}
+                                      {getCompletionPercentage(
+                                        selectedAssessment.completed_skills,
+                                        selectedAssessment.total_skills,
+                                      )}
+                                      %
+                                    </p>
                                   </div>
-                                  <p className="text-sm text-gray-600">
-                                    {selectedAssessment.completed_skills} of {selectedAssessment.total_skills} skills
-                                  </p>
                                 </div>
                                 <div>
-                                  <h4 className="font-medium mb-2">Created</h4>
-                                  <div className="text-lg font-medium">{formatDate(selectedAssessment.created_at)}</div>
+                                  <h4 className="font-medium mb-2">Progress</h4>
+                                  <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
+                                    <div
+                                      className={`h-4 rounded-full ${
+                                        getCompletionPercentage(
+                                          selectedAssessment.completed_skills,
+                                          selectedAssessment.total_skills,
+                                        ) >= 80
+                                          ? "bg-green-500"
+                                          : getCompletionPercentage(
+                                                selectedAssessment.completed_skills,
+                                                selectedAssessment.total_skills,
+                                              ) >= 60
+                                            ? "bg-blue-500"
+                                            : getCompletionPercentage(
+                                                  selectedAssessment.completed_skills,
+                                                  selectedAssessment.total_skills,
+                                                ) >= 40
+                                              ? "bg-yellow-500"
+                                              : "bg-red-500"
+                                      }`}
+                                      style={{
+                                        width: `${getCompletionPercentage(selectedAssessment.completed_skills, selectedAssessment.total_skills)}%`,
+                                      }}
+                                    ></div>
+                                  </div>
                                 </div>
                               </div>
 
                               {selectedAssessment.assessment_data && (
                                 <div>
-                                  <h4 className="font-medium mb-2">Assessment Data</h4>
-                                  <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-40">
-                                    {JSON.stringify(JSON.parse(selectedAssessment.assessment_data), null, 2)}
-                                  </pre>
+                                  <h4 className="font-medium mb-2">Rating Summary</h4>
+                                  <div className="bg-gray-50 p-3 rounded-lg">
+                                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+                                      {JSON.stringify(parseAssessmentData(selectedAssessment.assessment_data), null, 2)}
+                                    </pre>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -453,6 +478,13 @@ export default function AssessmentsClient() {
           })}
         </div>
       )}
+
+      {/* Back to Dashboard */}
+      <div className="mt-8 text-center">
+        <Button variant="outline" asChild>
+          <a href="/">← Back to Dashboard</a>
+        </Button>
+      </div>
     </div>
   )
 }

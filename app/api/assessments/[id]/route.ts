@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const assessment = await sql`
       SELECT 
         id,
-        name,
+        assessment_name as name,
         job_role_name,
         department_name,
         completed_skills,
