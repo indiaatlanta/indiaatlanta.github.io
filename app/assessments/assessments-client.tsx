@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Search, FileText, Download, Trash2, Calendar, Target, BarChart3, Eye } from "lucide-react"
+import {
+  ArrowLeft,
+  Search,
+  FileText,
+  Download,
+  Trash2,
+  Calendar,
+  Target,
+  BarChart3,
+  Eye,
+  AlertCircle,
+} from "lucide-react"
 import Link from "next/link"
 
 interface Assessment {
@@ -44,7 +56,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null)
-  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadAssessments()
@@ -63,16 +75,25 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
   const loadAssessments = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await fetch("/api/assessments")
-      if (response.ok) {
-        const data = await response.json()
-        setAssessments(data.assessments || [])
-        setIsDemoMode(data.isDemoMode || false)
+
+      if (!response.ok) {
+        throw new Error(`Failed to load assessments: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.error) {
+        setError(data.error)
+        setAssessments([])
       } else {
-        console.error("Failed to load assessments")
+        setAssessments(data.assessments || [])
       }
     } catch (error) {
       console.error("Error loading assessments:", error)
+      setError("Failed to load assessments. Please try again.")
+      setAssessments([])
     } finally {
       setLoading(false)
     }
@@ -90,12 +111,14 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
 
       if (response.ok) {
         setAssessments((prev) => prev.filter((a) => a.id !== assessmentId))
+        setSelectedAssessment(null)
       } else {
-        alert("Failed to delete assessment")
+        const errorData = await response.json()
+        alert(`Failed to delete assessment: ${errorData.error || "Unknown error"}`)
       }
     } catch (error) {
       console.error("Failed to delete assessment:", error)
-      alert("Failed to delete assessment")
+      alert("Failed to delete assessment. Please try again.")
     }
   }
 
@@ -190,14 +213,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Saved Assessments</h1>
-              <p className="text-gray-600">
-                Manage and review your assessment history
-                {isDemoMode && (
-                  <Badge variant="outline" className="ml-2">
-                    Demo Mode
-                  </Badge>
-                )}
-              </p>
+              <p className="text-gray-600">Manage and review your assessment history</p>
             </div>
           </div>
           <Link href="/self-review">
@@ -207,6 +223,19 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
             </Button>
           </Link>
         </header>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {error}
+              <Button variant="outline" size="sm" className="ml-4 bg-transparent" onClick={loadAssessments}>
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">

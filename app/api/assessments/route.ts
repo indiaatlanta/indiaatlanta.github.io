@@ -1,41 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import { z } from "zod"
 
-// Demo data for when database is not available
-const demoAssessments = [
-  {
-    id: 1,
-    name: "Frontend Developer Assessment",
-    job_role_name: "Frontend Developer",
-    department_name: "Engineering",
-    completed_skills: 8,
-    total_skills: 12,
-    created_at: "2024-01-15T10:30:00Z",
-    assessment_data: JSON.stringify({
-      ratings: [
-        { skillId: 1, rating: "proficient", skillName: "JavaScript" },
-        { skillId: 2, rating: "strength", skillName: "React" },
-        { skillId: 3, rating: "developing", skillName: "CSS" },
-      ],
-    }),
-  },
-  {
-    id: 2,
-    name: "Product Manager Evaluation",
-    job_role_name: "Product Manager",
-    department_name: "Product",
-    completed_skills: 6,
-    total_skills: 10,
-    created_at: "2024-01-10T14:20:00Z",
-    assessment_data: JSON.stringify({
-      ratings: [
-        { skillId: 4, rating: "strength", skillName: "Strategic Planning" },
-        { skillId: 5, rating: "proficient", skillName: "User Research" },
-      ],
-    }),
-  },
-]
+const assessmentSchema = z.object({
+  name: z.string().min(1, "Assessment name is required").max(255, "Name too long"),
+  jobRoleId: z.number().int().positive("Invalid job role").optional(),
+  departmentName: z.string().min(1, "Department name is required"),
+  jobRoleName: z.string().min(1, "Job role name is required"),
+  assessmentData: z.record(z.any()),
+  completedSkills: z.number().int().min(0),
+  totalSkills: z.number().int().min(0),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,15 +21,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, using demo assessments")
       return NextResponse.json({
-        assessments: demoAssessments,
-        isDemoMode: true,
+        assessments: [],
+        isDemoMode: false,
+        message: "Database not configured",
       })
     }
 
     try {
-      // Try to get assessments from database
+      // Get assessments from database
       const assessments = await sql`
         SELECT 
           id,
@@ -77,18 +53,23 @@ export async function GET(request: NextRequest) {
         isDemoMode: false,
       })
     } catch (dbError) {
-      console.log("Database query failed, using demo data:", dbError)
+      console.error("Database query failed:", dbError)
       return NextResponse.json({
-        assessments: demoAssessments,
-        isDemoMode: true,
+        assessments: [],
+        isDemoMode: false,
+        error: "Failed to load assessments from database",
       })
     }
   } catch (error) {
     console.error("Get assessments error:", error)
-    return NextResponse.json({
-      assessments: demoAssessments,
-      isDemoMode: true,
-    })
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        assessments: [],
+        isDemoMode: false,
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -100,17 +81,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, jobRoleId, departmentName, jobRoleName, assessmentData, completedSkills, totalSkills } = body
+    console.log("Received assessment data:", body)
 
-    console.log("Saving assessment:", { name, jobRoleName, departmentName, completedSkills, totalSkills })
+    const validatedData = assessmentSchema.parse(body)
 
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, simulating save")
-      return NextResponse.json({
-        id: Date.now(),
-        message: "Assessment saved successfully (demo mode)",
-        isDemoMode: true,
-      })
+      return NextResponse.json(
+        {
+          error: "Database not configured",
+          isDemoMode: false,
+        },
+        { status: 500 },
+      )
     }
 
     try {
@@ -128,12 +110,12 @@ export async function POST(request: NextRequest) {
         )
         VALUES (
           ${user.id}, 
-          ${name}, 
-          ${jobRoleName},
-          ${departmentName},
-          ${completedSkills}, 
-          ${totalSkills}, 
-          ${JSON.stringify(assessmentData)},
+          ${validatedData.name}, 
+          ${validatedData.jobRoleName},
+          ${validatedData.departmentName},
+          ${validatedData.completedSkills}, 
+          ${validatedData.totalSkills}, 
+          ${JSON.stringify(validatedData.assessmentData)},
           NOW()
         )
         RETURNING id, assessment_name, created_at
@@ -150,14 +132,34 @@ export async function POST(request: NextRequest) {
       })
     } catch (dbError) {
       console.error("Database save failed:", dbError)
-      return NextResponse.json({
-        id: Date.now(),
-        message: "Assessment saved successfully (demo mode - db error)",
-        isDemoMode: true,
-      })
+      return NextResponse.json(
+        {
+          error: "Failed to save assessment to database",
+          isDemoMode: false,
+        },
+        { status: 500 },
+      )
     }
   } catch (error) {
     console.error("Save assessment error:", error)
-    return NextResponse.json({ error: "Failed to save assessment" }, { status: 500 })
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: "Invalid data",
+          details: error.errors,
+          isDemoMode: false,
+        },
+        { status: 400 },
+      )
+    }
+
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        isDemoMode: false,
+      },
+      { status: 500 },
+    )
   }
 }

@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, FileText, Clock } from "lucide-react"
+import { LogOut, FileText, Clock, Settings, User } from "lucide-react"
+import Link from "next/link"
 
 interface SavedAssessment {
   id: number
@@ -30,19 +31,22 @@ interface LoginButtonProps {
     name: string
     email: string
     role: string
-  }
+  } | null
 }
 
 export default function LoginButton({ user }: LoginButtonProps) {
   const [savedAssessments, setSavedAssessments] = useState<SavedAssessment[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    loadSavedAssessments()
-  }, [])
+    if (user) {
+      loadSavedAssessments()
+    }
+  }, [user])
 
   const loadSavedAssessments = async () => {
     try {
+      setLoading(true)
       const response = await fetch("/api/assessments")
       if (response.ok) {
         const data = await response.json()
@@ -80,22 +84,22 @@ export default function LoginButton({ user }: LoginButtonProps) {
     return Math.round((completed / total) * 100)
   }
 
+  if (!user) {
+    return (
+      <Link href="/login">
+        <Button variant="outline" size="sm">
+          Sign In
+        </Button>
+      </Link>
+    )
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
+        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+          <User className="w-4 h-4" />
+          {user.name}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align="end" forceMount>
@@ -103,6 +107,11 @@ export default function LoginButton({ user }: LoginButtonProps) {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+            {user.role === "admin" && (
+              <Badge variant="secondary" className="w-fit mt-1">
+                Admin
+              </Badge>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -149,7 +158,7 @@ export default function LoginButton({ user }: LoginButtonProps) {
                 </Card>
               ))}
               <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
-                <a href="/assessments">View All Assessments</a>
+                <Link href="/assessments">View All Assessments</Link>
               </Button>
             </div>
           ) : (
@@ -157,13 +166,26 @@ export default function LoginButton({ user }: LoginButtonProps) {
               <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-xs text-muted-foreground mb-2">No assessments yet</p>
               <Button variant="ghost" size="sm" className="text-xs" asChild>
-                <a href="/self-review">Start Assessment</a>
+                <Link href="/self-review">Start Assessment</Link>
               </Button>
             </div>
           )}
         </div>
 
         <DropdownMenuSeparator />
+
+        {user.role === "admin" && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
