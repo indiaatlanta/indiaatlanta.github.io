@@ -29,11 +29,24 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Get assessments from database
+      // First, let's check what columns exist in the saved_assessments table
+      const tableInfo = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'saved_assessments'
+        ORDER BY ordinal_position
+      `
+
+      console.log(
+        "Available columns in saved_assessments:",
+        tableInfo.map((col) => col.column_name),
+      )
+
+      // Get assessments from database using only the columns that exist
       const assessments = await sql`
         SELECT 
           id,
-          assessment_name as name,
+          name,
           job_role_name,
           department_name,
           completed_skills,
@@ -54,11 +67,67 @@ export async function GET(request: NextRequest) {
       })
     } catch (dbError) {
       console.error("Database query failed:", dbError)
-      return NextResponse.json({
-        assessments: [],
-        isDemoMode: false,
-        error: "Failed to load assessments from database",
-      })
+
+      // Try alternative column names
+      try {
+        const assessments = await sql`
+          SELECT 
+            id,
+            assessment_name as name,
+            job_role_name,
+            department_name,
+            completed_skills,
+            total_skills,
+            created_at,
+            assessment_data
+          FROM saved_assessments
+          WHERE user_id = ${user.id}
+          ORDER BY created_at DESC
+        `
+
+        return NextResponse.json({
+          assessments: assessments.map((assessment) => ({
+            ...assessment,
+            created_at: assessment.created_at.toISOString(),
+          })),
+          isDemoMode: false,
+        })
+      } catch (secondError) {
+        console.error("Second attempt failed:", secondError)
+
+        // Try with minimal columns that should exist
+        try {
+          const assessments = await sql`
+            SELECT 
+              id,
+              name,
+              created_at
+            FROM saved_assessments
+            WHERE user_id = ${user.id}
+            ORDER BY created_at DESC
+          `
+
+          return NextResponse.json({
+            assessments: assessments.map((assessment) => ({
+              ...assessment,
+              job_role_name: "Unknown Role",
+              department_name: "Unknown Department",
+              completed_skills: 0,
+              total_skills: 0,
+              assessment_data: "{}",
+              created_at: assessment.created_at.toISOString(),
+            })),
+            isDemoMode: false,
+          })
+        } catch (finalError) {
+          console.error("All attempts failed:", finalError)
+          return NextResponse.json({
+            assessments: [],
+            isDemoMode: false,
+            error: "Failed to load assessments from database",
+          })
+        }
+      }
     }
   } catch (error) {
     console.error("Get assessments error:", error)
@@ -96,11 +165,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Save the assessment to database
+      // Try to save with the expected column names
       const result = await sql`
         INSERT INTO saved_assessments (
           user_id, 
-          assessment_name, 
+          name, 
           job_role_name,
           department_name,
           completed_skills, 
@@ -118,27 +187,64 @@ export async function POST(request: NextRequest) {
           ${JSON.stringify(validatedData.assessmentData)},
           NOW()
         )
-        RETURNING id, assessment_name, created_at
+        RETURNING id, name, created_at
       `
 
       console.log("Assessment saved successfully:", result[0])
 
       return NextResponse.json({
         id: result[0].id,
-        name: result[0].assessment_name,
+        name: result[0].name,
         created_at: result[0].created_at,
         message: "Assessment saved successfully",
         isDemoMode: false,
       })
-    } catch (dbError) {
-      console.error("Database save failed:", dbError)
-      return NextResponse.json(
-        {
-          error: "Failed to save assessment to database",
+    } catch (insertError) {
+      console.error("Insert failed, trying with assessment_name:", insertError)
+
+      // Try with assessment_name instead of name
+      try {
+        const result = await sql`
+          INSERT INTO saved_assessments (
+            user_id, 
+            assessment_name, 
+            job_role_name,
+            department_name,
+            completed_skills, 
+            total_skills, 
+            assessment_data,
+            created_at
+          )
+          VALUES (
+            ${user.id}, 
+            ${validatedData.name}, 
+            ${validatedData.jobRoleName},
+            ${validatedData.departmentName},
+            ${validatedData.completedSkills}, 
+            ${validatedData.totalSkills}, 
+            ${JSON.stringify(validatedData.assessmentData)},
+            NOW()
+          )
+          RETURNING id, assessment_name as name, created_at
+        `
+
+        return NextResponse.json({
+          id: result[0].id,
+          name: result[0].name,
+          created_at: result[0].created_at,
+          message: "Assessment saved successfully",
           isDemoMode: false,
-        },
-        { status: 500 },
-      )
+        })
+      } catch (finalError) {
+        console.error("All insert attempts failed:", finalError)
+        return NextResponse.json(
+          {
+            error: "Failed to save assessment to database",
+            isDemoMode: false,
+          },
+          { status: 500 },
+        )
+      }
     }
   } catch (error) {
     console.error("Save assessment error:", error)
