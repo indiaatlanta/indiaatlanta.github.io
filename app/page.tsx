@@ -1,91 +1,71 @@
 import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import LoginButton from "@/components/login-button"
+import { AdminButton } from "@/components/admin-button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, Building2, User, Shield, LogOut, FileText } from 'lucide-react'
+import { Building2, Users, Target, FileText, BarChart3, Settings, BookOpen } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
-import LoginButton from "@/components/login-button"
 
-// Demo data for when database is not available
-const demoStats = {
-  totalRoles: 15,
-  totalSkills: 45,
-  totalUsers: 5,
-  departments: [
-    { name: "Engineering", slug: "engineering", roleCount: 5 },
-    { name: "Product Management", slug: "product-management", roleCount: 3 },
-    { name: "Sales", slug: "sales", roleCount: 4 },
-    { name: "Marketing", slug: "marketing", roleCount: 3 },
-  ],
-}
-
-async function getDashboardStats() {
+async function getDashboardData() {
   if (!isDatabaseConfigured() || !sql) {
-    console.log("Database not configured, using demo stats")
-    return demoStats
+    return {
+      departments: [
+        {
+          id: 1,
+          name: "Engineering",
+          slug: "engineering",
+          description: "Software development and technical roles",
+          role_count: 5,
+        },
+        { id: 2, name: "Product", slug: "product", description: "Product management and design", role_count: 3 },
+        { id: 3, name: "Marketing", slug: "marketing", description: "Marketing and growth", role_count: 4 },
+      ],
+      totalRoles: 12,
+      totalSkills: 45,
+      isDemoMode: true,
+    }
   }
 
   try {
-    // Get total counts
-    const [rolesResult, skillsResult, usersResult] = await Promise.all([
+    const [departments, roleCount, skillCount] = await Promise.all([
+      sql`
+        SELECT 
+          d.id,
+          d.name,
+          d.slug,
+          d.description,
+          COUNT(jr.id) as role_count
+        FROM departments d
+        LEFT JOIN job_roles jr ON d.id = jr.department_id
+        GROUP BY d.id, d.name, d.slug, d.description
+        ORDER BY d.name
+      `,
       sql`SELECT COUNT(*) as count FROM job_roles`,
       sql`SELECT COUNT(*) as count FROM skills_master`,
-      sql`SELECT COUNT(*) as count FROM users`,
     ])
 
-    // Get departments with role counts
-    const departmentsResult = await sql`
-      SELECT 
-        d.name,
-        d.slug,
-        COUNT(jr.id) as role_count
-      FROM departments d
-      LEFT JOIN job_roles jr ON d.id = jr.department_id
-      GROUP BY d.id, d.name, d.slug
-      ORDER BY d.name
-    `
-
     return {
-      totalRoles: Number.parseInt(rolesResult[0].count),
-      totalSkills: Number.parseInt(skillsResult[0].count),
-      totalUsers: Number.parseInt(usersResult[0].count),
-      departments: departmentsResult.map((dept: any) => ({
-        name: dept.name,
-        slug: dept.slug,
-        roleCount: Number.parseInt(dept.role_count),
-      })),
+      departments,
+      totalRoles: roleCount[0]?.count || 0,
+      totalSkills: skillCount[0]?.count || 0,
+      isDemoMode: false,
     }
   } catch (error) {
-    console.error("Error fetching dashboard stats:", error)
-    // Fallback to demo data if database query fails
-    return demoStats
+    console.error("Dashboard data error:", error)
+    return {
+      departments: [],
+      totalRoles: 0,
+      totalSkills: 0,
+      isDemoMode: false,
+    }
   }
-}
-
-async function logoutAction() {
-  "use server"
-
-  const { cookies } = await import("next/headers")
-  const cookieStore = await cookies()
-
-  // Clear the session cookie
-  cookieStore.delete("session")
-
-  // Redirect to login page
-  redirect("/login")
 }
 
 export default async function HomePage() {
   const user = await getCurrentUser()
-
-  if (!user) {
-    redirect("/login")
-  }
-
-  const stats = await getDashboardStats()
-  const isDemoMode = !isDatabaseConfigured()
+  const { departments, totalRoles, totalSkills, isDemoMode } = await getDashboardData()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -94,26 +74,21 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Career Development Matrix</h1>
+              <div className="flex items-center space-x-3">
+                <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">HS1 Careers Matrix</h1>
+                  <p className="text-sm text-gray-500">Skills Assessment & Career Development</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
               {isDemoMode && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                <Badge variant="outline" className="text-orange-600 border-orange-200">
                   Demo Mode
                 </Badge>
               )}
-              <div className="flex items-center space-x-2">
-                {user.role === "admin" ? (
-                  <Shield className="h-4 w-4 text-blue-600" />
-                ) : (
-                  <User className="h-4 w-4 text-gray-600" />
-                )}
-                <span className="text-sm font-medium text-gray-700">{user.name}</span>
-                <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
-              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <AdminButton />
               <LoginButton user={user} />
             </div>
           </div>
@@ -124,9 +99,10 @@ export default async function HomePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
-          <p className="text-gray-600">
-            Track your career development and explore growth opportunities within Henry Schein One.
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to the HS1 Careers Matrix</h2>
+          <p className="text-lg text-gray-600 max-w-3xl">
+            Explore career paths, assess your skills, and plan your professional development journey within Henry Schein
+            One. Discover opportunities across departments and understand the skills needed for your next role.
           </p>
         </div>
 
@@ -134,133 +110,145 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Job Roles</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Departments</CardTitle>
+              <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalRoles}</div>
-              <p className="text-xs text-muted-foreground">Across all departments</p>
+              <div className="text-2xl font-bold">{departments.length}</div>
+              <p className="text-xs text-muted-foreground">Active departments</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Skills Tracked</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalSkills}</div>
-              <p className="text-xs text-muted-foreground">Available for assessment</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+              <CardTitle className="text-sm font-medium">Job Roles</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Using the platform</p>
+              <div className="text-2xl font-bold">{totalRoles}</div>
+              <p className="text-xs text-muted-foreground">Available positions</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Skills</CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalSkills}</div>
+              <p className="text-xs text-muted-foreground">Tracked competencies</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Self Assessment</CardTitle>
-              <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className="mb-8">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <Link href="/self-review">
-                <Button className="w-full">
-                  <User className="mr-2 h-4 w-4" />
-                  Start Self Assessment
-                </Button>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                    <CardTitle className="text-base">Self Assessment</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
+                </CardContent>
               </Link>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Compare Roles</CardTitle>
-              <CardDescription>Compare your skills against different job roles and career paths</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <Link href="/compare">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <Target className="mr-2 h-4 w-4" />
-                  Compare Roles
-                </Button>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Target className="h-5 w-5 text-green-600" />
+                    <CardTitle className="text-base">Compare Roles</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>Compare your skills against different job roles</CardDescription>
+                </CardContent>
               </Link>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved Assessments</CardTitle>
-              <CardDescription>View and manage your previously saved skill assessments</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <Link href="/assessments">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <FileText className="mr-2 h-4 w-4" />
-                  View Assessments
-                </Button>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5 text-purple-600" />
+                    <CardTitle className="text-base">Saved Assessments</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>View and manage your saved skill assessments</CardDescription>
+                </CardContent>
               </Link>
-            </CardContent>
-          </Card>
+            </Card>
+
+            {user?.role === "admin" && (
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <Link href="/admin">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Settings className="h-5 w-5 text-red-600" />
+                      <CardTitle className="text-base">Admin Panel</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>Manage users, skills, and job roles</CardDescription>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
         </div>
 
         {/* Departments */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Building2 className="mr-2 h-5 w-5" />
-              Browse by Department
-            </CardTitle>
-            <CardDescription>Explore career paths and roles within each department</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.departments.map((dept) => (
-                <Link key={dept.slug} href={`/department/${dept.slug}`}>
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-sm mb-2">{dept.name}</h3>
-                      <p className="text-xs text-gray-600">
-                        {dept.roleCount} {dept.roleCount === 1 ? "role" : "roles"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Explore Departments</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {departments.map((department) => (
+              <Card key={department.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{department.name}</CardTitle>
+                    <Badge variant="secondary">
+                      {department.role_count} {department.role_count === 1 ? "role" : "roles"}
+                    </Badge>
+                  </div>
+                  <CardDescription>{department.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Link href={`/department/${department.slug}`}>
+                    <Button className="w-full">
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      Explore Department
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
 
-        {/* Admin Panel Link */}
-        {user.role === "admin" && (
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-blue-600">
-                  <Shield className="mr-2 h-5 w-5" />
-                  Admin Panel
-                </CardTitle>
-                <CardDescription>Manage users, roles, skills, and system configuration</CardDescription>
-              </CardHeader>
-              <CardContent>
+        {departments.length === 0 && !isDemoMode && (
+          <div className="text-center py-12">
+            <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No departments found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by creating your first department in the admin panel.
+            </p>
+            {user?.role === "admin" && (
+              <div className="mt-6">
                 <Link href="/admin">
-                  <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Access Admin Panel
+                  <Button>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Go to Admin Panel
                   </Button>
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </div>
         )}
       </main>
