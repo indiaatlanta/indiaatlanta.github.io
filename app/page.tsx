@@ -89,7 +89,7 @@ async function getRecentAssessments(userId: number) {
   }
 
   try {
-    // Ensure table exists first
+    // Ensure table exists first with correct column names
     await sql`
       CREATE TABLE IF NOT EXISTS saved_assessments (
         id SERIAL PRIMARY KEY,
@@ -106,6 +106,29 @@ async function getRecentAssessments(userId: number) {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `
+
+    // Check if old column names exist and migrate if needed
+    const columnCheck = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'saved_assessments' 
+      AND column_name IN ('name', 'role_name', 'department')
+    `
+
+    if (columnCheck.length > 0) {
+      // Migrate old column names to new ones
+      for (const col of columnCheck) {
+        if (col.column_name === "name") {
+          await sql`ALTER TABLE saved_assessments RENAME COLUMN name TO assessment_name`
+        }
+        if (col.column_name === "role_name") {
+          await sql`ALTER TABLE saved_assessments RENAME COLUMN role_name TO job_role_name`
+        }
+        if (col.column_name === "department") {
+          await sql`ALTER TABLE saved_assessments RENAME COLUMN department TO department_name`
+        }
+      }
+    }
 
     const assessments = await sql`
       SELECT 
@@ -140,7 +163,13 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={40} height={40} className="rounded-lg" />
+              <Image
+                src="/placeholder.svg?height=40&width=40"
+                alt="Henry Schein One"
+                width={40}
+                height={40}
+                className="rounded-lg"
+              />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">HS1 Careers Matrix</h1>
                 <p className="text-sm text-gray-500">Skills Assessment & Career Development</p>
