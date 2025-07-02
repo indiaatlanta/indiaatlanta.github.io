@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,9 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
-import { User, LogOut, Settings, Trash2, Calendar, Target } from "lucide-react"
-import Link from "next/link"
+import { LogOut, FileText, Clock } from "lucide-react"
 
 interface SavedAssessment {
   id: number
@@ -26,31 +26,27 @@ interface SavedAssessment {
 
 interface LoginButtonProps {
   user: {
+    id: number
     name: string
     email: string
     role: string
-  } | null
+  }
 }
 
 export default function LoginButton({ user }: LoginButtonProps) {
   const [savedAssessments, setSavedAssessments] = useState<SavedAssessment[]>([])
-  const [loading, setLoading] = useState(false)
-  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user) {
-      loadSavedAssessments()
-    }
-  }, [user])
+    loadSavedAssessments()
+  }, [])
 
   const loadSavedAssessments = async () => {
     try {
-      setLoading(true)
       const response = await fetch("/api/assessments")
       if (response.ok) {
         const data = await response.json()
-        setSavedAssessments(data.assessments || [])
-        setIsDemoMode(data.isDemoMode || false)
+        setSavedAssessments(data.assessments?.slice(0, 3) || []) // Show only latest 3
       }
     } catch (error) {
       console.error("Failed to load saved assessments:", error)
@@ -59,25 +55,16 @@ export default function LoginButton({ user }: LoginButtonProps) {
     }
   }
 
-  const handleDeleteAssessment = async (assessmentId: number, assessmentName: string) => {
-    if (!confirm(`Are you sure you want to delete "${assessmentName}"?`)) {
-      return
-    }
-
+  const handleLogout = async () => {
     try {
-      const response = await fetch(`/api/assessments/${assessmentId}`, {
-        method: "DELETE",
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
       })
-
       if (response.ok) {
-        // Remove from local state
-        setSavedAssessments((prev) => prev.filter((a) => a.id !== assessmentId))
-      } else {
-        alert("Failed to delete assessment")
+        window.location.href = "/login"
       }
     } catch (error) {
-      console.error("Failed to delete assessment:", error)
-      alert("Failed to delete assessment")
+      console.error("Logout failed:", error)
     }
   }
 
@@ -85,7 +72,6 @@ export default function LoginButton({ user }: LoginButtonProps) {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      year: "numeric",
     })
   }
 
@@ -94,122 +80,93 @@ export default function LoginButton({ user }: LoginButtonProps) {
     return Math.round((completed / total) * 100)
   }
 
-  if (!user) {
-    return (
-      <Link href="/login">
-        <Button variant="outline" size="sm">
-          Sign In
-        </Button>
-      </Link>
-    )
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2">
-          <User className="w-4 h-4" />
-          {user.name}
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel className="flex flex-col">
-          <span>{user.name}</span>
-          <span className="text-xs text-gray-500 font-normal">{user.email}</span>
-          {user.role === "admin" && (
-            <Badge variant="secondary" className="w-fit mt-1">
-              Admin
-            </Badge>
-          )}
+      <DropdownMenuContent className="w-80" align="end" forceMount>
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{user.name}</p>
+            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+          </div>
         </DropdownMenuLabel>
-
         <DropdownMenuSeparator />
 
-        {/* Saved Assessments Section */}
-        <DropdownMenuLabel className="flex items-center gap-2 text-sm">
-          <Target className="w-4 h-4" />
-          Saved Assessments
-          {isDemoMode && (
-            <Badge variant="outline" className="text-xs">
-              Demo
-            </Badge>
-          )}
-        </DropdownMenuLabel>
+        {/* Recent Assessments Section */}
+        <div className="p-2">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium">Recent Assessments</h4>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </div>
 
-        {loading ? (
-          <DropdownMenuItem disabled>
-            <span className="text-sm text-gray-500">Loading...</span>
-          </DropdownMenuItem>
-        ) : savedAssessments.length > 0 ? (
-          <>
-            {savedAssessments.slice(0, 5).map((assessment) => (
-              <DropdownMenuItem key={assessment.id} className="flex-col items-start p-3 space-y-1">
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-medium text-sm truncate flex-1">{assessment.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteAssessment(assessment.id, assessment.name)
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-                <div className="text-xs text-gray-500 w-full">
-                  {assessment.job_role_name} • {assessment.department_name}
-                </div>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {assessment.completed_skills}/{assessment.total_skills} skills
-                    </Badge>
-                    <span className="text-xs text-gray-500">
-                      {getCompletionPercentage(assessment.completed_skills, assessment.total_skills)}%
-                    </span>
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-300 mx-auto"></div>
+              <p className="text-xs text-muted-foreground mt-2">Loading...</p>
+            </div>
+          ) : savedAssessments.length > 0 ? (
+            <div className="space-y-2">
+              {savedAssessments.map((assessment) => (
+                <Card key={assessment.id} className="p-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-medium truncate">{assessment.name}</h5>
+                      <Badge variant="outline" className="text-xs">
+                        {getCompletionPercentage(assessment.completed_skills, assessment.total_skills)}%
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{assessment.job_role_name}</span>
+                      <span className="flex items-center">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {formatDate(assessment.created_at)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1">
+                      <div
+                        className="bg-blue-600 h-1 rounded-full"
+                        style={{
+                          width: `${getCompletionPercentage(assessment.completed_skills, assessment.total_skills)}%`,
+                        }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <Calendar className="w-3 h-3" />
-                    {formatDate(assessment.created_at)}
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            ))}
-            {savedAssessments.length > 5 && (
-              <DropdownMenuItem className="text-center text-sm text-gray-500">
-                +{savedAssessments.length - 5} more assessments
-              </DropdownMenuItem>
-            )}
-          </>
-        ) : (
-          <DropdownMenuItem disabled>
-            <span className="text-sm text-gray-500">No saved assessments</span>
-          </DropdownMenuItem>
-        )}
+                </Card>
+              ))}
+              <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
+                <a href="/assessments">View All Assessments</a>
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground mb-2">No assessments yet</p>
+              <Button variant="ghost" size="sm" className="text-xs" asChild>
+                <a href="/self-review">Start Assessment</a>
+              </Button>
+            </div>
+          )}
+        </div>
 
         <DropdownMenuSeparator />
-
-        {user.role === "admin" && (
-          <>
-            <DropdownMenuItem asChild>
-              <Link href="/admin" className="flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Admin Panel
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-
-        <DropdownMenuItem asChild>
-          <form action="/api/auth/logout" method="POST" className="w-full">
-            <button type="submit" className="flex items-center gap-2 w-full">
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </button>
-          </form>
+        <DropdownMenuItem onClick={handleLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

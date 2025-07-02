@@ -141,6 +141,32 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
     return "bg-red-500"
   }
 
+  const getRatingsSummary = (assessmentData: string) => {
+    try {
+      const data = JSON.parse(assessmentData)
+      if (data.ratings && Array.isArray(data.ratings)) {
+        const summary = {
+          "needs-development": 0,
+          developing: 0,
+          proficient: 0,
+          strength: 0,
+          "not-applicable": 0,
+        }
+
+        data.ratings.forEach((rating: any) => {
+          if (summary.hasOwnProperty(rating.rating)) {
+            summary[rating.rating as keyof typeof summary]++
+          }
+        })
+
+        return summary
+      }
+    } catch (error) {
+      console.error("Error parsing assessment data:", error)
+    }
+    return null
+  }
+
   const totalAssessments = assessments.length
   const averageCompletion =
     assessments.length > 0
@@ -323,14 +349,42 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                                   <h4 className="font-semibold text-sm text-gray-700 mb-2">Assessment Date</h4>
                                   <p className="text-sm">{formatDate(selectedAssessment.created_at)}</p>
                                 </div>
-                                {selectedAssessment.assessment_data && (
-                                  <div>
-                                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Assessment Data</h4>
-                                    <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto max-h-40">
-                                      {JSON.stringify(JSON.parse(selectedAssessment.assessment_data), null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
+                                {selectedAssessment.assessment_data &&
+                                  (() => {
+                                    const ratingsSummary = getRatingsSummary(selectedAssessment.assessment_data)
+                                    return (
+                                      ratingsSummary && (
+                                        <div>
+                                          <h4 className="font-semibold text-sm text-gray-700 mb-2">Rating Summary</h4>
+                                          <div className="grid grid-cols-2 gap-2">
+                                            {Object.entries(ratingsSummary).map(([rating, count]) => {
+                                              if (count > 0) {
+                                                const labels = {
+                                                  "needs-development": "Needs Development",
+                                                  developing: "Developing",
+                                                  proficient: "Proficient",
+                                                  strength: "Strength",
+                                                  "not-applicable": "Not Applicable",
+                                                }
+                                                return (
+                                                  <div
+                                                    key={rating}
+                                                    className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                                                  >
+                                                    <span className="text-sm text-gray-700">
+                                                      {labels[rating as keyof typeof labels]}
+                                                    </span>
+                                                    <Badge variant="outline">{count}</Badge>
+                                                  </div>
+                                                )
+                                              }
+                                              return null
+                                            })}
+                                          </div>
+                                        </div>
+                                      )
+                                    )
+                                  })()}
                               </div>
                             )}
                           </DialogContent>
