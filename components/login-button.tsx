@@ -13,41 +13,50 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { LogOut, FileText, Clock, ChevronDown } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface Assessment {
   id: number
-  assessment_name: string
-  job_role: string
-  department: string
-  overall_score: number
+  name: string
+  job_role_name: string
+  department_name: string
   completion_percentage: number
   created_at: string
 }
 
 interface LoginButtonProps {
-  user: any | null
+  user?: {
+    id: number
+    name: string
+    email: string
+    role: string
+  } | null
 }
 
 export default function LoginButton({ user }: LoginButtonProps) {
+  const router = useRouter()
   const [recentAssessments, setRecentAssessments] = useState<Assessment[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (user) {
-      loadRecentAssessments()
+      loadSavedAssessments()
     }
   }, [user])
 
-  const loadRecentAssessments = async () => {
+  const loadSavedAssessments = async () => {
+    if (!user) return
+
     setLoading(true)
     try {
-      const response = await fetch("/api/assessments?limit=3")
+      const response = await fetch("/api/assessments")
       if (response.ok) {
         const data = await response.json()
-        setRecentAssessments(Array.isArray(data.assessments) ? data.assessments : [])
+        const assessments = Array.isArray(data.assessments) ? data.assessments : []
+        setRecentAssessments(assessments.slice(0, 3))
       }
     } catch (error) {
-      console.error("Failed to load recent assessments:", error)
+      console.error("Failed to load assessments:", error)
       setRecentAssessments([])
     } finally {
       setLoading(false)
@@ -56,8 +65,14 @@ export default function LoginButton({ user }: LoginButtonProps) {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
-      window.location.href = "/login"
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+      })
+
+      if (response.ok) {
+        router.push("/login")
+        router.refresh()
+      }
     } catch (error) {
       console.error("Logout failed:", error)
     }
@@ -97,57 +112,55 @@ export default function LoginButton({ user }: LoginButtonProps) {
         <DropdownMenuSeparator />
 
         {/* Recent Assessments Section */}
-        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Recent Assessments</DropdownMenuLabel>
-        {loading ? (
-          <DropdownMenuItem disabled>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-              Loading...
+        <div className="px-2 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">Recent Assessments</span>
+            {loading && <div className="w-3 h-3 border border-gray-300 border-t-blue-600 rounded-full animate-spin" />}
+          </div>
+
+          {recentAssessments.length > 0 ? (
+            <div className="space-y-2">
+              {recentAssessments.map((assessment) => (
+                <div key={assessment.id} className="p-2 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{assessment.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {assessment.job_role_name} • {assessment.department_name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge
+                          variant={assessment.completion_percentage >= 100 ? "default" : "secondary"}
+                          className="text-xs px-1 py-0"
+                        >
+                          {Math.round(assessment.completion_percentage)}%
+                        </Badge>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {new Date(assessment.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          </DropdownMenuItem>
-        ) : recentAssessments.length > 0 ? (
-          recentAssessments.map((assessment) => (
-            <DropdownMenuItem key={assessment.id} asChild>
-              <Link href="/assessments" className="flex flex-col items-start gap-1 p-2">
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-sm font-medium truncate">{assessment.assessment_name}</span>
-                  <Badge
-                    variant={assessment.completion_percentage >= 100 ? "default" : "secondary"}
-                    className="text-xs"
-                  >
-                    {Math.round(assessment.completion_percentage)}%
-                  </Badge>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {assessment.job_role} • {assessment.department}
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {new Date(assessment.created_at).toLocaleDateString()}
-                </div>
-              </Link>
-            </DropdownMenuItem>
-          ))
-        ) : (
-          <DropdownMenuItem disabled>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <FileText className="h-4 w-4" />
-              No assessments yet
-            </div>
-          </DropdownMenuItem>
-        )}
+          ) : (
+            <p className="text-xs text-muted-foreground py-2">No assessments yet</p>
+          )}
+
+          <Link href="/assessments">
+            <Button variant="ghost" size="sm" className="w-full mt-2 text-xs">
+              <FileText className="h-3 w-3 mr-2" />
+              View All Assessments
+            </Button>
+          </Link>
+        </div>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/assessments" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            View All Assessments
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 text-red-600">
-          <LogOut className="h-4 w-4" />
-          Sign Out
+        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -94,9 +94,9 @@ async function getRecentAssessments(userId: number) {
       CREATE TABLE IF NOT EXISTS saved_assessments (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        assessment_name VARCHAR(255) NOT NULL,
-        job_role VARCHAR(255) NOT NULL,
-        department VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        job_role_name VARCHAR(255) NOT NULL,
+        department_name VARCHAR(255) NOT NULL,
         skills_data JSONB NOT NULL,
         overall_score DECIMAL(5,2) DEFAULT 0,
         completion_percentage DECIMAL(5,2) DEFAULT 0,
@@ -107,9 +107,9 @@ async function getRecentAssessments(userId: number) {
 
     const assessments = await sql`
       SELECT 
-        assessment_name,
-        job_role,
-        department,
+        name,
+        job_role_name,
+        department_name,
         overall_score,
         completion_percentage,
         created_at
@@ -286,9 +286,9 @@ export default async function HomePage() {
               {recentAssessments.map((assessment, index) => (
                 <Card key={index}>
                   <CardHeader>
-                    <CardTitle className="text-lg">{assessment.assessment_name}</CardTitle>
+                    <CardTitle className="text-lg">{assessment.name}</CardTitle>
                     <CardDescription>
-                      {assessment.job_role} • {assessment.department}
+                      {assessment.job_role_name} • {assessment.department_name}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
