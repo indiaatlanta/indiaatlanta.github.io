@@ -24,7 +24,7 @@ import jsPDF from "jspdf"
 
 interface SavedAssessment {
   id: number
-  name: string
+  assessment_name: string
   job_role_name: string
   department_name: string
   completed_skills: number
@@ -73,7 +73,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
     // Filter assessments based on search term
     const filtered = assessments.filter(
       (assessment) =>
-        assessment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        assessment.assessment_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         assessment.job_role_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         assessment.department_name.toLowerCase().includes(searchTerm.toLowerCase()),
     )
@@ -127,13 +127,13 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
     try {
       const doc = new jsPDF("p", "mm", "a4")
 
-      // Add header
+      // Add header with logo
       doc.setFontSize(20)
       doc.setFont("helvetica", "bold")
       doc.text("Henry Schein One", 20, 25)
 
       doc.setFontSize(16)
-      doc.text(`Assessment: ${assessment.name}`, 20, 35)
+      doc.text(`Assessment: ${assessment.assessment_name}`, 20, 35)
 
       // Add assessment information
       doc.setFontSize(12)
@@ -167,7 +167,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
         doc.text(`Completion: ${completionPercentage}%`, 25, yPos)
       }
 
-      doc.save(`assessment-${assessment.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`)
+      doc.save(`assessment-${assessment.assessment_name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`)
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF")
@@ -343,7 +343,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-start justify-between mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{assessment.name}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{assessment.assessment_name}</h3>
                           <Badge className={getCompletionColor(completionPercentage)}>
                             {completionPercentage}% Complete
                           </Badge>
@@ -447,7 +447,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Assessment Name</label>
-                    <p className="text-sm text-gray-900">{selectedAssessment.name}</p>
+                    <p className="text-sm text-gray-900">{selectedAssessment.assessment_name}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Job Role</label>
@@ -544,7 +544,8 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Are you sure you want to delete "{assessmentToDelete.name}"? This action cannot be undone.
+                    Are you sure you want to delete "{assessmentToDelete.assessment_name}"? This action cannot be
+                    undone.
                   </AlertDescription>
                 </Alert>
                 <div className="text-sm text-gray-600">

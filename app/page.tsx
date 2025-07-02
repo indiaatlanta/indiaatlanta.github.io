@@ -1,90 +1,86 @@
 import { getCurrentUser } from "@/lib/auth"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, Target, BookOpen, Building2, User, Shield, LogOut, FileText } from "lucide-react"
+import { AdminButton } from "@/components/admin-button"
+import { LoginButton } from "@/components/login-button"
+import {
+  Target,
+  Users,
+  BarChart3,
+  FileText,
+  Building2,
+  UserCheck,
+  TrendingUp,
+  Clock,
+  BookOpen,
+  Settings,
+} from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
-
-// Demo data for when database is not available
-const demoStats = {
-  totalRoles: 15,
-  totalSkills: 45,
-  totalUsers: 5,
-  departments: [
-    { name: "Engineering", slug: "engineering", roleCount: 5 },
-    { name: "Product Management", slug: "product-management", roleCount: 3 },
-    { name: "Sales", slug: "sales", roleCount: 4 },
-    { name: "Marketing", slug: "marketing", roleCount: 3 },
-  ],
-}
-
-async function getDashboardStats() {
-  if (!isDatabaseConfigured() || !sql) {
-    console.log("Database not configured, using demo stats")
-    return demoStats
-  }
-
-  try {
-    // Get total counts
-    const [rolesResult, skillsResult, usersResult] = await Promise.all([
-      sql`SELECT COUNT(*) as count FROM job_roles`,
-      sql`SELECT COUNT(*) as count FROM skills_master`,
-      sql`SELECT COUNT(*) as count FROM users`,
-    ])
-
-    // Get departments with role counts
-    const departmentsResult = await sql`
-      SELECT 
-        d.name,
-        d.slug,
-        COUNT(jr.id) as role_count
-      FROM departments d
-      LEFT JOIN job_roles jr ON d.id = jr.department_id
-      GROUP BY d.id, d.name, d.slug
-      ORDER BY d.name
-    `
-
-    return {
-      totalRoles: Number.parseInt(rolesResult[0].count),
-      totalSkills: Number.parseInt(skillsResult[0].count),
-      totalUsers: Number.parseInt(usersResult[0].count),
-      departments: departmentsResult.map((dept: any) => ({
-        name: dept.name,
-        slug: dept.slug,
-        roleCount: Number.parseInt(dept.role_count),
-      })),
-    }
-  } catch (error) {
-    console.error("Error fetching dashboard stats:", error)
-    // Fallback to demo data if database query fails
-    return demoStats
-  }
-}
-
-async function logoutAction() {
-  "use server"
-
-  const { cookies } = await import("next/headers")
-  const cookieStore = await cookies()
-
-  // Clear the session cookie
-  cookieStore.delete("session")
-
-  // Redirect to login page
-  redirect("/login")
-}
+import Image from "next/image"
 
 export default async function HomePage() {
   const user = await getCurrentUser()
 
   if (!user) {
-    redirect("/login")
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="mb-8">
+              <Image
+                src="/images/henry-schein-one-logo.png"
+                alt="Henry Schein One"
+                width={300}
+                height={80}
+                className="mx-auto mb-8"
+              />
+            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-6">HS1 Careers Matrix</h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Discover your career path and develop the skills you need to succeed at Henry Schein One.
+            </p>
+            <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Get Started</h2>
+              <p className="text-gray-600 mb-6">
+                Sign in to access your personalized career development tools and skill assessments.
+              </p>
+              <LoginButton />
+            </div>
+            <div className="grid md:grid-cols-3 gap-6 mt-12">
+              <Card>
+                <CardHeader>
+                  <Target className="h-8 w-8 text-blue-600 mb-2" />
+                  <CardTitle className="text-lg">Skill Assessment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Evaluate your current skills and identify areas for growth.</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <BarChart3 className="h-8 w-8 text-green-600 mb-2" />
+                  <CardTitle className="text-lg">Career Comparison</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Compare your skills with different roles and career paths.</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <TrendingUp className="h-8 w-8 text-purple-600 mb-2" />
+                  <CardTitle className="text-lg">Development Planning</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Create personalized development plans to reach your goals.</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
-
-  const stats = await getDashboardStats()
-  const isDemoMode = !isDatabaseConfigured()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,32 +89,15 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <img src="/images/hs1-logo.png" alt="Henry Schein One" className="h-8 w-auto" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Career Development Matrix</h1>
+              <Image src="/images/hs1-logo.png" alt="Henry Schein One" width={120} height={32} className="h-8 w-auto" />
+              <div className="hidden sm:block">
+                <h1 className="text-xl font-semibold text-gray-900">HS1 Careers Matrix</h1>
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {isDemoMode && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  Demo Mode
-                </Badge>
-              )}
-              <div className="flex items-center space-x-2">
-                {user.role === "admin" ? (
-                  <Shield className="h-4 w-4 text-blue-600" />
-                ) : (
-                  <User className="h-4 w-4 text-gray-600" />
-                )}
-                <span className="text-sm font-medium text-gray-700">{user.name}</span>
-                <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
-              </div>
-              <form action={logoutAction}>
-                <Button variant="ghost" size="sm" type="submit">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </Button>
-              </form>
+              <AdminButton />
+              <Badge variant="outline">{user.name}</Badge>
+              <LoginButton />
             </div>
           </div>
         </div>
@@ -128,145 +107,232 @@ export default async function HomePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
-          <p className="text-gray-600">
-            Track your career development and explore growth opportunities within Henry Schein One.
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Job Roles</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalRoles}</div>
-              <p className="text-xs text-muted-foreground">Across all departments</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Skills Tracked</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalSkills}</div>
-              <p className="text-xs text-muted-foreground">Available for assessment</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Using the platform</p>
-            </CardContent>
-          </Card>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
+          <p className="text-gray-600">Ready to continue your career development journey?</p>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Self Assessment</CardTitle>
-              <CardDescription>Evaluate your current skills and identify areas for growth</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/self-review">
-                <Button className="w-full">
-                  <User className="mr-2 h-4 w-4" />
-                  Start Self Assessment
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Link href="/self-review">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <Target className="h-8 w-8 text-blue-600" />
+                  <Badge variant="secondary">New</Badge>
+                </div>
+                <CardTitle className="text-lg">Self Assessment</CardTitle>
+                <CardDescription>Evaluate your current skills and competencies</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Compare Roles</CardTitle>
-              <CardDescription>Compare your skills against different job roles and career paths</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/compare">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <Target className="mr-2 h-4 w-4" />
-                  Compare Roles
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <Link href="/compare">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <BarChart3 className="h-8 w-8 text-green-600" />
+                  <Badge variant="outline">Popular</Badge>
+                </div>
+                <CardTitle className="text-lg">Compare Roles</CardTitle>
+                <CardDescription>Compare your skills with different career paths</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved Assessments</CardTitle>
-              <CardDescription>View and manage your previously saved skill assessments</CardDescription>
+          <Link href="/assessments">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <FileText className="h-8 w-8 text-purple-600" />
+                  <Badge variant="outline">Track</Badge>
+                </div>
+                <CardTitle className="text-lg">Saved Assessments</CardTitle>
+                <CardDescription>View and manage your assessment history</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <TrendingUp className="h-8 w-8 text-orange-600" />
+                <Badge variant="secondary">Soon</Badge>
+              </div>
+              <CardTitle className="text-lg">Development Plan</CardTitle>
+              <CardDescription>Create personalized learning paths</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Link href="/assessments">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <FileText className="mr-2 h-4 w-4" />
-                  View Assessments
-                </Button>
-              </Link>
-            </CardContent>
           </Card>
         </div>
 
-        {/* Departments */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Building2 className="mr-2 h-5 w-5" />
-              Browse by Department
-            </CardTitle>
-            <CardDescription>Explore career paths and roles within each department</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.departments.map((dept) => (
-                <Link key={dept.slug} href={`/department/${dept.slug}`}>
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-sm mb-2">{dept.name}</h3>
-                      <p className="text-xs text-gray-600">
-                        {dept.roleCount} {dept.roleCount === 1 ? "role" : "roles"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+        {/* Department Explorer */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">Explore Departments</h3>
+              <p className="text-gray-600">Discover career opportunities across different departments</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Admin Panel Link */}
-        {user.role === "admin" && (
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-blue-600">
-                  <Shield className="mr-2 h-5 w-5" />
-                  Admin Panel
-                </CardTitle>
-                <CardDescription>Manage users, roles, skills, and system configuration</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/admin">
-                  <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Access Admin Panel
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
           </div>
-        )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link href="/department/engineering">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Settings className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Engineering</CardTitle>
+                      <CardDescription>Software development and technical roles</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>12 roles available</span>
+                    <span>45+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/department/product">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Target className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Product</CardTitle>
+                      <CardDescription>Product management and strategy</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>8 roles available</span>
+                    <span>30+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/department/sales">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <TrendingUp className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Sales</CardTitle>
+                      <CardDescription>Sales and business development</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>6 roles available</span>
+                    <span>25+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/department/marketing">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Users className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Marketing</CardTitle>
+                      <CardDescription>Marketing and communications</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>5 roles available</span>
+                    <span>20+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/department/operations">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <Building2 className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Operations</CardTitle>
+                      <CardDescription>Operations and process management</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>7 roles available</span>
+                    <span>35+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/department/hr">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <UserCheck className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Human Resources</CardTitle>
+                      <CardDescription>People and talent management</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>4 roles available</span>
+                    <span>18+ skills</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+            <Button variant="outline" size="sm">
+              View All
+            </Button>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3 text-sm">
+              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+              <span className="text-gray-600">
+                <Clock className="w-4 h-4 inline mr-1" />
+                Welcome to HS1 Careers Matrix! Start by taking your first assessment.
+              </span>
+            </div>
+            <div className="flex items-center space-x-3 text-sm">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+              <span className="text-gray-600">
+                <BookOpen className="w-4 h-4 inline mr-1" />
+                Explore different departments to find your ideal career path.
+              </span>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   )

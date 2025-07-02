@@ -26,21 +26,35 @@ export async function GET(request: NextRequest) {
         assessments: [
           {
             id: 1,
-            name: "Frontend Developer Assessment",
+            assessment_name: "Frontend Developer Assessment",
             job_role_name: "Frontend Developer",
             department_name: "Engineering",
             completed_skills: 15,
             total_skills: 20,
             created_at: new Date().toISOString(),
+            assessment_data: {
+              ratings: [
+                { skill: "JavaScript", rating: "proficient" },
+                { skill: "React", rating: "strength" },
+                { skill: "CSS", rating: "developing" },
+              ],
+            },
           },
           {
             id: 2,
-            name: "Senior Engineer Review",
+            assessment_name: "Senior Engineer Review",
             job_role_name: "Senior Engineer",
             department_name: "Engineering",
             completed_skills: 25,
             total_skills: 30,
             created_at: new Date(Date.now() - 86400000).toISOString(),
+            assessment_data: {
+              ratings: [
+                { skill: "Leadership", rating: "strength" },
+                { skill: "Architecture", rating: "proficient" },
+                { skill: "Mentoring", rating: "developing" },
+              ],
+            },
           },
         ],
         isDemoMode: true,
@@ -50,16 +64,17 @@ export async function GET(request: NextRequest) {
     const assessments = await sql`
       SELECT 
         id,
-        name,
+        assessment_name,
         job_role_name,
         department_name,
         completed_skills,
         total_skills,
-        created_at
+        created_at,
+        assessment_data
       FROM saved_assessments 
       WHERE user_id = ${user.id}
       ORDER BY created_at DESC
-      LIMIT 10
+      LIMIT 50
     `
 
     return NextResponse.json({
@@ -97,7 +112,7 @@ export async function POST(request: NextRequest) {
     const result = await sql`
       INSERT INTO saved_assessments (
         user_id,
-        name,
+        assessment_name,
         job_role_id,
         job_role_name,
         department_name,
@@ -114,14 +129,14 @@ export async function POST(request: NextRequest) {
         ${validatedData.completedSkills},
         ${validatedData.totalSkills}
       )
-      RETURNING id, name, created_at
+      RETURNING id, assessment_name, created_at
     `
 
     console.log("Assessment saved successfully:", result[0])
 
     return NextResponse.json({
       id: result[0].id,
-      name: result[0].name,
+      name: result[0].assessment_name,
       created_at: result[0].created_at,
       message: "Assessment saved successfully",
       isDemoMode: false,
