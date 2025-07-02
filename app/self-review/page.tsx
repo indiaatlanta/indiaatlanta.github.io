@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft, Rocket, Settings } from "lucide-react"
 import { getSession } from "@/lib/auth"
-import { SelfReviewClient } from "./self-review-client"
+import SelfReviewClient from "./self-review-client"
 import Image from "next/image"
 
 // Force dynamic rendering since we use cookies and database
