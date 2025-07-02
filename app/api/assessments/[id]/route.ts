@@ -27,7 +27,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     `
 
     if (result.length === 0) {
-      return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      return NextResponse.json({ error: "Assessment not found or access denied" }, { status: 404 })
     }
 
     return NextResponse.json({ message: "Assessment deleted successfully" })
@@ -51,23 +51,27 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - return demo data
-      return NextResponse.json({
+      const demoAssessment = {
         id: assessmentId,
-        assessment_name: "Demo Assessment",
-        job_role_name: "Demo Role",
-        department_name: "Demo Department",
-        completed_skills: 5,
-        total_skills: 10,
-        created_at: new Date().toISOString(),
-        assessment_data: JSON.stringify({ demo: true }),
-      })
+        name: "Demo Assessment",
+        job_role_name: "Frontend Developer",
+        department_name: "Engineering",
+        completed_skills: 8,
+        total_skills: 12,
+        created_at: "2024-01-15T10:30:00Z",
+        assessment_data: JSON.stringify({
+          "1": { rating: 4, notes: "Strong in React" },
+          "2": { rating: 3, notes: "Good CSS skills" },
+        }),
+      }
+      return NextResponse.json({ assessment: demoAssessment, isDemoMode: true })
     }
 
     // Get the specific assessment
     const result = await sql`
       SELECT 
         id,
-        assessment_name,
+        name,
         job_role_name,
         department_name,
         completed_skills,
@@ -82,9 +86,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
     }
 
+    const assessment = result[0]
     return NextResponse.json({
-      ...result[0],
-      created_at: result[0].created_at.toISOString(),
+      assessment: {
+        ...assessment,
+        created_at: assessment.created_at.toISOString(),
+      },
+      isDemoMode: false,
     })
   } catch (error) {
     console.error("Get assessment error:", error)

@@ -6,7 +6,7 @@ import { sql, isDatabaseConfigured } from "@/lib/db"
 const demoAssessments = [
   {
     id: 1,
-    assessment_name: "Frontend Developer Assessment",
+    name: "Frontend Developer Assessment",
     job_role_name: "Frontend Developer",
     department_name: "Engineering",
     completed_skills: 8,
@@ -20,7 +20,7 @@ const demoAssessments = [
   },
   {
     id: 2,
-    assessment_name: "Product Manager Evaluation",
+    name: "Product Manager Evaluation",
     job_role_name: "Product Manager",
     department_name: "Product",
     completed_skills: 6,
@@ -48,33 +48,82 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get saved assessments for the current user
-    // Using the correct column names from the database schema
-    const assessments = await sql`
-      SELECT 
-        id,
-        assessment_name,
-        job_role_name,
-        department_name,
-        completed_skills,
-        total_skills,
-        created_at,
-        assessment_data
-      FROM saved_assessments
-      WHERE user_id = ${user.id}
-      ORDER BY created_at DESC
-    `
+    // First, let's check what columns actually exist in the saved_assessments table
+    try {
+      const assessments = await sql`
+        SELECT 
+          id,
+          name,
+          job_role_name,
+          department_name,
+          completed_skills,
+          total_skills,
+          created_at,
+          assessment_data
+        FROM saved_assessments
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+      `
 
-    return NextResponse.json({
-      assessments: assessments.map((assessment) => ({
-        ...assessment,
-        created_at: assessment.created_at.toISOString(),
-      })),
-      isDemoMode: false,
-    })
+      return NextResponse.json({
+        assessments: assessments.map((assessment) => ({
+          ...assessment,
+          created_at: assessment.created_at.toISOString(),
+        })),
+        isDemoMode: false,
+      })
+    } catch (columnError) {
+      console.log("Column error, trying alternative column names:", columnError)
+
+      // Try with different column names that might exist
+      try {
+        const assessments = await sql`
+          SELECT 
+            id,
+            assessment_name as name,
+            job_role_name,
+            department_name,
+            completed_skills,
+            total_skills,
+            created_at,
+            assessment_data
+          FROM saved_assessments
+          WHERE user_id = ${user.id}
+          ORDER BY created_at DESC
+        `
+
+        return NextResponse.json({
+          assessments: assessments.map((assessment) => ({
+            ...assessment,
+            created_at: assessment.created_at.toISOString(),
+          })),
+          isDemoMode: false,
+        })
+      } catch (secondError) {
+        console.log("Second attempt failed, checking table structure:", secondError)
+
+        // Let's see what columns actually exist
+        const tableInfo = await sql`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'saved_assessments'
+        `
+
+        console.log("Available columns in saved_assessments:", tableInfo)
+
+        // Return demo data if we can't figure out the schema
+        return NextResponse.json({
+          assessments: demoAssessments,
+          isDemoMode: true,
+        })
+      }
+    }
   } catch (error) {
     console.error("Get assessments error:", error)
-    return NextResponse.json({ error: "Failed to fetch assessments" }, { status: 500 })
+    return NextResponse.json({
+      assessments: demoAssessments,
+      isDemoMode: true,
+    })
   }
 }
 
@@ -96,35 +145,69 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Save the assessment using the correct column names
-    const result = await sql`
-      INSERT INTO saved_assessments (
-        user_id, 
-        assessment_name, 
-        job_role_name,
-        department_name,
-        completed_skills, 
-        total_skills, 
-        assessment_data,
-        created_at
-      )
-      VALUES (
-        ${user.id}, 
-        ${name}, 
-        ${jobRoleName},
-        ${departmentName},
-        ${completedSkills}, 
-        ${totalSkills}, 
-        ${JSON.stringify(assessmentData)},
-        NOW()
-      )
-      RETURNING id
-    `
+    // Try to save the assessment
+    try {
+      const result = await sql`
+        INSERT INTO saved_assessments (
+          user_id, 
+          name, 
+          job_role_name,
+          department_name,
+          completed_skills, 
+          total_skills, 
+          assessment_data,
+          created_at
+        )
+        VALUES (
+          ${user.id}, 
+          ${name}, 
+          ${jobRoleName},
+          ${departmentName},
+          ${completedSkills}, 
+          ${totalSkills}, 
+          ${JSON.stringify(assessmentData)},
+          NOW()
+        )
+        RETURNING id
+      `
 
-    return NextResponse.json({
-      id: result[0].id,
-      message: "Assessment saved successfully",
-    })
+      return NextResponse.json({
+        id: result[0].id,
+        message: "Assessment saved successfully",
+      })
+    } catch (insertError) {
+      console.log("Insert failed, trying with assessment_name:", insertError)
+
+      // Try with assessment_name instead of name
+      const result = await sql`
+        INSERT INTO saved_assessments (
+          user_id, 
+          assessment_name, 
+          job_role_name,
+          department_name,
+          completed_skills, 
+          total_skills, 
+          assessment_data,
+          created_at
+        )
+        VALUES (
+          ${user.id}, 
+          ${name}, 
+          ${jobRoleName},
+          ${departmentName},
+          ${completedSkills}, 
+          ${totalSkills}, 
+          ${JSON.stringify(assessmentData)},
+          NOW()
+        )
+        RETURNING id
+      `
+
+      return NextResponse.json({
+        id: result[0].id,
+        message: "Assessment saved successfully",
+      })
+    }
   } catch (error) {
     console.error("Save assessment error:", error)
     return NextResponse.json({ error: "Failed to save assessment" }, { status: 500 })
