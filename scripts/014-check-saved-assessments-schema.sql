@@ -9,15 +9,14 @@ BEGIN
             assessment_name VARCHAR(255) NOT NULL,
             job_role VARCHAR(255) NOT NULL,
             department VARCHAR(255) NOT NULL,
-            skills_data JSONB NOT NULL,
+            skills_data JSONB,
+            overall_score DECIMAL(5,2) DEFAULT 0,
             completion_percentage DECIMAL(5,2) DEFAULT 0,
-            total_skills INTEGER DEFAULT 0,
-            completed_skills INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
-        -- Create index for faster queries
+        -- Create index for better performance
         CREATE INDEX idx_saved_assessments_user_id ON saved_assessments(user_id);
         CREATE INDEX idx_saved_assessments_created_at ON saved_assessments(created_at);
         
@@ -27,18 +26,13 @@ BEGIN
     END IF;
     
     -- Add missing columns if they don't exist
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'saved_assessments' AND column_name = 'overall_score') THEN
+        ALTER TABLE saved_assessments ADD COLUMN overall_score DECIMAL(5,2) DEFAULT 0;
+        RAISE NOTICE 'Added overall_score column';
+    END IF;
+    
     IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'saved_assessments' AND column_name = 'completion_percentage') THEN
         ALTER TABLE saved_assessments ADD COLUMN completion_percentage DECIMAL(5,2) DEFAULT 0;
         RAISE NOTICE 'Added completion_percentage column';
-    END IF;
-    
-    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'saved_assessments' AND column_name = 'total_skills') THEN
-        ALTER TABLE saved_assessments ADD COLUMN total_skills INTEGER DEFAULT 0;
-        RAISE NOTICE 'Added total_skills column';
-    END IF;
-    
-    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'saved_assessments' AND column_name = 'completed_skills') THEN
-        ALTER TABLE saved_assessments ADD COLUMN completed_skills INTEGER DEFAULT 0;
-        RAISE NOTICE 'Added completed_skills column';
     END IF;
 END $$;
