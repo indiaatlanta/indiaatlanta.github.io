@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, Loader2, Briefcase, Building } from "lucide-react"
+import { Plus, Trash2, Edit, Loader2, Briefcase, Building } from "lucide-react"
 
 interface Department {
   id: number
@@ -42,7 +42,11 @@ export default function JobRolesAdminClient() {
 
   // Dialog states
   const [isCreateDeptDialogOpen, setIsCreateDeptDialogOpen] = useState(false)
+  const [isEditDeptDialogOpen, setIsEditDeptDialogOpen] = useState(false)
   const [isCreateRoleDialogOpen, setIsCreateRoleDialogOpen] = useState(false)
+  const [isEditRoleDialogOpen, setIsEditRoleDialogOpen] = useState(false)
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
+  const [editingJobRole, setEditingJobRole] = useState<JobRole | null>(null)
 
   // Form states
   const [newDepartment, setNewDepartment] = useState({
@@ -51,7 +55,23 @@ export default function JobRolesAdminClient() {
     description: "",
   })
 
+  const [editDepartment, setEditDepartment] = useState({
+    name: "",
+    slug: "",
+    description: "",
+  })
+
   const [newJobRole, setNewJobRole] = useState({
+    name: "",
+    code: "",
+    departmentId: "",
+    level: 1,
+    salaryMin: "",
+    salaryMax: "",
+    locationType: "",
+  })
+
+  const [editJobRole, setEditJobRole] = useState({
     name: "",
     code: "",
     departmentId: "",
@@ -137,6 +157,39 @@ export default function JobRolesAdminClient() {
     }
   }
 
+  const handleEditDepartment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDepartment) return
+
+    setError("")
+    setSuccess("")
+
+    try {
+      const response = await fetch(`/api/departments/${editingDepartment.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editDepartment.name,
+          slug: editDepartment.slug,
+          description: editDepartment.description,
+        }),
+      })
+
+      if (response.ok) {
+        setSuccess("Department updated successfully")
+        setEditDepartment({ name: "", slug: "", description: "" })
+        setIsEditDeptDialogOpen(false)
+        setEditingDepartment(null)
+        loadDepartments()
+      } else {
+        const data = await response.json()
+        setError(data.error || "Failed to update department")
+      }
+    } catch (error) {
+      setError("Failed to update department")
+    }
+  }
+
   const handleCreateJobRole = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -176,6 +229,51 @@ export default function JobRolesAdminClient() {
       }
     } catch (error) {
       setError("Failed to create job role")
+    }
+  }
+
+  const handleEditJobRole = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingJobRole) return
+
+    setError("")
+    setSuccess("")
+
+    try {
+      const response = await fetch(`/api/job-roles/${editingJobRole.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editJobRole.name,
+          code: editJobRole.code,
+          departmentId: Number.parseInt(editJobRole.departmentId),
+          level: editJobRole.level,
+          salaryMin: editJobRole.salaryMin ? Number.parseInt(editJobRole.salaryMin) : undefined,
+          salaryMax: editJobRole.salaryMax ? Number.parseInt(editJobRole.salaryMax) : undefined,
+          locationType: editJobRole.locationType || undefined,
+        }),
+      })
+
+      if (response.ok) {
+        setSuccess("Job role updated successfully")
+        setEditJobRole({
+          name: "",
+          code: "",
+          departmentId: "",
+          level: 1,
+          salaryMin: "",
+          salaryMax: "",
+          locationType: "",
+        })
+        setIsEditRoleDialogOpen(false)
+        setEditingJobRole(null)
+        loadJobRoles()
+      } else {
+        const data = await response.json()
+        setError(data.error || "Failed to update job role")
+      }
+    } catch (error) {
+      setError("Failed to update job role")
     }
   }
 
@@ -226,6 +324,30 @@ export default function JobRolesAdminClient() {
     } catch (error) {
       setError("Failed to delete job role")
     }
+  }
+
+  const openEditDepartmentDialog = (dept: Department) => {
+    setEditingDepartment(dept)
+    setEditDepartment({
+      name: dept.name,
+      slug: dept.slug,
+      description: dept.description || "",
+    })
+    setIsEditDeptDialogOpen(true)
+  }
+
+  const openEditJobRoleDialog = (role: JobRole) => {
+    setEditingJobRole(role)
+    setEditJobRole({
+      name: role.name,
+      code: role.code,
+      departmentId: role.department_id.toString(),
+      level: role.level,
+      salaryMin: role.salary_min?.toString() || "",
+      salaryMax: role.salary_max?.toString() || "",
+      locationType: role.location_type || "",
+    })
+    setIsEditRoleDialogOpen(true)
   }
 
   const formatSalary = (min?: number, max?: number) => {
@@ -339,14 +461,19 @@ export default function JobRolesAdminClient() {
                       <p className="text-sm text-gray-500">/{dept.slug}</p>
                       {dept.description && <p className="text-sm text-gray-600 mt-1">{dept.description}</p>}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteDepartment(dept.id, dept.name)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => openEditDepartmentDialog(dept)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteDepartment(dept.id, dept.name)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
               </Card>
@@ -517,14 +644,19 @@ export default function JobRolesAdminClient() {
                       <Badge variant="outline">{role.skill_count} skills</Badge>
                     </td>
                     <td className="p-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteJobRole(role.id, role.name)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => openEditJobRoleDialog(role)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteJobRole(role.id, role.name)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -533,6 +665,161 @@ export default function JobRolesAdminClient() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Department Dialog */}
+      <Dialog open={isEditDeptDialogOpen} onOpenChange={setIsEditDeptDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Department</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditDepartment} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-dept-name">Department Name</Label>
+              <Input
+                id="edit-dept-name"
+                value={editDepartment.name}
+                onChange={(e) => {
+                  const name = e.target.value
+                  setEditDepartment({
+                    ...editDepartment,
+                    name,
+                    slug: generateSlug(name),
+                  })
+                }}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-dept-slug">URL Slug</Label>
+              <Input
+                id="edit-dept-slug"
+                value={editDepartment.slug}
+                onChange={(e) => setEditDepartment({ ...editDepartment, slug: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-dept-description">Description (Optional)</Label>
+              <Input
+                id="edit-dept-description"
+                value={editDepartment.description}
+                onChange={(e) => setEditDepartment({ ...editDepartment, description: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit">Update Department</Button>
+              <Button type="button" variant="outline" onClick={() => setIsEditDeptDialogOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Job Role Dialog */}
+      <Dialog open={isEditRoleDialogOpen} onOpenChange={setIsEditRoleDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Job Role</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditJobRole} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role-name">Role Name</Label>
+                <Input
+                  id="edit-role-name"
+                  value={editJobRole.name}
+                  onChange={(e) => setEditJobRole({ ...editJobRole, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-role-code">Role Code</Label>
+                <Input
+                  id="edit-role-code"
+                  value={editJobRole.code}
+                  onChange={(e) => setEditJobRole({ ...editJobRole, code: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role-department">Department</Label>
+                <Select
+                  value={editJobRole.departmentId}
+                  onValueChange={(value) => setEditJobRole({ ...editJobRole, departmentId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-role-level">Level</Label>
+                <Input
+                  id="edit-role-level"
+                  type="number"
+                  value={editJobRole.level}
+                  onChange={(e) => setEditJobRole({ ...editJobRole, level: Number.parseInt(e.target.value) || 1 })}
+                  min="1"
+                  max="10"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role-salary-min">Min Salary (Optional)</Label>
+                <Input
+                  id="edit-role-salary-min"
+                  type="number"
+                  value={editJobRole.salaryMin}
+                  onChange={(e) => setEditJobRole({ ...editJobRole, salaryMin: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-role-salary-max">Max Salary (Optional)</Label>
+                <Input
+                  id="edit-role-salary-max"
+                  type="number"
+                  value={editJobRole.salaryMax}
+                  onChange={(e) => setEditJobRole({ ...editJobRole, salaryMax: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-role-location">Location Type (Optional)</Label>
+              <Select
+                value={editJobRole.locationType}
+                onValueChange={(value) => setEditJobRole({ ...editJobRole, locationType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="remote">Remote</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="onsite">On-site</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit">Update Job Role</Button>
+              <Button type="button" variant="outline" onClick={() => setIsEditRoleDialogOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

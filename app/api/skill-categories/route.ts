@@ -14,13 +14,14 @@ export async function GET(request: NextRequest) {
           { id: 2, name: "Leadership", color: "#10B981", sort_order: 2 },
           { id: 3, name: "Communication", color: "#F59E0B", sort_order: 3 },
           { id: 4, name: "Problem Solving", color: "#EF4444", sort_order: 4 },
+          { id: 5, name: "Project Management", color: "#8B5CF6", sort_order: 5 },
         ],
         isDemoMode: true,
       })
     }
 
     const categories = await sql`
-      SELECT id, name, color, sort_order
+      SELECT id, name, color, sort_order, created_at, updated_at
       FROM skill_categories
       ORDER BY sort_order, name
     `

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, Loader2, Wrench, Target } from "lucide-react"
+import { Plus, Trash2, Edit, Loader2, Wrench, Target } from "lucide-react"
 
 interface SkillCategory {
   id: number
@@ -64,7 +64,11 @@ export default function SkillsAdminClient() {
 
   // Dialog states
   const [isCreateSkillDialogOpen, setIsCreateSkillDialogOpen] = useState(false)
+  const [isEditSkillDialogOpen, setIsEditSkillDialogOpen] = useState(false)
   const [isCreateDemoDialogOpen, setIsCreateDemoDialogOpen] = useState(false)
+  const [isEditDemoDialogOpen, setIsEditDemoDialogOpen] = useState(false)
+  const [editingSkill, setEditingSkill] = useState<SkillMaster | null>(null)
+  const [editingDemo, setEditingDemo] = useState<SkillDemonstration | null>(null)
 
   // Form states
   const [newSkill, setNewSkill] = useState({
@@ -74,7 +78,22 @@ export default function SkillsAdminClient() {
     sortOrder: 0,
   })
 
+  const [editSkill, setEditSkill] = useState({
+    name: "",
+    description: "",
+    categoryId: "",
+    sortOrder: 0,
+  })
+
   const [newDemo, setNewDemo] = useState({
+    skillMasterId: "",
+    jobRoleId: "",
+    level: "",
+    demonstrationDescription: "",
+    sortOrder: 0,
+  })
+
+  const [editDemo, setEditDemo] = useState({
     skillMasterId: "",
     jobRoleId: "",
     level: "",
@@ -176,6 +195,40 @@ export default function SkillsAdminClient() {
     }
   }
 
+  const handleEditSkill = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingSkill) return
+
+    setError("")
+    setSuccess("")
+
+    try {
+      const response = await fetch(`/api/skills-master/${editingSkill.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editSkill.name,
+          description: editSkill.description,
+          categoryId: Number.parseInt(editSkill.categoryId),
+          sortOrder: editSkill.sortOrder,
+        }),
+      })
+
+      if (response.ok) {
+        setSuccess("Skill updated successfully")
+        setEditSkill({ name: "", description: "", categoryId: "", sortOrder: 0 })
+        setIsEditSkillDialogOpen(false)
+        setEditingSkill(null)
+        loadSkillsMaster()
+      } else {
+        const data = await response.json()
+        setError(data.error || "Failed to update skill")
+      }
+    } catch (error) {
+      setError("Failed to update skill")
+    }
+  }
+
   const handleCreateDemo = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -206,6 +259,42 @@ export default function SkillsAdminClient() {
       }
     } catch (error) {
       setError("Failed to create skill demonstration")
+    }
+  }
+
+  const handleEditDemo = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDemo) return
+
+    setError("")
+    setSuccess("")
+
+    try {
+      const response = await fetch(`/api/skill-demonstrations/${editingDemo.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillMasterId: Number.parseInt(editDemo.skillMasterId),
+          jobRoleId: Number.parseInt(editDemo.jobRoleId),
+          level: editDemo.level,
+          demonstrationDescription: editDemo.demonstrationDescription,
+          sortOrder: editDemo.sortOrder,
+        }),
+      })
+
+      if (response.ok) {
+        setSuccess("Skill demonstration updated successfully")
+        setEditDemo({ skillMasterId: "", jobRoleId: "", level: "", demonstrationDescription: "", sortOrder: 0 })
+        setIsEditDemoDialogOpen(false)
+        setEditingDemo(null)
+        loadSkillDemonstrations()
+        loadSkillsMaster()
+      } else {
+        const data = await response.json()
+        setError(data.error || "Failed to update skill demonstration")
+      }
+    } catch (error) {
+      setError("Failed to update skill demonstration")
     }
   }
 
@@ -255,6 +344,29 @@ export default function SkillsAdminClient() {
     } catch (error) {
       setError("Failed to delete skill demonstration")
     }
+  }
+
+  const openEditSkillDialog = (skill: SkillMaster) => {
+    setEditingSkill(skill)
+    setEditSkill({
+      name: skill.name,
+      description: skill.description,
+      categoryId: skill.category_id.toString(),
+      sortOrder: skill.sort_order,
+    })
+    setIsEditSkillDialogOpen(true)
+  }
+
+  const openEditDemoDialog = (demo: SkillDemonstration) => {
+    setEditingDemo(demo)
+    setEditDemo({
+      skillMasterId: demo.skill_master_id.toString(),
+      jobRoleId: demo.job_role_id.toString(),
+      level: demo.level,
+      demonstrationDescription: demo.demonstration_description,
+      sortOrder: demo.sort_order,
+    })
+    setIsEditDemoDialogOpen(true)
   }
 
   if (loading) {
@@ -386,14 +498,19 @@ export default function SkillsAdminClient() {
                         <Badge variant="outline">{skill.demonstration_count} demos</Badge>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteSkill(skill.id, skill.name)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => openEditSkillDialog(skill)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteSkill(skill.id, skill.name)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -529,14 +646,19 @@ export default function SkillsAdminClient() {
                       <div className="line-clamp-2">{demo.demonstration_description}</div>
                     </td>
                     <td className="p-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteDemo(demo.id, demo.skill_name)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => openEditDemoDialog(demo)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteDemo(demo.id, demo.skill_name)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -545,6 +667,152 @@ export default function SkillsAdminClient() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Skill Dialog */}
+      <Dialog open={isEditSkillDialogOpen} onOpenChange={setIsEditSkillDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Master Skill</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSkill} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-skill-name">Skill Name</Label>
+              <Input
+                id="edit-skill-name"
+                value={editSkill.name}
+                onChange={(e) => setEditSkill({ ...editSkill, name: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-skill-category">Category</Label>
+              <Select
+                value={editSkill.categoryId}
+                onValueChange={(value) => setEditSkill({ ...editSkill, categoryId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {skillCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-skill-description">Description</Label>
+              <Textarea
+                id="edit-skill-description"
+                value={editSkill.description}
+                onChange={(e) => setEditSkill({ ...editSkill, description: e.target.value })}
+                required
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-skill-sort-order">Sort Order</Label>
+              <Input
+                id="edit-skill-sort-order"
+                type="number"
+                value={editSkill.sortOrder}
+                onChange={(e) => setEditSkill({ ...editSkill, sortOrder: Number.parseInt(e.target.value) || 0 })}
+                min="0"
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit">Update Skill</Button>
+              <Button type="button" variant="outline" onClick={() => setIsEditSkillDialogOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Demo Dialog */}
+      <Dialog open={isEditDemoDialogOpen} onOpenChange={setIsEditDemoDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Skill Demonstration</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditDemo} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-demo-skill">Master Skill</Label>
+              <Select
+                value={editDemo.skillMasterId}
+                onValueChange={(value) => setEditDemo({ ...editDemo, skillMasterId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a skill" />
+                </SelectTrigger>
+                <SelectContent>
+                  {skillsMaster.map((skill) => (
+                    <SelectItem key={skill.id} value={skill.id.toString()}>
+                      {skill.name} ({skill.category_name})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-demo-role">Job Role</Label>
+              <Select
+                value={editDemo.jobRoleId}
+                onValueChange={(value) => setEditDemo({ ...editDemo, jobRoleId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a job role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.name} ({role.department_name})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-demo-level">Level</Label>
+              <Input
+                id="edit-demo-level"
+                value={editDemo.level}
+                onChange={(e) => setEditDemo({ ...editDemo, level: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-demo-description">Demonstration Description</Label>
+              <Textarea
+                id="edit-demo-description"
+                value={editDemo.demonstrationDescription}
+                onChange={(e) => setEditDemo({ ...editDemo, demonstrationDescription: e.target.value })}
+                required
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-demo-sort-order">Sort Order</Label>
+              <Input
+                id="edit-demo-sort-order"
+                type="number"
+                value={editDemo.sortOrder}
+                onChange={(e) => setEditDemo({ ...editDemo, sortOrder: Number.parseInt(e.target.value) || 0 })}
+                min="0"
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit">Update Demonstration</Button>
+              <Button type="button" variant="outline" onClick={() => setIsEditDemoDialogOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
