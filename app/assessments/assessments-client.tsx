@@ -26,6 +26,7 @@ import {
   BarChart3,
   Clock,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -83,7 +84,8 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
         const data = await response.json()
         setAssessments(data.assessments || [])
       } else {
-        setError("Failed to load assessments")
+        const errorData = await response.json()
+        setError(errorData.error || "Failed to load assessments")
       }
     } catch (error) {
       console.error("Failed to load assessments:", error)
@@ -105,6 +107,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
 
       if (response.ok) {
         setAssessments((prev) => prev.filter((a) => a.id !== assessmentId))
+        setSelectedAssessment(null)
       } else {
         alert("Failed to delete assessment")
       }
@@ -178,7 +181,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
       <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-4"></div>
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
             <p className="text-gray-600">Loading your assessments...</p>
           </div>
         </div>
@@ -204,12 +207,18 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
               <h1 className="text-2xl font-bold text-gray-900">Saved Assessments</h1>
               <p className="text-gray-600">View and manage your completed skill assessments</p>
             </div>
-            <Link href="/self-review">
-              <Button>
-                <Target className="w-4 h-4 mr-2" />
-                New Assessment
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={loadAssessments} disabled={loading}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
               </Button>
-            </Link>
+              <Link href="/self-review">
+                <Button>
+                  <Target className="w-4 h-4 mr-2" />
+                  New Assessment
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -218,10 +227,11 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
         {error && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error}
-              <Button variant="link" onClick={loadAssessments} className="ml-2 p-0 h-auto">
-                Try again
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={loadAssessments}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
               </Button>
             </AlertDescription>
           </Alert>
@@ -231,39 +241,40 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Assessments</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+                <FileText className="w-4 h-4 mr-2" />
+                Total Assessments
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center">
-                <FileText className="w-5 h-5 text-blue-600 mr-2" />
-                <span className="text-2xl font-bold">{totalAssessments}</span>
-              </div>
+              <div className="text-2xl font-bold">{totalAssessments}</div>
+              <p className="text-xs text-muted-foreground">completed assessments</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Average Completion</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Average Completion
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center">
-                <BarChart3 className="w-5 h-5 text-green-600 mr-2" />
-                <span className="text-2xl font-bold">{averageCompletion}%</span>
-              </div>
+              <div className="text-2xl font-bold">{averageCompletion}%</div>
+              <p className="text-xs text-muted-foreground">across all assessments</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Last Assessment</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+                <Clock className="w-4 h-4 mr-2" />
+                Last Assessment
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center">
-                <Clock className="w-5 h-5 text-purple-600 mr-2" />
-                <span className="text-sm font-medium">
-                  {lastAssessment ? formatDate(lastAssessment) : "No assessments"}
-                </span>
-              </div>
+              <div className="text-lg font-bold">{lastAssessment ? formatDate(lastAssessment) : "No assessments"}</div>
+              <p className="text-xs text-muted-foreground">most recent completion</p>
             </CardContent>
           </Card>
         </div>
