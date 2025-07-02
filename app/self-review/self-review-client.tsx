@@ -165,21 +165,54 @@ export function SelfReviewClient() {
 
     setIsSaving(true)
     try {
+      // Calculate overall score based on ratings
+      const ratingScores = {
+        "needs-development": 1,
+        developing: 2,
+        proficient: 3,
+        strength: 4,
+        "not-applicable": 0,
+      }
+
+      const validRatings = ratings.filter((r) => r.rating !== "not-applicable")
+      const totalScore = validRatings.reduce((sum, rating) => {
+        return sum + (ratingScores[rating.rating as keyof typeof ratingScores] || 0)
+      }, 0)
+      const maxPossibleScore = validRatings.length * 4
+      const overallScore = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0
+
+      // Prepare skills data with detailed information
+      const skillsData = {
+        ratings: ratings.map((rating) => {
+          const skill = skills.find((s) => s.id === rating.skillId)
+          return {
+            skillId: rating.skillId,
+            skillName: skill?.skill_name || "",
+            categoryName: skill?.category_name || "",
+            level: skill?.level || "",
+            rating: rating.rating,
+            ratingLabel: RATING_OPTIONS.find((opt) => opt.value === rating.rating)?.label || "",
+          }
+        }),
+        roleName: selectedRole.name,
+        roleCode: selectedRole.code,
+        departmentName: selectedRole.department_name,
+        completedAt: new Date().toISOString(),
+        summary: getRatingSummary(),
+      }
+
       const assessmentData = {
-        name: assessmentName.trim(),
-        jobRoleId: selectedRole.id,
+        assessmentName: assessmentName.trim(),
         jobRoleName: selectedRole.name,
         departmentName: selectedRole.department_name,
-        assessmentData: {
-          ratings: ratings,
-          roleName: selectedRole.name,
-          roleCode: selectedRole.code,
-          departmentName: selectedRole.department_name,
-          completedAt: new Date().toISOString(),
-        },
-        completedSkills: totalRated,
+        skillsData: skillsData,
+        overallScore: overallScore,
+        completionPercentage: completionPercentage,
         totalSkills: skills.length,
+        completedSkills: totalRated,
       }
+
+      console.log("Sending assessment data:", assessmentData) // Debug log
 
       const response = await fetch("/api/assessments", {
         method: "POST",
@@ -191,6 +224,7 @@ export function SelfReviewClient() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log("Assessment saved successfully:", data)
         setSaveSuccess(true)
         setSaveDialogOpen(false)
 
@@ -200,7 +234,8 @@ export function SelfReviewClient() {
         }, 3000)
       } else {
         const errorData = await response.json()
-        alert(`Failed to save assessment: ${errorData.error}`)
+        console.error("Save assessment error:", errorData)
+        alert(`Failed to save assessment: ${errorData.error || "Unknown error"}`)
       }
     } catch (error) {
       console.error("Error saving assessment:", error)

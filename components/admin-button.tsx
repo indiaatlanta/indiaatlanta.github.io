@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Settings } from "lucide-react"
 import Link from "next/link"
 
+interface User {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
 interface AdminButtonProps {
-  user?: {
-    id: number
-    name: string
-    email: string
-    role: string
-  } | null
+  user: User | null
 }
 
 export default function AdminButton({ user }: AdminButtonProps) {
