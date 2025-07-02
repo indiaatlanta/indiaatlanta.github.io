@@ -1,106 +1,110 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  Search,
-  FileText,
-  Calendar,
-  Target,
-  Download,
-  Trash2,
-  Eye,
-  AlertCircle,
-  RefreshCw,
-  BarChart3,
-  Clock,
-} from "lucide-react"
+import { FileText, Search, Calendar, BarChart3, ArrowLeft, Plus, AlertCircle, RefreshCw } from "lucide-react"
+import Link from "next/link"
 
-interface SavedAssessment {
+interface Assessment {
   id: number
   name: string
-  job_role_name: string
+  role_name: string
   department_name: string
-  completed_skills: number
-  total_skills: number
+  completion_percentage: number
+  assessment_data: any
   created_at: string
-  assessment_data?: string
+  updated_at: string
 }
 
-interface AssessmentData {
-  ratings?: Array<{
-    skillId: number
-    rating: string
-    skillName: string
-    notes?: string
-  }>
+interface AssessmentStats {
+  total: number
+  averageCompletion: number
+  lastAssessment: string | null
 }
 
-export default function AssessmentsClient() {
-  const [assessments, setAssessments] = useState<SavedAssessment[]>([])
-  const [filteredAssessments, setFilteredAssessments] = useState<SavedAssessment[]>([])
+interface User {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
+interface AssessmentsClientProps {
+  user: User
+}
+
+export default function AssessmentsClient({ user }: AssessmentsClientProps) {
+  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [stats, setStats] = useState<AssessmentStats>({
+    total: 0,
+    averageCompletion: 0,
+    lastAssessment: null,
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedAssessment, setSelectedAssessment] = useState<SavedAssessment | null>(null)
-
-  useEffect(() => {
-    loadAssessments()
-  }, [])
-
-  useEffect(() => {
-    filterAssessments()
-  }, [assessments, searchTerm])
+  const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
 
   const loadAssessments = async () => {
     try {
       setLoading(true)
       setError(null)
       const response = await fetch("/api/assessments")
+      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error("Failed to load assessments")
+        throw new Error(data.error || "Failed to load assessments")
       }
 
-      const data = await response.json()
       setAssessments(data.assessments || [])
+      setStats(data.stats || { total: 0, averageCompletion: 0, lastAssessment: null })
     } catch (error) {
       console.error("Failed to load assessments:", error)
-      setError("Failed to load assessments. Please try again.")
+      setError(error instanceof Error ? error.message : "Failed to load assessments")
     } finally {
       setLoading(false)
     }
   }
 
-  const filterAssessments = () => {
-    if (!searchTerm) {
-      setFilteredAssessments(assessments)
-      return
+  useEffect(() => {
+    loadAssessments()
+  }, [])
+
+  const filteredAssessments = assessments.filter(
+    (assessment) =>
+      assessment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assessment.role_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (assessment.department_name && assessment.department_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  )
+
+  const handleExport = (assessment: Assessment) => {
+    const exportData = {
+      name: assessment.name,
+      role: assessment.role_name,
+      department: assessment.department_name,
+      completion: assessment.completion_percentage,
+      data: assessment.assessment_data,
+      created: assessment.created_at,
+      updated: assessment.updated_at,
     }
 
-    const filtered = assessments.filter(
-      (assessment) =>
-        assessment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assessment.job_role_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assessment.department_name.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
-    setFilteredAssessments(filtered)
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${assessment.name.replace(/\s+/g, "_")}_assessment.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
-  const handleDeleteAssessment = async (assessmentId: number, assessmentName: string) => {
-    if (!confirm(`Are you sure you want to delete "${assessmentName}"?`)) {
+  const handleDelete = async (assessmentId: number) => {
+    if (!confirm("Are you sure you want to delete this assessment? This action cannot be undone.")) {
       return
     }
 
@@ -109,94 +113,42 @@ export default function AssessmentsClient() {
         method: "DELETE",
       })
 
-      if (response.ok) {
-        setAssessments((prev) => prev.filter((a) => a.id !== assessmentId))
-      } else {
-        alert("Failed to delete assessment")
+      if (!response.ok) {
+        throw new Error("Failed to delete assessment")
       }
+
+      await loadAssessments()
     } catch (error) {
       console.error("Failed to delete assessment:", error)
-      alert("Failed to delete assessment")
+      alert("Failed to delete assessment. Please try again.")
     }
   }
 
-  const handleExportAssessment = (assessment: SavedAssessment) => {
-    const exportData = {
-      name: assessment.name,
-      jobRole: assessment.job_role_name,
-      department: assessment.department_name,
-      completedSkills: assessment.completed_skills,
-      totalSkills: assessment.total_skills,
-      createdAt: assessment.created_at,
-      assessmentData: assessment.assessment_data ? JSON.parse(assessment.assessment_data) : null,
-    }
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${assessment.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  const getCompletionColor = (percentage: number) => {
+    if (percentage >= 80) return "text-green-600 bg-green-100"
+    if (percentage >= 60) return "text-yellow-600 bg-yellow-100"
+    return "text-red-600 bg-red-100"
   }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     })
   }
 
-  const getCompletionPercentage = (completed: number, total: number) => {
-    if (total === 0) return 0
-    return Math.round((completed / total) * 100)
-  }
-
-  const getCompletionColor = (percentage: number) => {
-    if (percentage >= 80) return "text-green-600 bg-green-50"
-    if (percentage >= 60) return "text-blue-600 bg-blue-50"
-    if (percentage >= 40) return "text-yellow-600 bg-yellow-50"
-    return "text-red-600 bg-red-50"
-  }
-
-  const parseAssessmentData = (dataString?: string): AssessmentData => {
-    if (!dataString) return {}
-    try {
-      return JSON.parse(dataString)
-    } catch {
-      return {}
-    }
-  }
-
-  const getAverageCompletion = () => {
-    if (assessments.length === 0) return 0
-    const total = assessments.reduce(
-      (sum, assessment) => sum + getCompletionPercentage(assessment.completed_skills, assessment.total_skills),
-      0,
-    )
-    return Math.round(total / assessments.length)
-  }
-
-  const getLastAssessmentDate = () => {
-    if (assessments.length === 0) return "Never"
-    const latest = assessments.reduce((latest, assessment) =>
-      new Date(assessment.created_at) > new Date(latest.created_at) ? assessment : latest,
-    )
-    return formatDate(latest.created_at)
-  }
-
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your assessments...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex items-center space-x-2">
+              <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+              <span className="text-lg text-gray-600">Loading assessments...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -204,287 +156,102 @@ export default function AssessmentsClient() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Saved Assessments</h1>
-          <p className="text-gray-600 mt-2">View and manage your skill assessments</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={loadAssessments} disabled={loading}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          <Button asChild>
-            <a href="/self-review">
-              <Target className="w-4 h-4 mr-2" />
-              New Assessment
-            </a>
-          </Button>
-        </div>
-      </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            {error}
-            <Button variant="outline" size="sm" onClick={loadAssessments}>
-              Try Again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assessments</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{assessments.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {assessments.length === 1 ? "assessment" : "assessments"} completed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Completion</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getAverageCompletion()}%</div>
-            <p className="text-xs text-muted-foreground">across all assessments</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Last Assessment</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {assessments.length > 0
-                ? new Date(getLastAssessmentDate()).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                : "Never"}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {assessments.length > 0 ? "most recent" : "no assessments yet"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            placeholder="Search assessments by name, role, or department..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {/* Assessments Grid */}
-      {filteredAssessments.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FileText className="w-12 h-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm ? "No matching assessments" : "No assessments yet"}
-            </h3>
-            <p className="text-gray-600 text-center mb-4">
-              {searchTerm
-                ? "Try adjusting your search terms or clear the search to see all assessments."
-                : "Start by creating your first skill assessment to track your progress."}
-            </p>
-            {!searchTerm && (
-              <Button asChild>
-                <a href="/self-review">
-                  <Target className="w-4 h-4 mr-2" />
-                  Create Assessment
-                </a>
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Dashboard
+                </Link>
               </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAssessments.map((assessment) => {
-            const completionPercentage = getCompletionPercentage(assessment.completed_skills, assessment.total_skills)
-            return (
-              <Card key={assessment.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg mb-1">{assessment.name}</CardTitle>
-                      <CardDescription className="text-sm">
-                        {assessment.job_role_name} • {assessment.department_name}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="outline" className={`${getCompletionColor(completionPercentage)} border-0`}>
-                      {completionPercentage}%
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Progress Bar */}
-                    <div>
-                      <div className="flex justify-between text-sm text-gray-600 mb-1">
-                        <span>Progress</span>
-                        <span>
-                          {assessment.completed_skills}/{assessment.total_skills} skills
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            completionPercentage >= 80
-                              ? "bg-green-500"
-                              : completionPercentage >= 60
-                                ? "bg-blue-500"
-                                : completionPercentage >= 40
-                                  ? "bg-yellow-500"
-                                  : "bg-red-500"
-                          }`}
-                          style={{ width: `${completionPercentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Date */}
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {formatDate(assessment.created_at)}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 bg-transparent"
-                            onClick={() => setSelectedAssessment(assessment)}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>{selectedAssessment?.name}</DialogTitle>
-                            <DialogDescription>
-                              {selectedAssessment?.job_role_name} • {selectedAssessment?.department_name}
-                            </DialogDescription>
-                          </DialogHeader>
-                          {selectedAssessment && (
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <h4 className="font-medium mb-2">Assessment Details</h4>
-                                  <div className="space-y-1 text-sm">
-                                    <p>
-                                      <strong>Completed:</strong> {formatDate(selectedAssessment.created_at)}
-                                    </p>
-                                    <p>
-                                      <strong>Skills Assessed:</strong> {selectedAssessment.completed_skills}/
-                                      {selectedAssessment.total_skills}
-                                    </p>
-                                    <p>
-                                      <strong>Completion:</strong>{" "}
-                                      {getCompletionPercentage(
-                                        selectedAssessment.completed_skills,
-                                        selectedAssessment.total_skills,
-                                      )}
-                                      %
-                                    </p>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h4 className="font-medium mb-2">Progress</h4>
-                                  <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
-                                    <div
-                                      className={`h-4 rounded-full ${
-                                        getCompletionPercentage(
-                                          selectedAssessment.completed_skills,
-                                          selectedAssessment.total_skills,
-                                        ) >= 80
-                                          ? "bg-green-500"
-                                          : getCompletionPercentage(
-                                                selectedAssessment.completed_skills,
-                                                selectedAssessment.total_skills,
-                                              ) >= 60
-                                            ? "bg-blue-500"
-                                            : getCompletionPercentage(
-                                                  selectedAssessment.completed_skills,
-                                                  selectedAssessment.total_skills,
-                                                ) >= 40
-                                              ? "bg-yellow-500"
-                                              : "bg-red-500"
-                                      }`}
-                                      style={{
-                                        width: `${getCompletionPercentage(selectedAssessment.completed_skills, selectedAssessment.total_skills)}%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {selectedAssessment.assessment_data && (
-                                <div>
-                                  <h4 className="font-medium mb-2">Rating Summary</h4>
-                                  <div className="bg-gray-50 p-3 rounded-lg">
-                                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                                      {JSON.stringify(parseAssessmentData(selectedAssessment.assessment_data), null, 2)}
-                                    </pre>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </DialogContent>
-                      </Dialog>
-
-                      <Button variant="outline" size="sm" onClick={() => handleExportAssessment(assessment)}>
-                        <Download className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteAssessment(assessment.id, assessment.name)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Saved Assessments</h1>
+                <p className="text-sm text-gray-500">Manage your skill assessment history</p>
+              </div>
+            </div>
+            <Button asChild>
+              <Link href="/self-review">
+                <Plus className="h-4 w-4 mr-2" />
+                New Assessment
+              </Link>
+            </Button>
+          </div>
         </div>
-      )}
+      </header>
 
-      {/* Back to Dashboard */}
-      <div className="mt-8 text-center">
-        <Button variant="outline" asChild>
-          <a href="/">← Back to Dashboard</a>
-        </Button>
-      </div>
-    </div>
-  )
-}
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={loadAssessments}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Assessments</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">completed assessments</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Average Completion</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.averageCompletion}%</div>
+              <p className="text-xs text-muted-foreground">across all assessments</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Assessment</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.lastAssessment ? formatDate(stats.lastAssessment).split(",")[0] : "None"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.lastAssessment ? formatDate(stats.lastAssessment).split(",")[1] : "No assessments yet"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search assessments by name, role, or department..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        {/* Assessments Grid */}
+        {filteredAssessments.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12\

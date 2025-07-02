@@ -9,5 +9,5 @@ export default async function AssessmentsPage() {
     redirect("/login")
   }
 
-  return <AssessmentsClient />
+  return <AssessmentsClient user={user} />
 }

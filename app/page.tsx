@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LoginButton from "@/components/login-button"
-import AdminButton from "@/components/admin-button"
+import { AdminButton } from "@/components/admin-button"
 import { Users, Building2, Target, BarChart3, FileText, ArrowRight, TrendingUp, Clock, CheckCircle } from "lucide-react"
 import Link from "next/link"
 
@@ -121,8 +121,8 @@ export default async function HomePage() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <AdminButton />
               <LoginButton user={user} />
-              <AdminButton user={user} />
             </div>
           </div>
         </div>
