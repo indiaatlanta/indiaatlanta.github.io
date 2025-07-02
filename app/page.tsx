@@ -95,13 +95,11 @@ async function getRecentAssessments(userId: number) {
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         assessment_name VARCHAR(255) NOT NULL,
-        job_role_name VARCHAR(255) NOT NULL,
-        department_name VARCHAR(255) NOT NULL,
-        skills_data JSONB NOT NULL DEFAULT '{}',
+        job_role VARCHAR(255) NOT NULL,
+        department VARCHAR(255) NOT NULL,
+        skills_data JSONB NOT NULL,
         overall_score DECIMAL(5,2) DEFAULT 0,
         completion_percentage DECIMAL(5,2) DEFAULT 0,
-        total_skills INTEGER DEFAULT 0,
-        completed_skills INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -110,8 +108,8 @@ async function getRecentAssessments(userId: number) {
     const assessments = await sql`
       SELECT 
         assessment_name,
-        job_role_name,
-        department_name,
+        job_role,
+        department,
         overall_score,
         completion_percentage,
         created_at
@@ -290,7 +288,7 @@ export default async function HomePage() {
                   <CardHeader>
                     <CardTitle className="text-lg">{assessment.assessment_name}</CardTitle>
                     <CardDescription>
-                      {assessment.job_role_name} • {assessment.department_name}
+                      {assessment.job_role} • {assessment.department}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
