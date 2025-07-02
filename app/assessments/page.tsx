@@ -18,7 +18,6 @@ export default async function AssessmentsPage() {
             View and manage your completed skill assessments and track your progress over time.
           </p>
         </div>
-
         <AssessmentsClient user={user} />
       </div>
     </div>

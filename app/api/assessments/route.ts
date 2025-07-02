@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,74 +12,116 @@ export async function GET(request: NextRequest) {
     if (!isDatabaseConfigured() || !sql) {
       return NextResponse.json({
         assessments: [],
+        total: 0,
         isDemoMode: true,
-        message: "Database not configured - demo mode active",
       })
     }
 
     // Ensure the table exists
-    await sql`
-      CREATE TABLE IF NOT EXISTS saved_assessments (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        assessment_name VARCHAR(255) NOT NULL,
-        job_role VARCHAR(255) NOT NULL,
-        department VARCHAR(255) NOT NULL,
-        skills_data JSONB NOT NULL,
-        overall_score DECIMAL(5,2) DEFAULT 0,
-        completion_percentage DECIMAL(5,2) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS saved_assessments (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          assessment_name VARCHAR(255) NOT NULL,
+          job_role VARCHAR(255) NOT NULL,
+          department VARCHAR(255) NOT NULL,
+          skills_data JSONB NOT NULL,
+          completion_percentage DECIMAL(5,2) DEFAULT 0,
+          total_skills INTEGER DEFAULT 0,
+          completed_skills INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `
+    } catch (createError) {
+      console.log("Table creation info:", createError.message)
+    }
 
-    // Get assessments for the current user
-    const assessments = await sql`
-      SELECT 
-        id,
-        assessment_name,
-        job_role,
-        department,
-        skills_data,
-        overall_score,
-        completion_percentage,
-        created_at,
-        updated_at
-      FROM saved_assessments 
-      WHERE user_id = ${user.id}
-      ORDER BY created_at DESC
-    `
+    const { searchParams } = new URL(request.url)
+    const search = searchParams.get("search") || ""
+    const filter = searchParams.get("filter") || "all"
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const limit = Number.parseInt(searchParams.get("limit") || "10")
+    const offset = (page - 1) * limit
 
-    // Ensure we return an array
-    const assessmentList = Array.isArray(assessments) ? assessments : []
+    let whereClause = `WHERE user_id = ${user.id}`
 
-    // Transform the data to ensure consistent structure
-    const transformedAssessments = assessmentList.map((assessment) => ({
-      id: assessment.id,
-      assessment_name: assessment.assessment_name || "Untitled Assessment",
-      job_role: assessment.job_role || "Unknown Role",
-      department: assessment.department || "Unknown Department",
-      skills_data: assessment.skills_data || {},
-      overall_score: Number(assessment.overall_score) || 0,
-      completion_percentage: Number(assessment.completion_percentage) || 0,
-      created_at: assessment.created_at,
-      updated_at: assessment.updated_at,
-    }))
+    if (search) {
+      whereClause += ` AND (
+        assessment_name ILIKE '%${search}%' OR 
+        job_role ILIKE '%${search}%' OR 
+        department ILIKE '%${search}%'
+      )`
+    }
 
-    return NextResponse.json({
-      assessments: transformedAssessments,
-      isDemoMode: false,
-    })
-  } catch (error) {
-    console.error("Database query failed:", error)
-    return NextResponse.json(
-      {
+    if (filter === "completed") {
+      whereClause += ` AND completion_percentage >= 100`
+    } else if (filter === "in-progress") {
+      whereClause += ` AND completion_percentage > 0 AND completion_percentage < 100`
+    } else if (filter === "not-started") {
+      whereClause += ` AND completion_percentage = 0`
+    }
+
+    try {
+      const assessmentsResult = await sql`
+        SELECT 
+          id,
+          assessment_name,
+          job_role,
+          department,
+          completion_percentage,
+          total_skills,
+          completed_skills,
+          created_at,
+          updated_at
+        FROM saved_assessments 
+        ${sql.unsafe(whereClause)}
+        ORDER BY created_at DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `
+
+      const countResult = await sql`
+        SELECT COUNT(*) as total 
+        FROM saved_assessments 
+        ${sql.unsafe(whereClause)}
+      `
+
+      // Ensure we have arrays
+      const assessments = Array.isArray(assessmentsResult) ? assessmentsResult : []
+      const total = countResult[0]?.total || 0
+
+      // Normalize the data structure
+      const normalizedAssessments = assessments.map((assessment) => ({
+        id: assessment.id,
+        name: assessment.assessment_name,
+        job_role_name: assessment.job_role,
+        department_name: assessment.department,
+        completed_skills: assessment.completed_skills || 0,
+        total_skills: assessment.total_skills || 0,
+        completion_percentage: assessment.completion_percentage || 0,
+        created_at: assessment.created_at,
+        updated_at: assessment.updated_at,
+      }))
+
+      return NextResponse.json({
+        assessments: normalizedAssessments,
+        total: Number.parseInt(total.toString()),
+        page,
+        limit,
+        totalPages: Math.ceil(Number.parseInt(total.toString()) / limit),
+      })
+    } catch (queryError) {
+      console.error("Database query failed:", queryError.message)
+      return NextResponse.json({
         assessments: [],
-        isDemoMode: true,
+        total: 0,
         error: "Failed to fetch assessments",
-      },
-      { status: 500 },
-    )
+      })
+    }
+  } catch (error) {
+    console.error("Assessments API error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -91,76 +133,58 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json(
-        {
-          error: "Database not configured",
-          isDemoMode: true,
-        },
-        { status: 503 },
-      )
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
     }
 
     const body = await request.json()
-    const { assessment_name, job_role, department, skills_data, overall_score = 0, completion_percentage = 0 } = body
+    const {
+      assessment_name,
+      job_role,
+      department,
+      skills_data,
+      completion_percentage = 0,
+      total_skills = 0,
+      completed_skills = 0,
+    } = body
 
     if (!assessment_name || !job_role || !department || !skills_data) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields",
-        },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Ensure the table exists
-    await sql`
-      CREATE TABLE IF NOT EXISTS saved_assessments (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        assessment_name VARCHAR(255) NOT NULL,
-        job_role VARCHAR(255) NOT NULL,
-        department VARCHAR(255) NOT NULL,
-        skills_data JSONB NOT NULL,
-        overall_score DECIMAL(5,2) DEFAULT 0,
-        completion_percentage DECIMAL(5,2) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+    try {
+      const result = await sql`
+        INSERT INTO saved_assessments (
+          user_id,
+          assessment_name,
+          job_role,
+          department,
+          skills_data,
+          completion_percentage,
+          total_skills,
+          completed_skills
+        ) VALUES (
+          ${user.id},
+          ${assessment_name},
+          ${job_role},
+          ${department},
+          ${JSON.stringify(skills_data)},
+          ${completion_percentage},
+          ${total_skills},
+          ${completed_skills}
+        )
+        RETURNING *
+      `
 
-    const result = await sql`
-      INSERT INTO saved_assessments (
-        user_id, 
-        assessment_name, 
-        job_role, 
-        department, 
-        skills_data, 
-        overall_score, 
-        completion_percentage
-      )
-      VALUES (
-        ${user.id}, 
-        ${assessment_name}, 
-        ${job_role}, 
-        ${department}, 
-        ${JSON.stringify(skills_data)}, 
-        ${overall_score}, 
-        ${completion_percentage}
-      )
-      RETURNING *
-    `
-
-    return NextResponse.json({
-      assessment: result[0],
-      message: "Assessment saved successfully",
-    })
+      return NextResponse.json({
+        success: true,
+        assessment: result[0],
+      })
+    } catch (insertError) {
+      console.error("Failed to save assessment:", insertError)
+      return NextResponse.json({ error: "Failed to save assessment" }, { status: 500 })
+    }
   } catch (error) {
-    console.error("Failed to save assessment:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to save assessment",
-      },
-      { status: 500 },
-    )
+    console.error("Save assessment error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

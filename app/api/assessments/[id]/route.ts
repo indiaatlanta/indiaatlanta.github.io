@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
 import { getCurrentUser } from "@/lib/auth"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -10,38 +10,32 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json(
-        {
-          error: "Database not configured",
-          isDemoMode: true,
-        },
-        { status: 503 },
-      )
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
     }
 
-    const assessmentId = Number.parseInt(params.id)
-    if (isNaN(assessmentId)) {
-      return NextResponse.json({ error: "Invalid assessment ID" }, { status: 400 })
+    const id = Number.parseInt(params.id)
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
     }
 
-    const result = await sql`
-      SELECT * FROM saved_assessments 
-      WHERE id = ${assessmentId} AND user_id = ${user.id}
-    `
+    try {
+      const result = await sql`
+        SELECT * FROM saved_assessments 
+        WHERE id = ${id} AND user_id = ${user.id}
+      `
 
-    if (!result || result.length === 0) {
-      return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      if (result.length === 0) {
+        return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      }
+
+      return NextResponse.json({ assessment: result[0] })
+    } catch (queryError) {
+      console.error("Failed to fetch assessment:", queryError)
+      return NextResponse.json({ error: "Failed to fetch assessment" }, { status: 500 })
     }
-
-    return NextResponse.json({ assessment: result[0] })
   } catch (error) {
-    console.error("Failed to fetch assessment:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to fetch assessment",
-      },
-      { status: 500 },
-    )
+    console.error("Get assessment error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -53,53 +47,56 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json(
-        {
-          error: "Database not configured",
-          isDemoMode: true,
-        },
-        { status: 503 },
-      )
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
     }
 
-    const assessmentId = Number.parseInt(params.id)
-    if (isNaN(assessmentId)) {
-      return NextResponse.json({ error: "Invalid assessment ID" }, { status: 400 })
+    const id = Number.parseInt(params.id)
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
     }
 
     const body = await request.json()
-    const { assessment_name, job_role, department, skills_data, overall_score, completion_percentage } = body
+    const {
+      assessment_name,
+      job_role,
+      department,
+      skills_data,
+      completion_percentage,
+      total_skills,
+      completed_skills,
+    } = body
 
-    const result = await sql`
-      UPDATE saved_assessments 
-      SET 
-        assessment_name = ${assessment_name},
-        job_role = ${job_role},
-        department = ${department},
-        skills_data = ${JSON.stringify(skills_data)},
-        overall_score = ${overall_score},
-        completion_percentage = ${completion_percentage},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${assessmentId} AND user_id = ${user.id}
-      RETURNING *
-    `
+    try {
+      const result = await sql`
+        UPDATE saved_assessments 
+        SET 
+          assessment_name = ${assessment_name},
+          job_role = ${job_role},
+          department = ${department},
+          skills_data = ${JSON.stringify(skills_data)},
+          completion_percentage = ${completion_percentage},
+          total_skills = ${total_skills},
+          completed_skills = ${completed_skills},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id} AND user_id = ${user.id}
+        RETURNING *
+      `
 
-    if (!result || result.length === 0) {
-      return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      if (result.length === 0) {
+        return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        assessment: result[0],
+      })
+    } catch (updateError) {
+      console.error("Failed to update assessment:", updateError)
+      return NextResponse.json({ error: "Failed to update assessment" }, { status: 500 })
     }
-
-    return NextResponse.json({
-      assessment: result[0],
-      message: "Assessment updated successfully",
-    })
   } catch (error) {
-    console.error("Failed to update assessment:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to update assessment",
-      },
-      { status: 500 },
-    )
+    console.error("Update assessment error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -111,40 +108,32 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json(
-        {
-          error: "Database not configured",
-          isDemoMode: true,
-        },
-        { status: 503 },
-      )
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
     }
 
-    const assessmentId = Number.parseInt(params.id)
-    if (isNaN(assessmentId)) {
-      return NextResponse.json({ error: "Invalid assessment ID" }, { status: 400 })
+    const id = Number.parseInt(params.id)
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
     }
 
-    const result = await sql`
-      DELETE FROM saved_assessments 
-      WHERE id = ${assessmentId} AND user_id = ${user.id}
-      RETURNING id
-    `
+    try {
+      const result = await sql`
+        DELETE FROM saved_assessments 
+        WHERE id = ${id} AND user_id = ${user.id}
+        RETURNING *
+      `
 
-    if (!result || result.length === 0) {
-      return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      if (result.length === 0) {
+        return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      }
+
+      return NextResponse.json({ success: true })
+    } catch (deleteError) {
+      console.error("Failed to delete assessment:", deleteError)
+      return NextResponse.json({ error: "Failed to delete assessment" }, { status: 500 })
     }
-
-    return NextResponse.json({
-      message: "Assessment deleted successfully",
-    })
   } catch (error) {
-    console.error("Failed to delete assessment:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to delete assessment",
-      },
-      { status: 500 },
-    )
+    console.error("Delete assessment error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
