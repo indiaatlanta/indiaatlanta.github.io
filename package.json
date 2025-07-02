@@ -23,7 +23,6 @@
     "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "date-fns": "latest",
     "html2canvas": "latest",
     "jspdf": "latest",
     "jspdf-autotable": "latest",

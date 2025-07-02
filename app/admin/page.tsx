@@ -1,12 +1,15 @@
 import Link from "next/link"
-import { ArrowLeft, Users, Settings, Database } from "lucide-react"
+import { ArrowLeft, Users, Settings, Database, Wrench, Briefcase } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { isDatabaseConfigured } from "@/lib/db"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Image from "next/image"
 import AdminClient from "./admin-client"
+import SkillsAdminClient from "./skills-admin-client"
+import JobRolesAdminClient from "./job-roles-admin-client"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -57,18 +60,67 @@ export default async function AdminPage() {
           </Alert>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              User Management
-            </CardTitle>
-            <CardDescription>Manage user accounts, roles, and permissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AdminClient />
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="skills" className="flex items-center gap-2">
+              <Wrench className="w-4 h-4" />
+              Skills & Demonstrations
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              Job Roles
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  User Management
+                </CardTitle>
+                <CardDescription>Manage user accounts, roles, and permissions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AdminClient />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="skills">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="w-5 h-5" />
+                  Skills & Demonstrations Management
+                </CardTitle>
+                <CardDescription>Manage master skills, skill demonstrations, and categories</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SkillsAdminClient />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="roles">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5" />
+                  Job Roles Management
+                </CardTitle>
+                <CardDescription>Manage job roles, departments, and skill assignments</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <JobRolesAdminClient />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

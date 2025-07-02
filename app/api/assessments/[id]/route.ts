@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -15,34 +15,32 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      console.log("Database not configured, simulating delete")
+      // Demo mode - simulate success
+      console.log(`Demo mode: Simulating deletion of assessment ${assessmentId}`)
       return NextResponse.json({
         message: "Assessment deleted successfully (demo mode)",
         isDemoMode: true,
       })
     }
 
-    try {
-      const result = await sql`
-        DELETE FROM saved_assessments 
-        WHERE id = ${assessmentId} AND user_id = ${user.id}
-        RETURNING id
-      `
+    const result = await sql`
+      DELETE FROM saved_assessments 
+      WHERE id = ${assessmentId} AND user_id = ${user.id}
+      RETURNING id
+    `
 
-      if (result.length === 0) {
-        return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
-      }
-
-      return NextResponse.json({
-        message: "Assessment deleted successfully",
-        isDemoMode: false,
-      })
-    } catch (error) {
-      console.error("Database error:", error)
-      return NextResponse.json({ error: "Failed to delete assessment" }, { status: 500 })
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Assessment not found or unauthorized" }, { status: 404 })
     }
+
+    console.log(`Assessment ${assessmentId} deleted successfully`)
+
+    return NextResponse.json({
+      message: "Assessment deleted successfully",
+      isDemoMode: false,
+    })
   } catch (error) {
-    console.error("Error deleting assessment:", error)
+    console.error("Delete assessment error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
