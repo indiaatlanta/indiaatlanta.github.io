@@ -1,10 +1,20 @@
--- Check the actual schema of saved_assessments table
-SELECT column_name, data_type, is_nullable
+-- Check the saved_assessments table schema
+SELECT 
+    column_name, 
+    data_type, 
+    is_nullable, 
+    column_default
 FROM information_schema.columns 
 WHERE table_name = 'saved_assessments'
 ORDER BY ordinal_position;
 
--- If the table doesn't exist, create it with the correct schema
+-- Check if table exists
+SELECT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_name = 'saved_assessments'
+);
+
+-- If table doesn't exist, create it
 CREATE TABLE IF NOT EXISTS saved_assessments (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

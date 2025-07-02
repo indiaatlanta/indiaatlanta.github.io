@@ -50,10 +50,18 @@ export default function LoginButton({ user }: LoginButtonProps) {
       const response = await fetch("/api/assessments")
       if (response.ok) {
         const data = await response.json()
-        setSavedAssessments(data.assessments?.slice(0, 3) || []) // Show only latest 3
+        console.log("Loaded assessments data:", data)
+
+        // Ensure we have an array
+        const assessments = Array.isArray(data.assessments) ? data.assessments : []
+        setSavedAssessments(assessments.slice(0, 3)) // Show only latest 3
+      } else {
+        console.error("Failed to load assessments:", response.status, response.statusText)
+        setSavedAssessments([])
       }
     } catch (error) {
       console.error("Failed to load saved assessments:", error)
+      setSavedAssessments([])
     } finally {
       setLoading(false)
     }
@@ -73,10 +81,14 @@ export default function LoginButton({ user }: LoginButtonProps) {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    } catch (error) {
+      return "Unknown"
+    }
   }
 
   const getCompletionPercentage = (completed: number, total: number) => {

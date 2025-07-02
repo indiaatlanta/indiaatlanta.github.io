@@ -29,78 +29,58 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // First check if the table exists and what columns it has
-      const tableExists = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'saved_assessments'
+      // Ensure the table exists first
+      await sql`
+        CREATE TABLE IF NOT EXISTS saved_assessments (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          job_role_name VARCHAR(255),
+          department_name VARCHAR(255),
+          completed_skills INTEGER DEFAULT 0,
+          total_skills INTEGER DEFAULT 0,
+          assessment_data JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
       `
 
-      if (!tableExists[0].exists) {
-        console.log("saved_assessments table does not exist")
-        return NextResponse.json({
-          assessments: [],
-          isDemoMode: false,
-          message: "Assessments table not found",
-        })
-      }
-
-      // Get column information
-      const columns = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'saved_assessments'
-        ORDER BY ordinal_position
-      `
-
-      const columnNames = columns.map((col) => col.column_name)
-      console.log("Available columns in saved_assessments:", columnNames)
-
-      // Build query based on available columns
-      let query = `
+      // Get assessments from database
+      const assessments = await sql`
         SELECT 
           id,
           name,
-          created_at
-      `
-
-      // Add optional columns if they exist
-      if (columnNames.includes("job_role_name")) {
-        query += `, job_role_name`
-      }
-      if (columnNames.includes("department_name")) {
-        query += `, department_name`
-      }
-      if (columnNames.includes("completed_skills")) {
-        query += `, completed_skills`
-      }
-      if (columnNames.includes("total_skills")) {
-        query += `, total_skills`
-      }
-      if (columnNames.includes("assessment_data")) {
-        query += `, assessment_data`
-      }
-
-      query += `
+          job_role_name,
+          department_name,
+          completed_skills,
+          total_skills,
+          created_at,
+          assessment_data
         FROM saved_assessments
-        WHERE user_id = $1
+        WHERE user_id = ${user.id}
         ORDER BY created_at DESC
       `
 
-      const assessments = await sql.unsafe(query, [user.id])
+      console.log("Raw assessments from DB:", assessments)
+      console.log("Assessments type:", typeof assessments)
+      console.log("Is array:", Array.isArray(assessments))
+
+      // Ensure we have an array
+      const assessmentsArray = Array.isArray(assessments) ? assessments : []
 
       // Normalize the data to ensure all expected fields exist
-      const normalizedAssessments = assessments.map((assessment) => ({
+      const normalizedAssessments = assessmentsArray.map((assessment) => ({
         id: assessment.id,
-        name: assessment.name,
+        name: assessment.name || "Untitled Assessment",
         job_role_name: assessment.job_role_name || "Unknown Role",
         department_name: assessment.department_name || "Unknown Department",
         completed_skills: assessment.completed_skills || 0,
         total_skills: assessment.total_skills || 0,
-        created_at: assessment.created_at.toISOString(),
+        created_at: assessment.created_at ? assessment.created_at.toISOString() : new Date().toISOString(),
         assessment_data: assessment.assessment_data || null,
       }))
+
+      console.log("Normalized assessments:", normalizedAssessments)
 
       return NextResponse.json({
         assessments: normalizedAssessments,
@@ -150,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Check if table exists, create if not
+      // Ensure table exists
       await sql`
         CREATE TABLE IF NOT EXISTS saved_assessments (
           id SERIAL PRIMARY KEY,
