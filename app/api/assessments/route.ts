@@ -1,17 +1,37 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
-import { z } from "zod"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
-const assessmentSchema = z.object({
-  name: z.string().min(1, "Assessment name is required").max(255, "Name too long"),
-  jobRoleId: z.number().int().positive("Invalid job role"),
-  departmentName: z.string().min(1, "Department name is required"),
-  jobRoleName: z.string().min(1, "Job role name is required"),
-  assessmentData: z.record(z.any()),
-  completedSkills: z.number().int().min(0),
-  totalSkills: z.number().int().min(0),
-})
+// Demo data for when database is not available
+const demoAssessments = [
+  {
+    id: 1,
+    assessment_name: "Frontend Developer Assessment",
+    job_role_name: "Frontend Developer",
+    department_name: "Engineering",
+    completed_skills: 8,
+    total_skills: 12,
+    created_at: "2024-01-15T10:30:00Z",
+    assessment_data: JSON.stringify({
+      "1": { rating: 4, notes: "Strong in React" },
+      "2": { rating: 3, notes: "Good CSS skills" },
+      "3": { rating: 5, notes: "Excellent JavaScript" },
+    })
+  },
+  {
+    id: 2,
+    assessment_name: "Product Manager Evaluation",
+    job_role_name: "Product Manager",
+    department_name: "Product",
+    completed_skills: 6,
+    total_skills: 10,
+    created_at: "2024-01-10T14:20:00Z",
+    assessment_data: JSON.stringify({
+      "4": { rating: 4, notes: "Good strategic thinking" },
+      "5": { rating: 3, notes: "Developing user research skills" },
+    })
+  },
+]
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,69 +41,45 @@ export async function GET(request: NextRequest) {
     }
 
     if (!isDatabaseConfigured() || !sql) {
-      // Return demo data
+      console.log("Database not configured, using demo assessments")
       return NextResponse.json({
-        assessments: [
-          {
-            id: 1,
-            assessment_name: "Frontend Developer Assessment",
-            job_role_name: "Frontend Developer",
-            department_name: "Engineering",
-            completed_skills: 15,
-            total_skills: 20,
-            created_at: new Date().toISOString(),
-            assessment_data: {
-              ratings: [
-                { skill: "JavaScript", rating: "proficient" },
-                { skill: "React", rating: "strength" },
-                { skill: "CSS", rating: "developing" },
-              ],
-            },
-          },
-          {
-            id: 2,
-            assessment_name: "Senior Engineer Review",
-            job_role_name: "Senior Engineer",
-            department_name: "Engineering",
-            completed_skills: 25,
-            total_skills: 30,
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            assessment_data: {
-              ratings: [
-                { skill: "Leadership", rating: "strength" },
-                { skill: "Architecture", rating: "proficient" },
-                { skill: "Mentoring", rating: "developing" },
-              ],
-            },
-          },
-        ],
-        isDemoMode: true,
+        assessments: demoAssessments,
+        isDemoMode: true
       })
     }
 
+    // Get saved assessments for the current user
     const assessments = await sql`
       SELECT 
-        id,
-        assessment_name,
-        job_role_name,
-        department_name,
-        completed_skills,
-        total_skills,
-        created_at,
-        assessment_data
-      FROM saved_assessments 
-      WHERE user_id = ${user.id}
-      ORDER BY created_at DESC
-      LIMIT 50
+        sa.id,
+        sa.assessment_name,
+        jr.name as job_role_name,
+        d.name as department_name,
+        sa.completed_skills,
+        sa.total_skills,
+        sa.created_at,
+        sa.assessment_data
+      FROM saved_assessments sa
+      JOIN job_roles jr ON sa.job_role_id = jr.id
+      JOIN departments d ON jr.department_id = d.id
+      WHERE sa.user_id = ${user.id}
+      ORDER BY sa.created_at DESC
     `
 
     return NextResponse.json({
-      assessments,
-      isDemoMode: false,
+      assessments: assessments.map(assessment => ({
+        ...assessment,
+        created_at: assessment.created_at.toISOString(),
+      })),
+      isDemoMode: false
     })
+
   } catch (error) {
     console.error("Get assessments error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to fetch assessments" },
+      { status: 500 }
+    )
   }
 }
 
@@ -95,59 +91,49 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    console.log("Received assessment data:", body)
-
-    const validatedData = assessmentSchema.parse(body)
+    const { assessment_name, job_role_id, completed_skills, total_skills, assessment_data } = body
 
     if (!isDatabaseConfigured() || !sql) {
-      // Demo mode - simulate success
-      console.log("Demo mode: Simulating assessment save")
+      console.log("Database not configured, simulating save")
       return NextResponse.json({
-        id: Math.floor(Math.random() * 1000),
-        message: "Assessment saved successfully (demo mode)",
-        isDemoMode: true,
+        id: Date.now(),
+        message: "Assessment saved successfully (demo mode)"
       })
     }
 
+    // Save the assessment
     const result = await sql`
       INSERT INTO saved_assessments (
-        user_id,
-        assessment_name,
-        job_role_id,
-        job_role_name,
-        department_name,
+        user_id, 
+        assessment_name, 
+        job_role_id, 
+        completed_skills, 
+        total_skills, 
         assessment_data,
-        completed_skills,
-        total_skills
-      ) VALUES (
-        ${user.id},
-        ${validatedData.name},
-        ${validatedData.jobRoleId},
-        ${validatedData.jobRoleName},
-        ${validatedData.departmentName},
-        ${JSON.stringify(validatedData.assessmentData)},
-        ${validatedData.completedSkills},
-        ${validatedData.totalSkills}
+        created_at
       )
-      RETURNING id, assessment_name, created_at
+      VALUES (
+        ${user.id}, 
+        ${assessment_name}, 
+        ${job_role_id}, 
+        ${completed_skills}, 
+        ${total_skills}, 
+        ${JSON.stringify(assessment_data)},
+        NOW()
+      )
+      RETURNING id
     `
-
-    console.log("Assessment saved successfully:", result[0])
 
     return NextResponse.json({
       id: result[0].id,
-      name: result[0].assessment_name,
-      created_at: result[0].created_at,
-      message: "Assessment saved successfully",
-      isDemoMode: false,
+      message: "Assessment saved successfully"
     })
+
   } catch (error) {
     console.error("Save assessment error:", error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid data", details: error.errors }, { status: 400 })
-    }
-
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to save assessment" },
+      { status: 500 }
+    )
   }
 }
