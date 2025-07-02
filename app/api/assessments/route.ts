@@ -1,206 +1,116 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+import { sql } from "@vercel/postgres"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({
-        assessments: [],
-        total: 0,
-        stats: {
-          total: 0,
-          completed: 0,
-          inProgress: 0,
-          averageScore: 0,
-        },
-      })
-    }
-
-    // Ensure table exists with correct schema
+    // Ensure the table has all required columns
     await sql`
-      CREATE TABLE IF NOT EXISTS saved_assessments (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        assessment_name VARCHAR(255) NOT NULL,
-        job_role_name VARCHAR(255) NOT NULL,
-        department_name VARCHAR(255) NOT NULL,
-        skills_data JSONB NOT NULL DEFAULT '{}',
-        overall_score DECIMAL(5,2) DEFAULT 0,
-        completion_percentage DECIMAL(5,2) DEFAULT 0,
-        total_skills INTEGER DEFAULT 0,
-        completed_skills INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      ALTER TABLE saved_assessments 
+      ADD COLUMN IF NOT EXISTS job_role_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS department_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS skills_data JSONB DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS total_skills INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completed_skills INTEGER DEFAULT 0
     `
 
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get("search") || ""
-    const filter = searchParams.get("filter") || "all"
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const limit = Number.parseInt(searchParams.get("limit") || "20")
-    const offset = (page - 1) * limit
+    // Update existing records to populate the new columns from related tables
+    await sql`
+      UPDATE saved_assessments 
+      SET 
+          job_role_name = COALESCE(jr.name, 'Unknown Role'),
+          department_name = COALESCE(d.name, 'Unknown Department')
+      FROM job_roles jr
+      JOIN departments d ON jr.department_id = d.id
+      WHERE saved_assessments.role_id = jr.id
+      AND (saved_assessments.job_role_name IS NULL OR saved_assessments.job_role_name = '')
+    `
 
-    // Build where clause
-    const whereConditions = [`user_id = ${user.id}`]
-
-    if (search) {
-      whereConditions.push(`(
-        assessment_name ILIKE '%${search}%' OR 
-        job_role_name ILIKE '%${search}%' OR 
-        department_name ILIKE '%${search}%'
-      )`)
-    }
-
-    if (filter === "completed") {
-      whereConditions.push("completion_percentage >= 100")
-    } else if (filter === "in-progress") {
-      whereConditions.push("completion_percentage > 0 AND completion_percentage < 100")
-    } else if (filter === "not-started") {
-      whereConditions.push("completion_percentage = 0")
-    }
-
-    const whereClause = whereConditions.join(" AND ")
-
-    // Get assessments
-    const assessments = await sql`
+    const { rows } = await sql`
       SELECT 
-        id,
-        assessment_name,
-        job_role_name,
-        department_name,
-        overall_score,
-        completion_percentage,
-        total_skills,
-        completed_skills,
-        created_at,
-        updated_at
-      FROM saved_assessments 
-      WHERE ${sql.unsafe(whereClause)}
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
+        sa.id,
+        COALESCE(sa.assessment_name, 'Unnamed Assessment') as assessment_name,
+        COALESCE(sa.job_role_name, jr.name, 'Unknown Role') as job_role_name,
+        COALESCE(sa.department_name, d.name, 'Unknown Department') as department_name,
+        COALESCE(sa.overall_score, 0) as overall_score,
+        COALESCE(sa.completion_percentage, 0) as completion_percentage,
+        COALESCE(sa.total_skills, 0) as total_skills,
+        COALESCE(sa.completed_skills, 0) as completed_skills,
+        COALESCE(sa.skills_data, sa.assessment_data, '{}') as skills_data,
+        sa.created_at,
+        sa.updated_at
+      FROM saved_assessments sa
+      LEFT JOIN job_roles jr ON sa.role_id = jr.id
+      LEFT JOIN departments d ON jr.department_id = d.id
+      ORDER BY sa.created_at DESC
     `
 
-    // Get total count
-    const totalResult = await sql`
-      SELECT COUNT(*) as count 
-      FROM saved_assessments 
-      WHERE ${sql.unsafe(whereClause)}
-    `
-
-    // Get stats for this user
-    const statsResult = await sql`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN completion_percentage >= 100 THEN 1 END) as completed,
-        COUNT(CASE WHEN completion_percentage > 0 AND completion_percentage < 100 THEN 1 END) as in_progress,
-        COALESCE(AVG(overall_score), 0) as average_score
-      FROM saved_assessments 
-      WHERE user_id = ${user.id}
-    `
-
-    const total = Number.parseInt(totalResult[0]?.count || "0")
-    const stats = statsResult[0] || { total: 0, completed: 0, in_progress: 0, average_score: 0 }
-
-    return NextResponse.json({
-      assessments: Array.isArray(assessments) ? assessments : [],
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-      stats: {
-        total: Number.parseInt(stats.total || "0"),
-        completed: Number.parseInt(stats.completed || "0"),
-        inProgress: Number.parseInt(stats.in_progress || "0"),
-        averageScore: Number.parseFloat(stats.average_score || "0"),
-      },
-    })
+    return NextResponse.json({ assessments: rows })
   } catch (error) {
     console.error("Database query failed:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to fetch assessments",
-        assessments: [],
-        total: 0,
-        stats: {
-          total: 0,
-          completed: 0,
-          inProgress: 0,
-          averageScore: 0,
-        },
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Failed to fetch assessments" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
     const body = await request.json()
     const {
       assessmentName,
       jobRoleName,
       departmentName,
       skillsData,
-      overallScore = 0,
-      completionPercentage = 0,
-      totalSkills = 0,
-      completedSkills = 0,
+      overallScore,
+      completionPercentage,
+      totalSkills,
+      completedSkills,
+      userId = 1, // Default user ID for demo
+      roleId = 1, // Default role ID for demo
     } = body
 
-    if (!assessmentName || !jobRoleName || !departmentName || !skillsData) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
-
-    // Ensure table exists
+    // Ensure the table has all required columns
     await sql`
-      CREATE TABLE IF NOT EXISTS saved_assessments (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        assessment_name VARCHAR(255) NOT NULL,
-        job_role_name VARCHAR(255) NOT NULL,
-        department_name VARCHAR(255) NOT NULL,
-        skills_data JSONB NOT NULL DEFAULT '{}',
-        overall_score DECIMAL(5,2) DEFAULT 0,
-        completion_percentage DECIMAL(5,2) DEFAULT 0,
-        total_skills INTEGER DEFAULT 0,
-        completed_skills INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      ALTER TABLE saved_assessments 
+      ADD COLUMN IF NOT EXISTS job_role_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS department_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS skills_data JSONB DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS total_skills INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completed_skills INTEGER DEFAULT 0
     `
 
-    const result = await sql`
+    const { rows } = await sql`
       INSERT INTO saved_assessments (
-        user_id, assessment_name, job_role_name, department_name, 
-        skills_data, overall_score, completion_percentage, total_skills, completed_skills
+        user_id,
+        role_id,
+        assessment_name,
+        job_role_name,
+        department_name,
+        assessment_data,
+        skills_data,
+        overall_score,
+        completion_percentage,
+        total_skills,
+        completed_skills
       ) VALUES (
-        ${user.id}, ${assessmentName}, ${jobRoleName}, ${departmentName},
-        ${JSON.stringify(skillsData)}, ${overallScore}, ${completionPercentage}, 
-        ${totalSkills}, ${completedSkills}
+        ${userId},
+        ${roleId},
+        ${assessmentName || "Unnamed Assessment"},
+        ${jobRoleName || "Unknown Role"},
+        ${departmentName || "Unknown Department"},
+        ${JSON.stringify(skillsData || {})},
+        ${JSON.stringify(skillsData || {})},
+        ${overallScore || 0},
+        ${completionPercentage || 0},
+        ${totalSkills || 0},
+        ${completedSkills || 0}
       )
       RETURNING *
     `
 
-    return NextResponse.json({
-      success: true,
-      assessment: result[0],
-    })
+    return NextResponse.json({ assessment: rows[0] })
   } catch (error) {
     console.error("Failed to create assessment:", error)
     return NextResponse.json({ error: "Failed to create assessment" }, { status: 500 })

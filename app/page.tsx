@@ -20,59 +20,44 @@ interface RecentAssessment {
 
 async function getRecentAssessments(): Promise<RecentAssessment[]> {
   try {
-    // First, ensure the table exists with correct schema
+    // Run the schema update first
     await sql`
-      CREATE TABLE IF NOT EXISTS saved_assessments (
-        id SERIAL PRIMARY KEY,
-        assessment_name TEXT NOT NULL,
-        job_role_name TEXT NOT NULL,
-        department_name TEXT NOT NULL,
-        skills_data JSONB NOT NULL,
-        overall_score DECIMAL(5,2) DEFAULT 0,
-        completion_percentage INTEGER DEFAULT 0,
-        total_skills INTEGER DEFAULT 0,
-        completed_skills INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      ALTER TABLE saved_assessments 
+      ADD COLUMN IF NOT EXISTS job_role_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS department_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS skills_data JSONB DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS total_skills INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completed_skills INTEGER DEFAULT 0
     `
 
-    // Check if old column names exist and migrate them
-    try {
-      const { rows: columns } = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'saved_assessments'
-      `
+    // Update existing records to populate the new columns from related tables
+    await sql`
+      UPDATE saved_assessments 
+      SET 
+          job_role_name = COALESCE(jr.name, 'Unknown Role'),
+          department_name = COALESCE(d.name, 'Unknown Department')
+      FROM job_roles jr
+      JOIN departments d ON jr.department_id = d.id
+      WHERE saved_assessments.role_id = jr.id
+      AND (saved_assessments.job_role_name IS NULL OR saved_assessments.job_role_name = '')
+    `
 
-      const columnNames = columns.map((row) => row.column_name)
-
-      // Migrate old column names if they exist
-      if (columnNames.includes("name") && !columnNames.includes("assessment_name")) {
-        await sql`ALTER TABLE saved_assessments RENAME COLUMN name TO assessment_name`
-      }
-      if (columnNames.includes("role_name") && !columnNames.includes("job_role_name")) {
-        await sql`ALTER TABLE saved_assessments RENAME COLUMN role_name TO job_role_name`
-      }
-      if (columnNames.includes("department") && !columnNames.includes("department_name")) {
-        await sql`ALTER TABLE saved_assessments RENAME COLUMN department TO department_name`
-      }
-    } catch (migrationError) {
-      console.log("Column migration not needed or failed:", migrationError)
-    }
-
-    // Fetch recent assessments
+    // Fetch recent assessments with fallback for missing data
     const { rows } = await sql`
       SELECT 
-        id,
-        assessment_name,
-        job_role_name,
-        department_name,
-        overall_score,
-        completion_percentage,
-        created_at
-      FROM saved_assessments 
-      ORDER BY created_at DESC 
+        sa.id,
+        COALESCE(sa.assessment_name, 'Unnamed Assessment') as assessment_name,
+        COALESCE(sa.job_role_name, jr.name, 'Unknown Role') as job_role_name,
+        COALESCE(sa.department_name, d.name, 'Unknown Department') as department_name,
+        COALESCE(sa.overall_score, 0) as overall_score,
+        COALESCE(sa.completion_percentage, 0) as completion_percentage,
+        sa.created_at
+      FROM saved_assessments sa
+      LEFT JOIN job_roles jr ON sa.role_id = jr.id
+      LEFT JOIN departments d ON jr.department_id = d.id
+      ORDER BY sa.created_at DESC 
       LIMIT 5
     `
 
@@ -85,12 +70,19 @@ async function getRecentAssessments(): Promise<RecentAssessment[]> {
 
 async function getAssessmentStats() {
   try {
+    // Ensure columns exist first
+    await sql`
+      ALTER TABLE saved_assessments 
+      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0
+    `
+
     const { rows } = await sql`
       SELECT 
         COUNT(*) as total_assessments,
-        COUNT(CASE WHEN completion_percentage = 100 THEN 1 END) as completed_assessments,
-        COUNT(CASE WHEN completion_percentage > 0 AND completion_percentage < 100 THEN 1 END) as in_progress_assessments,
-        COALESCE(AVG(overall_score), 0) as average_score
+        COUNT(CASE WHEN COALESCE(completion_percentage, 0) >= 100 THEN 1 END) as completed_assessments,
+        COUNT(CASE WHEN COALESCE(completion_percentage, 0) > 0 AND COALESCE(completion_percentage, 0) < 100 THEN 1 END) as in_progress_assessments,
+        COALESCE(AVG(NULLIF(overall_score, 0)), 0) as average_score
       FROM saved_assessments
     `
 
