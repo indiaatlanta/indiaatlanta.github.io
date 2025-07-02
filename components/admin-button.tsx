@@ -3,19 +3,11 @@
 import { Button } from "@/components/ui/button"
 import { Settings } from "lucide-react"
 import Link from "next/link"
+import { useUser } from "@/lib/auth-context"
 
-interface User {
-  id: number
-  name: string
-  email: string
-  role: string
-}
+export function AdminButton() {
+  const { user } = useUser()
 
-interface AdminButtonProps {
-  user: User | null
-}
-
-export default function AdminButton({ user }: AdminButtonProps) {
   if (!user || user.role !== "admin") {
     return null
   }

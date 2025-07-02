@@ -1,217 +1,278 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Download, FileText, Info, Save, Check } from "lucide-react"
-import { generatePDF } from "@/lib/pdf-generator"
-
-interface Role {
-  id: number
-  name: string
-  code: string
-  level: number
-  department_name: string
-}
+import { Separator } from "@/components/ui/separator"
+import { useToast } from "@/hooks/use-toast"
+import { generateAssessmentPDF } from "@/lib/pdf-generator"
+import { useUser } from "@/lib/auth-context"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Save, Download, ChevronLeft, ChevronRight, Target, TrendingUp, Users, BookOpen } from "lucide-react"
 
 interface Skill {
   id: number
-  skill_name: string
+  name: string
+  category: string
   level: string
-  demonstration_description: string
-  skill_description: string
-  category_name: string
-  category_color: string
+  description?: string
+}
+
+interface JobRole {
+  id: number
+  name: string
+  code: string
+  level: string
+  department: string
+  skills: Skill[]
 }
 
 interface SkillRating {
   skillId: number
   rating: string
+  ratingValue: number
+}
+
+interface AssessmentProgress {
+  totalSkills: number
+  ratedSkills: number
+  completionPercentage: number
+  ratingCounts: {
+    needsDevelopment: number
+    developing: number
+    proficient: number
+    strength: number
+    notApplicable: number
+  }
 }
 
 const RATING_OPTIONS = [
-  { value: "needs-development", label: "Needs Development" },
-  { value: "developing", label: "Developing" },
-  { value: "proficient", label: "Proficient / Fully Displayed" },
-  { value: "strength", label: "Strength / Role Model" },
-  { value: "not-applicable", label: "Not Applicable" },
+  { value: "needs-development", label: "Needs Development", score: 1, color: "text-red-600" },
+  { value: "developing", label: "Developing", score: 2, color: "text-orange-600" },
+  { value: "proficient", label: "Proficient / Fully Displayed", score: 3, color: "text-green-600" },
+  { value: "strength", label: "Strength / Role Model", score: 4, color: "text-blue-600" },
+  { value: "not-applicable", label: "Not Applicable", score: 0, color: "text-gray-600" },
 ]
 
-const RATING_DESCRIPTIONS = {
-  "needs-development":
-    "I have limited experience or confidence in this area and would benefit from support or learning opportunities.",
-  developing:
-    "I'm gaining experience in this skill and can apply it with guidance. I understand the fundamentals but am still building confidence and consistency.",
-  proficient: "I demonstrate this skill consistently and effectively in my role, independently and with good outcomes.",
-  strength: "I consistently excel in this area and often guide, coach, or support others to develop this skill.",
-  "not-applicable": "This skill is not currently relevant to my role or responsibilities.",
-}
-
-export function SelfReviewClient() {
-  const [roles, setRoles] = useState<Role[]>([])
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
-  const [skills, setSkills] = useState<Skill[]>([])
-  const [ratings, setRatings] = useState<SkillRating[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
-  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
-  const [isDemoMode, setIsDemoMode] = useState(false)
+export default function SelfReviewClient() {
+  const { user } = useUser()
+  const { toast } = useToast()
+  const [jobRoles, setJobRoles] = useState<JobRole[]>([])
+  const [selectedRole, setSelectedRole] = useState<JobRole | null>(null)
+  const [ratings, setRatings] = useState<Record<number, SkillRating>>({})
+  const [currentSkillIndex, setCurrentSkillIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
-  const [assessmentName, setAssessmentName] = useState("")
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
-    fetchRoles()
+    loadJobRoles()
   }, [])
 
-  const fetchRoles = async () => {
-    setIsLoadingRoles(true)
+  const loadJobRoles = async () => {
     try {
-      const response = await fetch("/api/roles")
+      const response = await fetch("/api/job-roles")
       if (response.ok) {
         const data = await response.json()
-        console.log("Roles API response:", data) // Debug log
-
-        // Handle different response formats
-        if (data && Array.isArray(data.roles)) {
-          setRoles(data.roles)
-          setIsDemoMode(data.isDemoMode || false)
-        } else if (Array.isArray(data)) {
-          setRoles(data)
-          setIsDemoMode(false)
-        } else {
-          console.error("Unexpected roles data format:", data)
-          setRoles([])
-          setIsDemoMode(true)
-        }
+        setJobRoles(data)
       } else {
-        console.error("Failed to fetch roles, status:", response.status)
-        setRoles([])
-        setIsDemoMode(true)
+        // Demo data fallback
+        const demoRoles: JobRole[] = [
+          {
+            id: 1,
+            name: "Software Engineer",
+            code: "SE-001",
+            level: "Mid-Level",
+            department: "Engineering",
+            skills: [
+              { id: 1, name: "JavaScript", category: "Technical Skills", level: "Intermediate" },
+              { id: 2, name: "React", category: "Technical Skills", level: "Intermediate" },
+              { id: 3, name: "Node.js", category: "Technical Skills", level: "Intermediate" },
+              { id: 4, name: "Problem Solving", category: "Core Skills", level: "Advanced" },
+              { id: 5, name: "Communication", category: "Soft Skills", level: "Intermediate" },
+              { id: 6, name: "Team Collaboration", category: "Soft Skills", level: "Intermediate" },
+              { id: 7, name: "Code Review", category: "Technical Skills", level: "Intermediate" },
+              { id: 8, name: "Testing", category: "Technical Skills", level: "Basic" },
+              { id: 9, name: "Documentation", category: "Core Skills", level: "Basic" },
+              { id: 10, name: "Agile Methodology", category: "Process Skills", level: "Intermediate" },
+              { id: 11, name: "Git Version Control", category: "Technical Skills", level: "Intermediate" },
+              { id: 12, name: "Database Design", category: "Technical Skills", level: "Basic" },
+              { id: 13, name: "API Development", category: "Technical Skills", level: "Intermediate" },
+              { id: 14, name: "Performance Optimization", category: "Technical Skills", level: "Advanced" },
+            ],
+          },
+          {
+            id: 2,
+            name: "Product Manager",
+            code: "PM-001",
+            level: "Senior",
+            department: "Product",
+            skills: [
+              { id: 15, name: "Product Strategy", category: "Strategic Skills", level: "Advanced" },
+              { id: 16, name: "Market Research", category: "Analytical Skills", level: "Intermediate" },
+              { id: 17, name: "User Experience Design", category: "Design Skills", level: "Intermediate" },
+              { id: 18, name: "Data Analysis", category: "Analytical Skills", level: "Advanced" },
+              { id: 19, name: "Stakeholder Management", category: "Leadership Skills", level: "Advanced" },
+              { id: 20, name: "Roadmap Planning", category: "Strategic Skills", level: "Advanced" },
+            ],
+          },
+        ]
+        setJobRoles(demoRoles)
       }
     } catch (error) {
-      console.error("Error fetching roles:", error)
-      setRoles([])
-      setIsDemoMode(true)
+      console.error("Failed to load job roles:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load job roles. Please try again.",
+        variant: "destructive",
+      })
     } finally {
-      setIsLoadingRoles(false)
+      setIsLoading(false)
     }
   }
 
-  const fetchSkills = async (roleId: number) => {
-    try {
-      const response = await fetch(`/api/role-skills?roleId=${roleId}`)
-      if (response.ok) {
-        const data = await response.json()
-        return Array.isArray(data) ? data : []
-      }
-      return []
-    } catch (error) {
-      console.error("Error fetching skills:", error)
-      return []
-    }
-  }
-
-  const handleRoleChange = async (roleId: string) => {
-    const role = roles.find((r) => r.id === Number.parseInt(roleId))
+  const handleRoleSelect = (roleId: string) => {
+    const role = jobRoles.find((r) => r.id.toString() === roleId)
     if (role) {
       setSelectedRole(role)
-      setIsLoading(true)
-      const roleSkills = await fetchSkills(role.id)
-      setSkills(roleSkills)
-      setRatings([])
-      setIsLoading(false)
-      // Generate default assessment name
-      const now = new Date()
-      const defaultName = `${role.name} Assessment - ${now.toLocaleDateString("en-US", {
-        month: "short",
-        year: "numeric",
-      })}`
-      setAssessmentName(defaultName)
+      setRatings({})
+      setCurrentSkillIndex(0)
     }
   }
 
   const handleRatingChange = (skillId: number, rating: string) => {
-    setRatings((prev) => {
-      const existing = prev.find((r) => r.skillId === skillId)
-      if (existing) {
-        return prev.map((r) => (r.skillId === skillId ? { ...r, rating } : r))
-      }
-      return [...prev, { skillId, rating }]
-    })
+    const ratingOption = RATING_OPTIONS.find((opt) => opt.value === rating)
+    if (ratingOption) {
+      setRatings((prev) => ({
+        ...prev,
+        [skillId]: {
+          skillId,
+          rating,
+          ratingValue: ratingOption.score,
+        },
+      }))
+    }
   }
 
-  const getRatingForSkill = (skillId: number) => {
-    return ratings.find((r) => r.skillId === skillId)?.rating || ""
+  const calculateProgress = (): AssessmentProgress => {
+    if (!selectedRole) {
+      return {
+        totalSkills: 0,
+        ratedSkills: 0,
+        completionPercentage: 0,
+        ratingCounts: {
+          needsDevelopment: 0,
+          developing: 0,
+          proficient: 0,
+          strength: 0,
+          notApplicable: 0,
+        },
+      }
+    }
+
+    const totalSkills = selectedRole.skills.length
+    const ratedSkills = Object.keys(ratings).length
+    const completionPercentage = totalSkills > 0 ? Math.round((ratedSkills / totalSkills) * 100) : 0
+
+    const ratingCounts = {
+      needsDevelopment: 0,
+      developing: 0,
+      proficient: 0,
+      strength: 0,
+      notApplicable: 0,
+    }
+
+    Object.values(ratings).forEach((rating) => {
+      switch (rating.rating) {
+        case "needs-development":
+          ratingCounts.needsDevelopment++
+          break
+        case "developing":
+          ratingCounts.developing++
+          break
+        case "proficient":
+          ratingCounts.proficient++
+          break
+        case "strength":
+          ratingCounts.strength++
+          break
+        case "not-applicable":
+          ratingCounts.notApplicable++
+          break
+      }
+    })
+
+    return {
+      totalSkills,
+      ratedSkills,
+      completionPercentage,
+      ratingCounts,
+    }
+  }
+
+  const calculateOverallScore = (): number => {
+    const ratingValues = Object.values(ratings)
+    if (ratingValues.length === 0) return 0
+
+    const scoredRatings = ratingValues.filter((r) => r.ratingValue > 0)
+    if (scoredRatings.length === 0) return 0
+
+    const totalScore = scoredRatings.reduce((sum, rating) => sum + rating.ratingValue, 0)
+    const maxPossibleScore = scoredRatings.length * 4
+    return (totalScore / maxPossibleScore) * 100
   }
 
   const handleSaveAssessment = async () => {
-    if (!selectedRole || !assessmentName.trim()) {
-      alert("Please provide an assessment name")
+    if (!selectedRole || !user) {
+      toast({
+        title: "Error",
+        description: "Please select a role and ensure you're logged in.",
+        variant: "destructive",
+      })
       return
     }
 
-    if (ratings.length === 0) {
-      alert("Please rate at least one skill before saving")
+    const progress = calculateProgress()
+    if (progress.ratedSkills === 0) {
+      toast({
+        title: "Error",
+        description: "Please rate at least one skill before saving.",
+        variant: "destructive",
+      })
       return
     }
 
     setIsSaving(true)
+
     try {
-      // Calculate overall score based on ratings
-      const ratingScores = {
-        "needs-development": 1,
-        developing: 2,
-        proficient: 3,
-        strength: 4,
-        "not-applicable": 0,
-      }
-
-      const validRatings = ratings.filter((r) => r.rating !== "not-applicable")
-      const totalScore = validRatings.reduce((sum, rating) => {
-        return sum + (ratingScores[rating.rating as keyof typeof ratingScores] || 0)
-      }, 0)
-      const maxPossibleScore = validRatings.length * 4
-      const overallScore = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0
-
-      // Prepare skills data with detailed information
-      const skillsData = {
-        ratings: ratings.map((rating) => {
-          const skill = skills.find((s) => s.id === rating.skillId)
-          return {
-            skillId: rating.skillId,
-            skillName: skill?.skill_name || "",
-            categoryName: skill?.category_name || "",
-            level: skill?.level || "",
-            rating: rating.rating,
-            ratingLabel: RATING_OPTIONS.find((opt) => opt.value === rating.rating)?.label || "",
-          }
-        }),
-        roleName: selectedRole.name,
-        roleCode: selectedRole.code,
-        departmentName: selectedRole.department_name,
-        completedAt: new Date().toISOString(),
-        summary: getRatingSummary(),
-      }
+      const skillsData = selectedRole.skills.map((skill) => {
+        const rating = ratings[skill.id]
+        return {
+          skillId: skill.id,
+          skillName: skill.name,
+          category: skill.category,
+          level: skill.level,
+          rating: rating?.rating || "not-rated",
+          ratingValue: rating?.ratingValue || 0,
+        }
+      })
 
       const assessmentData = {
-        assessmentName: assessmentName.trim(),
+        assessmentName: `${selectedRole.name} Self-Assessment - ${new Date().toLocaleDateString()}`,
         jobRoleName: selectedRole.name,
-        departmentName: selectedRole.department_name,
-        skillsData: skillsData,
-        overallScore: overallScore,
-        completionPercentage: completionPercentage,
-        totalSkills: skills.length,
-        completedSkills: totalRated,
+        departmentName: selectedRole.department,
+        skillsData,
+        overallScore: calculateOverallScore(),
+        completionPercentage: progress.completionPercentage,
+        totalSkills: progress.totalSkills,
+        completedSkills: progress.ratedSkills,
       }
 
-      console.log("Sending assessment data:", assessmentData) // Debug log
+      console.log("Saving assessment data:", assessmentData)
 
       const response = await fetch("/api/assessments", {
         method: "POST",
@@ -222,440 +283,372 @@ export function SelfReviewClient() {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        console.log("Assessment saved successfully:", data)
-        setSaveSuccess(true)
-        setSaveDialogOpen(false)
-
-        // Show success message briefly
-        setTimeout(() => {
-          setSaveSuccess(false)
-        }, 3000)
+        const result = await response.json()
+        toast({
+          title: "Success",
+          description: "Assessment saved successfully!",
+        })
+        console.log("Assessment saved:", result)
       } else {
         const errorData = await response.json()
-        console.error("Save assessment error:", errorData)
-        alert(`Failed to save assessment: ${errorData.error || "Unknown error"}`)
+        throw new Error(errorData.error || "Failed to save assessment")
       }
     } catch (error) {
-      console.error("Error saving assessment:", error)
-      alert("Failed to save assessment. Please try again.")
+      console.error("Failed to save assessment:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save assessment. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
-  const generatePDFReport = async () => {
-    if (!selectedRole) return
+  const handleExportPDF = () => {
+    if (!selectedRole) {
+      toast({
+        title: "Error",
+        description: "Please select a role first.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setIsGeneratingPDF(true)
+    const progress = calculateProgress()
+    if (progress.ratedSkills === 0) {
+      toast({
+        title: "Error",
+        description: "Please rate at least one skill before exporting.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsExporting(true)
+
     try {
-      const skillsByCategory = skills.reduce(
-        (acc, skill) => {
-          if (!acc[skill.category_name]) {
-            acc[skill.category_name] = []
+      const skillsData = selectedRole.skills
+        .map((skill) => {
+          const rating = ratings[skill.id]
+          const ratingOption = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)
+          return {
+            skillId: skill.id,
+            skillName: skill.name,
+            category: skill.category,
+            level: skill.level,
+            rating: ratingOption?.label || "Not Rated",
+            ratingValue: rating?.ratingValue || 0,
           }
-          acc[skill.category_name].push(skill)
-          return acc
-        },
-        {} as Record<string, Skill[]>,
-      )
+        })
+        .filter((skill) => skill.ratingValue > 0)
 
       const assessmentData = {
-        title: `Self Assessment: ${selectedRole.name}`,
-        subtitle: `${selectedRole.department_name} Department`,
-        date: new Date().toLocaleDateString(),
-        jobRole: {
-          name: selectedRole.name,
-          code: selectedRole.code,
-          level: selectedRole.level.toString(),
-          department: selectedRole.department_name,
-        },
-        summary: {
-          totalSkills: skills.length,
-          ratedSkills: totalRated,
-          completionPercentage,
-          overallScore: calculateOverallScore(),
-        },
-        ratingDistribution: getRatingSummary(),
-        skillsByCategory: Object.entries(skillsByCategory).map(([category, categorySkills]) => ({
-          category,
-          skills: categorySkills.map((skill) => {
-            const rating = ratings.find((r) => r.skillId === skill.id)
-            const ratingOption = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)
-            return {
-              name: skill.skill_name,
-              level: skill.level,
-              description: skill.demonstration_description,
-              rating: ratingOption?.label || "Not Rated",
-              ratingColor: getRatingBadgeColor(rating?.rating || ""),
-              notes: "",
-            }
-          }),
-        })),
+        assessmentName: `${selectedRole.name} Self-Assessment`,
+        jobRoleName: selectedRole.name,
+        departmentName: selectedRole.department,
+        skillsData,
+        overallScore: calculateOverallScore(),
+        completionPercentage: progress.completionPercentage,
+        totalSkills: progress.totalSkills,
+        completedSkills: progress.ratedSkills,
+        createdAt: new Date().toISOString(),
       }
 
-      await generatePDF(assessmentData, "self-assessment")
+      generateAssessmentPDF(assessmentData)
+
+      toast({
+        title: "Success",
+        description: "PDF exported successfully!",
+      })
     } catch (error) {
-      console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
+      console.error("Failed to export PDF:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export PDF. Please try again.",
+        variant: "destructive",
+      })
     } finally {
-      setIsGeneratingPDF(false)
+      setIsExporting(false)
     }
   }
 
-  const calculateOverallScore = () => {
-    const ratingScores = {
-      "needs-development": 1,
-      developing: 2,
-      proficient: 3,
-      strength: 4,
-      "not-applicable": 0,
-    }
+  const progress = calculateProgress()
+  const currentSkill = selectedRole?.skills[currentSkillIndex]
 
-    const validRatings = ratings.filter((r) => r.rating !== "not-applicable")
-    if (validRatings.length === 0) return 0
-
-    const totalScore = validRatings.reduce((sum, rating) => {
-      return sum + (ratingScores[rating.rating as keyof typeof ratingScores] || 0)
-    }, 0)
-    const maxPossibleScore = validRatings.length * 4
-    return maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading job roles...</p>
+        </div>
+      </div>
+    )
   }
-
-  const getColorClasses = (color: string) => {
-    const colorMap: Record<string, string> = {
-      blue: "bg-blue-50 text-blue-900 border-blue-200",
-      green: "bg-green-50 text-green-900 border-green-200",
-      purple: "bg-purple-50 text-purple-900 border-purple-200",
-      indigo: "bg-indigo-50 text-indigo-900 border-indigo-200",
-      orange: "bg-orange-50 text-orange-900 border-orange-200",
-    }
-    return colorMap[color] || "bg-gray-50 text-gray-900 border-gray-200"
-  }
-
-  const getRatingBadgeColor = (rating: string) => {
-    const colorMap: Record<string, string> = {
-      "needs-development": "bg-red-100 text-red-800",
-      developing: "bg-yellow-100 text-yellow-800",
-      proficient: "bg-green-100 text-green-800",
-      strength: "bg-blue-100 text-blue-800",
-      "not-applicable": "bg-gray-100 text-gray-800",
-    }
-    return colorMap[rating] || "bg-gray-100 text-gray-800"
-  }
-
-  const getRatingSummary = () => {
-    const summary = {
-      "needs-development": 0,
-      developing: 0,
-      proficient: 0,
-      strength: 0,
-      "not-applicable": 0,
-    }
-
-    ratings.forEach((rating) => {
-      if (summary.hasOwnProperty(rating.rating)) {
-        summary[rating.rating as keyof typeof summary]++
-      }
-    })
-
-    return summary
-  }
-
-  // Group skills by category
-  const skillsByCategory = skills.reduce(
-    (acc, skill) => {
-      if (!acc[skill.category_name]) {
-        acc[skill.category_name] = {
-          color: skill.category_color,
-          skills: [],
-        }
-      }
-      acc[skill.category_name].skills.push(skill)
-      return acc
-    },
-    {} as Record<string, { color: string; skills: Skill[] }>,
-  )
-
-  const summary = getRatingSummary()
-  const totalRated = Object.values(summary).reduce((sum, count) => sum + count, 0)
-  const completionPercentage = skills.length > 0 ? Math.round((totalRated / skills.length) * 100) : 0
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Database Status Banner */}
-      {isDemoMode && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-blue-800 text-sm font-medium">Demo Mode</span>
-          </div>
-          <p className="text-blue-700 text-sm mt-1">
-            Running in preview mode. Database features are simulated for demonstration purposes.
-          </p>
-        </div>
-      )}
-
-      {/* Success Message */}
-      {saveSuccess && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-green-600" />
-            <span className="text-green-800 text-sm font-medium">Assessment saved successfully!</span>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Self Assessment</h1>
-        <p className="text-gray-600">Evaluate your skills against role requirements and identify development areas.</p>
-      </div>
-
-      {/* Rating Scale Descriptions */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="w-5 h-5" />
-            Rating Scale Guide
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            {RATING_OPTIONS.map((option) => (
-              <div key={option.value} className="border-l-4 border-gray-200 pl-4">
-                <h4 className="font-semibold text-gray-900 mb-1">{option.label}</h4>
-                <p className="text-sm text-gray-600">
-                  {RATING_DESCRIPTIONS[option.value as keyof typeof RATING_DESCRIPTIONS]}
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Role Selection */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Select Role</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select onValueChange={handleRoleChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a role to assess" />
-            </SelectTrigger>
-            <SelectContent>
-              {isLoadingRoles ? (
-                <SelectItem value="loading" disabled>
-                  Loading roles...
-                </SelectItem>
-              ) : roles.length > 0 ? (
-                roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.department_name} - {role.name} ({role.code})
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="no-roles" disabled>
-                  No roles available
-                </SelectItem>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900">Self Assessment</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              {selectedRole && progress.ratedSkills > 0 && (
+                <>
+                  <Button onClick={handleSaveAssessment} disabled={isSaving} variant="outline">
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? "Saving..." : "Save Assessment"}
+                  </Button>
+                  <Button onClick={handleExportPDF} disabled={isExporting} variant="default">
+                    <Download className="h-4 w-4 mr-2" />
+                    {isExporting ? "Exporting..." : "Export PDF"}
+                  </Button>
+                </>
               )}
-            </SelectContent>
-          </Select>
-          {selectedRole && (
-            <div className="mt-4">
-              <Badge variant="outline">{selectedRole.code}</Badge>
-              <h3 className="font-semibold mt-2">{selectedRole.name}</h3>
-              <p className="text-sm text-gray-600">Level {selectedRole.level}</p>
-              <p className="text-sm text-gray-600">{selectedRole.department_name}</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Assessment Summary */}
-      {selectedRole && skills.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Assessment Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Completion</span>
-                <span className="text-sm text-gray-600">
-                  {totalRated} of {skills.length} skills rated
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${completionPercentage}%` }}
-                ></div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {RATING_OPTIONS.map((option) => (
-                <div key={option.value} className="text-center">
-                  <div
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRatingBadgeColor(option.value)}`}
-                  >
-                    {summary[option.value as keyof typeof summary]}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">{option.label}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Action Buttons */}
-      {selectedRole && skills.length > 0 && totalRated > 0 && (
-        <div className="mb-6 flex justify-end gap-3">
-          <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2 bg-transparent">
-                <Save className="w-4 h-4" />
-                Save Assessment
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Save Assessment</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="assessment-name">Assessment Name</Label>
-                  <Input
-                    id="assessment-name"
-                    value={assessmentName}
-                    onChange={(e) => setAssessmentName(e.target.value)}
-                    placeholder="Enter a name for this assessment"
-                    className="mt-1"
-                  />
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p>
-                    <strong>Role:</strong> {selectedRole.name} ({selectedRole.code})
-                  </p>
-                  <p>
-                    <strong>Skills Rated:</strong> {totalRated} of {skills.length}
-                  </p>
-                  <p>
-                    <strong>Completion:</strong> {completionPercentage}%
-                  </p>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveAssessment} disabled={isSaving}>
-                    {isSaving ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Assessment
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Button onClick={generatePDFReport} disabled={isGeneratingPDF} className="flex items-center gap-2">
-            {isGeneratingPDF ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Generating PDF...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Export PDF
-              </>
-            )}
-          </Button>
+          </div>
         </div>
-      )}
+      </header>
 
-      {/* Skills Assessment */}
-      {selectedRole && (
-        <div id="self-review-content">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500">Loading skills...</div>
-            </div>
-          ) : skills.length > 0 ? (
-            <div className="space-y-8">
-              {Object.entries(skillsByCategory).map(([categoryName, categoryData]) => (
-                <Card key={categoryName}>
-                  <CardHeader>
-                    <CardTitle className={`text-${categoryData.color}-700`}>{categoryName}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      {categoryData.skills.map((skill) => (
-                        <div key={skill.id} className={`p-4 rounded-lg border ${getColorClasses(categoryData.color)}`}>
-                          <div className="flex flex-col md:flex-row md:items-start gap-4">
-                            <div className="flex-1">
-                              <h4 className="font-semibold mb-2">{skill.skill_name}</h4>
-                              <div className="mb-3">
-                                <Badge variant="outline" className="text-xs mb-2">
-                                  Required Level: {skill.level}
-                                </Badge>
-                                <p className="text-sm text-gray-700">{skill.demonstration_description}</p>
-                              </div>
-                            </div>
-                            <div className="md:w-64">
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Your Rating</label>
-                              <Select
-                                value={getRatingForSkill(skill.id)}
-                                onValueChange={(value) => handleRatingChange(skill.id, value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select rating" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {RATING_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!selectedRole ? (
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Select a Job Role
+                </CardTitle>
+                <CardDescription>Choose the role you want to assess yourself against</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Select onValueChange={handleRoleSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobRoles.map((role) => (
+                      <SelectItem key={role.id} value={role.id.toString()}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{role.name}</span>
+                          <span className="text-sm text-gray-500">
+                            {role.department} • {role.level} • {role.skills.length} skills
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Role Info */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      {selectedRole.name}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedRole.department} • {selectedRole.level} • {selectedRole.code}
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedRole(null)}>
+                    Change Role
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Progress */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Assessment Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>Completion</span>
+                      <span>
+                        {progress.ratedSkills} of {progress.totalSkills} skills rated
+                      </span>
+                    </div>
+                    <Progress value={progress.completionPercentage} className="h-2" />
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-red-600">{progress.ratingCounts.needsDevelopment}</div>
+                      <div className="text-xs text-gray-600">Needs Development</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-orange-600">{progress.ratingCounts.developing}</div>
+                      <div className="text-xs text-gray-600">Developing</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{progress.ratingCounts.proficient}</div>
+                      <div className="text-xs text-gray-600">Proficient / Fully Displayed</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{progress.ratingCounts.strength}</div>
+                      <div className="text-xs text-gray-600">Strength / Role Model</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-gray-600">{progress.ratingCounts.notApplicable}</div>
+                      <div className="text-xs text-gray-600">Not Applicable</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Current Skill */}
+            {currentSkill && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5" />
+                      {currentSkill.name}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{currentSkill.category}</Badge>
+                      <Badge variant="secondary">{currentSkill.level}</Badge>
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Skill {currentSkillIndex + 1} of {selectedRole.skills.length}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {currentSkill.description && <p className="text-gray-600">{currentSkill.description}</p>}
+
+                    <div>
+                      <Label className="text-base font-medium mb-4 block">
+                        How would you rate your current level in this skill?
+                      </Label>
+                      <RadioGroup
+                        value={ratings[currentSkill.id]?.rating || ""}
+                        onValueChange={(value) => handleRatingChange(currentSkill.id, value)}
+                        className="space-y-3"
+                      >
+                        {RATING_OPTIONS.map((option) => (
+                          <div key={option.value} className="flex items-center space-x-3">
+                            <RadioGroupItem value={option.value} id={option.value} />
+                            <Label htmlFor={option.value} className={`flex-1 cursor-pointer ${option.color}`}>
+                              <span className="font-medium">{option.label}</span>
+                              {option.value === "needs-development" && (
+                                <span className="block text-sm text-gray-500 mt-1">
+                                  Limited knowledge or experience in this area
+                                </span>
+                              )}
+                              {option.value === "developing" && (
+                                <span className="block text-sm text-gray-500 mt-1">
+                                  Some knowledge and experience, but requires guidance
+                                </span>
+                              )}
+                              {option.value === "proficient" && (
+                                <span className="block text-sm text-gray-500 mt-1">
+                                  Competent and can work independently
+                                </span>
+                              )}
+                              {option.value === "strength" && (
+                                <span className="block text-sm text-gray-500 mt-1">
+                                  Expert level, can mentor and guide others
+                                </span>
+                              )}
+                              {option.value === "not-applicable" && (
+                                <span className="block text-sm text-gray-500 mt-1">
+                                  Not relevant to my current role or responsibilities
+                                </span>
+                              )}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex justify-between">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentSkillIndex(Math.max(0, currentSkillIndex - 1))}
+                        disabled={currentSkillIndex === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        Previous
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          setCurrentSkillIndex(Math.min(selectedRole.skills.length - 1, currentSkillIndex + 1))
+                        }
+                        disabled={currentSkillIndex === selectedRole.skills.length - 1}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Skills Overview */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Skills Overview</CardTitle>
+                <CardDescription>Click on any skill to jump to it directly</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {selectedRole.skills.map((skill, index) => {
+                    const rating = ratings[skill.id]
+                    const ratingOption = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)
+
+                    return (
+                      <Button
+                        key={skill.id}
+                        variant={index === currentSkillIndex ? "default" : "outline"}
+                        size="sm"
+                        className="justify-start h-auto p-3"
+                        onClick={() => setCurrentSkillIndex(index)}
+                      >
+                        <div className="flex flex-col items-start w-full">
+                          <span className="font-medium text-left">{skill.name}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {skill.category}
+                            </Badge>
+                            {ratingOption && (
+                              <Badge variant="secondary" className={`text-xs ${ratingOption.color}`}>
+                                {ratingOption.label}
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-gray-400 text-lg mb-2">No skills found</div>
-              <div className="text-gray-500 text-sm">This role currently has no skills defined.</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* No Selection Message */}
-      {!selectedRole && (
-        <div className="text-center py-12">
-          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <div className="text-gray-400 text-lg mb-2">Select a role to begin assessment</div>
-          <div className="text-gray-500 text-sm">
-            Choose a role from the dropdown above to start evaluating your skills.
+                      </Button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   )
 }
