@@ -4,7 +4,16 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Settings } from "lucide-react"
 
-export function AdminButton() {
+interface AdminButtonProps {
+  user?: {
+    id: number
+    name: string
+    email: string
+    role: string
+  } | null
+}
+
+export default function AdminButton({ user }: AdminButtonProps) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -44,13 +53,18 @@ export function AdminButton() {
           return
         }
 
-        // Try to check session via API call for database mode
-        const response = await fetch("/api/auth/session")
-        if (response.ok) {
-          const data = await response.json()
-          setIsAdmin(data.user?.role === "admin")
+        // Check if user is admin
+        if (user?.role === "admin") {
+          setIsAdmin(true)
         } else {
-          setIsAdmin(false)
+          // Try to check session via API call for database mode
+          const response = await fetch("/api/auth/session")
+          if (response.ok) {
+            const data = await response.json()
+            setIsAdmin(data.user?.role === "admin")
+          } else {
+            setIsAdmin(false)
+          }
         }
       } catch (error) {
         // On any error, show admin button in development
@@ -62,7 +76,7 @@ export function AdminButton() {
     }
 
     checkAdminStatus()
-  }, [])
+  }, [user])
 
   // Don't render anything while loading
   if (isLoading) {

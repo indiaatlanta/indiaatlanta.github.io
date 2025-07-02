@@ -75,7 +75,7 @@ async function getRecentDepartments() {
       ORDER BY created_at DESC 
       LIMIT 6
     `
-    return departments
+    return Array.isArray(departments) ? departments : []
   } catch (error) {
     console.error("Failed to fetch recent departments:", error)
     return []
