@@ -13,11 +13,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { LogOut, FileText, Clock, ChevronDown } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
-interface Assessment {
-  id: number
-  name: string
+interface RecentAssessment {
+  assessment_name: string
   job_role_name: string
   department_name: string
   completion_percentage: number
@@ -25,39 +23,29 @@ interface Assessment {
 }
 
 interface LoginButtonProps {
-  user?: {
-    id: number
-    name: string
-    email: string
-    role: string
-  } | null
+  user: any | null
 }
 
 export default function LoginButton({ user }: LoginButtonProps) {
-  const router = useRouter()
-  const [recentAssessments, setRecentAssessments] = useState<Assessment[]>([])
+  const [recentAssessments, setRecentAssessments] = useState<RecentAssessment[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (user) {
-      loadSavedAssessments()
+      loadRecentAssessments()
     }
   }, [user])
 
-  const loadSavedAssessments = async () => {
-    if (!user) return
-
+  const loadRecentAssessments = async () => {
     setLoading(true)
     try {
-      const response = await fetch("/api/assessments")
+      const response = await fetch("/api/assessments?limit=3")
       if (response.ok) {
         const data = await response.json()
-        const assessments = Array.isArray(data.assessments) ? data.assessments : []
-        setRecentAssessments(assessments.slice(0, 3))
+        setRecentAssessments(Array.isArray(data.assessments) ? data.assessments : [])
       }
     } catch (error) {
-      console.error("Failed to load assessments:", error)
-      setRecentAssessments([])
+      console.error("Failed to load recent assessments:", error)
     } finally {
       setLoading(false)
     }
@@ -65,14 +53,8 @@ export default function LoginButton({ user }: LoginButtonProps) {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-      })
-
-      if (response.ok) {
-        router.push("/login")
-        router.refresh()
-      }
+      await fetch("/api/auth/logout", { method: "POST" })
+      window.location.href = "/login"
     } catch (error) {
       console.error("Logout failed:", error)
     }
@@ -112,55 +94,58 @@ export default function LoginButton({ user }: LoginButtonProps) {
         <DropdownMenuSeparator />
 
         {/* Recent Assessments Section */}
-        <div className="px-2 py-2">
+        <div className="px-2 py-1">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-muted-foreground">Recent Assessments</span>
             {loading && <div className="w-3 h-3 border border-gray-300 border-t-blue-600 rounded-full animate-spin" />}
           </div>
-
           {recentAssessments.length > 0 ? (
-            <div className="space-y-2">
-              {recentAssessments.map((assessment) => (
-                <div key={assessment.id} className="p-2 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{assessment.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {assessment.job_role_name} • {assessment.department_name}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge
-                          variant={assessment.completion_percentage >= 100 ? "default" : "secondary"}
-                          className="text-xs px-1 py-0"
-                        >
-                          {Math.round(assessment.completion_percentage)}%
-                        </Badge>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {new Date(assessment.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
+            <div className="space-y-1">
+              {recentAssessments.slice(0, 3).map((assessment, index) => (
+                <div key={index} className="p-2 rounded-md hover:bg-gray-50 text-xs">
+                  <div className="font-medium truncate">{assessment.assessment_name}</div>
+                  <div className="text-muted-foreground truncate">
+                    {assessment.job_role_name} • {assessment.department_name}
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <Badge variant="outline" className="text-xs">
+                      {Math.round(assessment.completion_percentage)}%
+                    </Badge>
+                    <span className="text-muted-foreground flex items-center">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {new Date(assessment.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
               ))}
+              <DropdownMenuItem asChild>
+                <Link href="/assessments" className="text-xs text-center w-full">
+                  <FileText className="h-3 w-3 mr-2" />
+                  View All Assessments
+                </Link>
+              </DropdownMenuItem>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground py-2">No assessments yet</p>
+            <div className="text-xs text-muted-foreground text-center py-2">
+              No assessments yet
+              <br />
+              <Link href="/self-review" className="text-blue-600 hover:underline">
+                Start your first assessment
+              </Link>
+            </div>
           )}
-
-          <Link href="/assessments">
-            <Button variant="ghost" size="sm" className="w-full mt-2 text-xs">
-              <FileText className="h-3 w-3 mr-2" />
-              View All Assessments
-            </Button>
-          </Link>
         </div>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <div className="mr-2 h-4 w-4">Profile Icon</div>
+            Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -28,19 +28,9 @@ import {
   Target,
   TrendingUp,
   Clock,
+  ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
-
-interface Assessment {
-  id: number
-  name: string
-  job_role_name: string
-  department_name: string
-  overall_score: number
-  completion_percentage: number
-  created_at: string
-  updated_at: string
-}
 
 interface User {
   id: number
@@ -49,12 +39,38 @@ interface User {
   role: string
 }
 
+interface Assessment {
+  id: number
+  assessment_name: string
+  job_role_name: string
+  department_name: string
+  overall_score: number
+  completion_percentage: number
+  total_skills: number
+  completed_skills: number
+  created_at: string
+  updated_at: string
+}
+
+interface AssessmentStats {
+  total: number
+  completed: number
+  inProgress: number
+  averageScore: number
+}
+
 interface AssessmentsClientProps {
   user: User
 }
 
 export default function AssessmentsClient({ user }: AssessmentsClientProps) {
   const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [stats, setStats] = useState<AssessmentStats>({
+    total: 0,
+    completed: 0,
+    inProgress: 0,
+    averageScore: 0,
+  })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
@@ -75,6 +91,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
       if (response.ok) {
         const data = await response.json()
         setAssessments(Array.isArray(data.assessments) ? data.assessments : [])
+        setStats(data.stats || { total: 0, completed: 0, inProgress: 0, averageScore: 0 })
       } else {
         console.error("Failed to load assessments")
         setAssessments([])
@@ -95,7 +112,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
       })
 
       if (response.ok) {
-        setAssessments(assessments.filter((a) => a.id !== id))
+        await loadAssessments() // Reload to get updated stats
       } else {
         console.error("Failed to delete assessment")
       }
@@ -106,28 +123,47 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
     }
   }
 
-  const handleExport = (assessment: Assessment) => {
-    const dataStr = JSON.stringify(assessment, null, 2)
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+  const handleExport = async (assessment: Assessment) => {
+    try {
+      const response = await fetch(`/api/assessments/${assessment.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const exportData = {
+          ...data.assessment,
+          exported_at: new Date().toISOString(),
+          exported_by: user.name,
+        }
 
-    const exportFileDefaultName = `${assessment.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.json`
-
-    const linkElement = document.createElement("a")
-    linkElement.setAttribute("href", dataUri)
-    linkElement.setAttribute("download", exportFileDefaultName)
-    linkElement.click()
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+          type: "application/json",
+        })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${assessment.assessment_name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error("Error exporting assessment:", error)
+    }
   }
 
-  const getStats = () => {
-    const total = assessments.length
-    const completed = assessments.filter((a) => a.completion_percentage >= 100).length
-    const inProgress = total - completed
-    const avgScore = total > 0 ? assessments.reduce((sum, a) => sum + a.overall_score, 0) / total : 0
-
-    return { total, completed, inProgress, avgScore }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
-  const stats = getStats()
+  const getCompletionBadgeVariant = (percentage: number) => {
+    if (percentage >= 100) return "default"
+    if (percentage >= 50) return "secondary"
+    return "outline"
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -135,15 +171,24 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Saved Assessments</h1>
-              <p className="text-gray-600">Manage and review your completed skill assessments</p>
-            </div>
             <div className="flex items-center gap-4">
-              <Button asChild variant="outline">
-                <Link href="/">← Back to Dashboard</Link>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Dashboard
+                </Link>
               </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Saved Assessments</h1>
+                <p className="text-gray-600">Manage and review your completed skill assessments</p>
+              </div>
             </div>
+            <Button asChild>
+              <Link href="/self-review">
+                <Target className="h-4 w-4 mr-2" />
+                New Assessment
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -190,7 +235,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.avgScore.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">{stats.averageScore.toFixed(1)}%</div>
               <p className="text-xs text-muted-foreground">Overall performance</p>
             </CardContent>
           </Card>
@@ -221,6 +266,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                     <SelectItem value="all">All Assessments</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="not-started">Not Started</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -268,7 +314,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg truncate">{assessment.name}</CardTitle>
+                      <CardTitle className="text-lg truncate">{assessment.assessment_name}</CardTitle>
                       <CardDescription className="truncate">
                         {assessment.job_role_name} • {assessment.department_name}
                       </CardDescription>
@@ -279,7 +325,7 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                   <div className="space-y-4">
                     {/* Progress and Score */}
                     <div className="flex items-center justify-between">
-                      <Badge variant={assessment.completion_percentage >= 100 ? "default" : "secondary"}>
+                      <Badge variant={getCompletionBadgeVariant(assessment.completion_percentage)}>
                         {Math.round(assessment.completion_percentage)}% Complete
                       </Badge>
                       <span className="text-sm font-medium">Score: {assessment.overall_score.toFixed(1)}%</span>
@@ -293,16 +339,21 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                       />
                     </div>
 
+                    {/* Skills Progress */}
+                    <div className="text-xs text-gray-600">
+                      {assessment.completed_skills} of {assessment.total_skills} skills completed
+                    </div>
+
                     {/* Dates */}
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <div className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
-                        Created: {new Date(assessment.created_at).toLocaleDateString()}
+                        Created: {formatDate(assessment.created_at)}
                       </div>
                       {assessment.updated_at !== assessment.created_at && (
                         <div className="flex items-center">
                           <TrendingUp className="h-3 w-3 mr-1" />
-                          Updated: {new Date(assessment.updated_at).toLocaleDateString()}
+                          Updated: {formatDate(assessment.updated_at)}
                         </div>
                       )}
                     </div>
@@ -334,7 +385,8 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete "{assessment.name}"? This action cannot be undone.
+                              Are you sure you want to delete "{assessment.assessment_name}"? This action cannot be
+                              undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
