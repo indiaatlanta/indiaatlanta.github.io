@@ -1,36 +1,9 @@
-import { cookies } from "next/headers"
-import { neon } from "@neondatabase/serverless"
+import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import AssessmentsClient from "./assessments-client"
 
-const sql = neon(process.env.DATABASE_URL!)
-
-async function getUser() {
-  try {
-    const cookieStore = cookies()
-    const sessionToken = cookieStore.get("session")?.value
-
-    if (!sessionToken) {
-      return null
-    }
-
-    const sessions = await sql`
-      SELECT u.id, u.name, u.email, u.role 
-      FROM users u
-      JOIN user_sessions s ON u.id = s.user_id
-      WHERE s.session_token = ${sessionToken}
-      AND s.expires_at > NOW()
-    `
-
-    return sessions[0] || null
-  } catch (error) {
-    console.error("Error getting user:", error)
-    return null
-  }
-}
-
 export default async function AssessmentsPage() {
-  const user = await getUser()
+  const user = await getCurrentUser()
 
   if (!user) {
     redirect("/login")

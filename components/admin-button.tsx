@@ -6,25 +6,24 @@ import Link from "next/link"
 
 interface User {
   id: number
-  name: string
   email: string
+  name: string
   role: string
 }
 
 interface AdminButtonProps {
-  user: User
+  user: User | null
 }
 
 export default function AdminButton({ user }: AdminButtonProps) {
-  // Only show admin button for admin users
-  if (user.role !== "admin") {
+  if (!user || user.role !== "admin") {
     return null
   }
 
   return (
     <Button asChild variant="outline" size="sm">
-      <Link href="/admin" className="flex items-center gap-2">
-        <Settings className="h-4 w-4" />
+      <Link href="/admin">
+        <Settings className="h-4 w-4 mr-2" />
         Admin Panel
       </Link>
     </Button>

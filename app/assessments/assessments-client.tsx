@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -20,57 +20,75 @@ import {
 import {
   FileText,
   Search,
-  Filter,
   Download,
   Trash2,
   Calendar,
   BarChart3,
+  Target,
+  TrendingUp,
   Clock,
-  Building2,
-  UserIcon,
+  Filter,
 } from "lucide-react"
 import Link from "next/link"
 
-interface SavedAssessment {
+interface User {
+  id: number
+  email: string
+  name: string
+  role: string
+}
+
+interface Assessment {
   id: number
   assessment_name: string
   job_role: string
   department: string
-  skills_data: any
   overall_score: number
   completion_percentage: number
   created_at: string
   updated_at: string
 }
 
+interface AssessmentStats {
+  total: number
+  completed: number
+  inProgress: number
+  averageScore: number
+}
+
 interface AssessmentsClientProps {
-  user: any
+  user: User
 }
 
 export default function AssessmentsClient({ user }: AssessmentsClientProps) {
-  const [assessments, setAssessments] = useState<SavedAssessment[]>([])
-  const [filteredAssessments, setFilteredAssessments] = useState<SavedAssessment[]>([])
+  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [stats, setStats] = useState<AssessmentStats>({
+    total: 0,
+    completed: 0,
+    inProgress: 0,
+    averageScore: 0,
+  })
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterBy, setFilterBy] = useState("all")
-  const [sortBy, setSortBy] = useState("newest")
+  const [search, setSearch] = useState("")
+  const [filter, setFilter] = useState("all")
+  const [deleting, setDeleting] = useState<number | null>(null)
 
   useEffect(() => {
     loadAssessments()
-  }, [])
-
-  useEffect(() => {
-    filterAndSortAssessments()
-  }, [assessments, searchTerm, filterBy, sortBy])
+  }, [search, filter])
 
   const loadAssessments = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await fetch("/api/assessments")
+      const params = new URLSearchParams()
+      if (search) params.append("search", search)
+      if (filter !== "all") params.append("filter", filter)
+
+      const response = await fetch(`/api/assessments?${params}`)
       if (response.ok) {
         const data = await response.json()
-        const assessments = Array.isArray(data.assessments) ? data.assessments : []
-        setAssessments(assessments)
+        setAssessments(Array.isArray(data.assessments) ? data.assessments : [])
+        setStats(data.stats || { total: 0, completed: 0, inProgress: 0, averageScore: 0 })
       } else {
         console.error("Failed to load assessments")
         setAssessments([])
@@ -83,300 +101,204 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
     }
   }
 
-  const filterAndSortAssessments = () => {
-    let filtered = [...assessments]
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (assessment) =>
-          assessment.assessment_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          assessment.job_role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          assessment.department.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    // Apply category filter
-    if (filterBy !== "all") {
-      filtered = filtered.filter((assessment) => {
-        switch (filterBy) {
-          case "high-completion":
-            return assessment.completion_percentage >= 80
-          case "medium-completion":
-            return assessment.completion_percentage >= 50 && assessment.completion_percentage < 80
-          case "low-completion":
-            return assessment.completion_percentage < 50
-          default:
-            return true
-        }
-      })
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "name":
-          return a.assessment_name.localeCompare(b.assessment_name)
-        case "completion":
-          return b.completion_percentage - a.completion_percentage
-        default:
-          return 0
-      }
-    })
-
-    setFilteredAssessments(filtered)
-  }
-
-  const deleteAssessment = async (id: number) => {
+  const handleDelete = async (id: number) => {
+    setDeleting(id)
     try {
       const response = await fetch(`/api/assessments/${id}`, {
         method: "DELETE",
       })
 
       if (response.ok) {
-        setAssessments((prev) => prev.filter((assessment) => assessment.id !== id))
+        await loadAssessments()
       } else {
         console.error("Failed to delete assessment")
       }
     } catch (error) {
       console.error("Error deleting assessment:", error)
+    } finally {
+      setDeleting(null)
     }
   }
 
-  const exportAssessment = (assessment: SavedAssessment) => {
-    const dataStr = JSON.stringify(assessment, null, 2)
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
-
-    const exportFileDefaultName = `assessment-${assessment.assessment_name.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.json`
-
-    const linkElement = document.createElement("a")
-    linkElement.setAttribute("href", dataUri)
-    linkElement.setAttribute("download", exportFileDefaultName)
-    linkElement.click()
-  }
-
-  const formatDate = (dateString: string) => {
+  const handleExport = async (assessment: Assessment) => {
     try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      const response = await fetch(`/api/assessments/${assessment.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const blob = new Blob([JSON.stringify(data.assessment, null, 2)], {
+          type: "application/json",
+        })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${assessment.assessment_name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
     } catch (error) {
-      return "Unknown date"
+      console.error("Error exporting assessment:", error)
     }
-  }
-
-  const getCompletionBadgeVariant = (percentage: number) => {
-    if (percentage >= 80) return "default"
-    if (percentage >= 50) return "secondary"
-    return "outline"
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading assessments...</span>
-      </div>
-    )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Assessments</p>
-                <p className="text-2xl font-bold">{assessments.length}</p>
-              </div>
-              <FileText className="h-8 w-8 text-blue-600" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Saved Assessments</h1>
+              <p className="text-gray-600">View and manage your completed skill assessments</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg. Completion</p>
-                <p className="text-2xl font-bold">
-                  {assessments.length > 0
-                    ? Math.round(
-                        assessments.reduce((acc, curr) => acc + curr.completion_percentage, 0) / assessments.length,
-                      )
-                    : 0}
-                  %
-                </p>
-              </div>
-              <BarChart3 className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Departments</p>
-                <p className="text-2xl font-bold">{new Set(assessments.map((a) => a.department)).size}</p>
-              </div>
-              <Building2 className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Latest</p>
-                <p className="text-sm font-bold">
-                  {assessments.length > 0
-                    ? formatDate(
-                        assessments.sort(
-                          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-                        )[0].created_at,
-                      ).split(",")[0]
-                    : "None"}
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
+            <Button asChild>
+              <Link href="/self-review">
+                <Target className="h-4 w-4 mr-2" />
+                New Assessment
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search assessments, roles, or departments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
+      <div className="container mx-auto px-4 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Assessments</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">All time</p>
+            </CardContent>
+          </Card>
 
-            <Select value={filterBy} onValueChange={setFilterBy}>
-              <SelectTrigger className="w-full sm:w-48">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by completion" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Assessments</SelectItem>
-                <SelectItem value="high-completion">High Completion (80%+)</SelectItem>
-                <SelectItem value="medium-completion">Medium Completion (50-79%)</SelectItem>
-                <SelectItem value="low-completion">Low Completion (&lt;50%)</SelectItem>
-              </SelectContent>
-            </Select>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.completed}</div>
+              <p className="text-xs text-muted-foreground">100% complete</p>
+            </CardContent>
+          </Card>
 
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="oldest">Oldest First</SelectItem>
-                <SelectItem value="name">Name A-Z</SelectItem>
-                <SelectItem value="completion">Completion %</SelectItem>
-              </SelectContent>
-            </Select>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inProgress}</div>
+              <p className="text-xs text-muted-foreground">Partially complete</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.averageScore.toFixed(1)}%</div>
+              <p className="text-xs text-muted-foreground">Overall performance</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search assessments by name, role, or department..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Assessments</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Assessments List */}
-      {filteredAssessments.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {assessments.length === 0 ? "No assessments found" : "No matching assessments"}
-            </h3>
-            <p className="text-gray-500 mb-4">
-              {assessments.length === 0
-                ? "Start your first assessment to see it here."
-                : "Try adjusting your search or filter criteria."}
-            </p>
-            {assessments.length === 0 && (
-              <Button asChild>
-                <Link href="/self-review">Start Assessment</Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredAssessments.map((assessment) => (
-            <Card key={assessment.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg mb-1">{assessment.assessment_name}</CardTitle>
-                    <CardDescription className="flex items-center gap-4 text-sm">
-                      <span className="flex items-center gap-1">
-                        <UserIcon className="h-3 w-3" />
-                        {assessment.job_role}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {assessment.department}
-                      </span>
-                    </CardDescription>
+        {/* Assessments List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+          </div>
+        ) : assessments.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {assessments.map((assessment) => (
+              <Card key={assessment.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-1">{assessment.assessment_name}</CardTitle>
+                      <CardDescription>
+                        {assessment.job_role} • {assessment.department}
+                      </CardDescription>
+                    </div>
+                    <Badge variant={assessment.completion_percentage >= 100 ? "default" : "secondary"}>
+                      {Math.round(assessment.completion_percentage)}% Complete
+                    </Badge>
                   </div>
-                  <Badge variant={getCompletionBadgeVariant(assessment.completion_percentage)}>
-                    {Math.round(assessment.completion_percentage)}%
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Progress Bar */}
-                  <div>
-                    <div className="flex justify-between text-sm text-gray-600 mb-1">
-                      <span>Overall Score</span>
-                      <span>{assessment.overall_score.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(assessment.completion_percentage, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Date and Actions */}
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      {formatDate(assessment.created_at)}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Progress Bar */}
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span>Progress</span>
+                        <span>{Math.round(assessment.completion_percentage)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${assessment.completion_percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => exportAssessment(assessment)}>
-                        <Download className="h-4 w-4" />
+                    {/* Score */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Overall Score</span>
+                      <span className="font-semibold">{assessment.overall_score.toFixed(1)}%</span>
+                    </div>
+
+                    {/* Date */}
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Calendar className="h-4 w-4" />
+                      Created {new Date(assessment.created_at).toLocaleDateString()}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => handleExport(assessment)} className="flex-1">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
                       </Button>
 
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 bg-transparent"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -390,22 +312,41 @@ export default function AssessmentsClient({ user }: AssessmentsClientProps) {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => deleteAssessment(assessment.id)}
+                              onClick={() => handleDelete(assessment.id)}
+                              disabled={deleting === assessment.id}
                               className="bg-red-600 hover:bg-red-700"
                             >
-                              Delete
+                              {deleting === assessment.id ? "Deleting..." : "Delete"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Assessments Found</h3>
+              <p className="text-gray-600 mb-4">
+                {search || filter !== "all"
+                  ? "Try adjusting your search or filter criteria."
+                  : "You haven't completed any assessments yet. Start your first assessment to track your skills."}
+              </p>
+              <Button asChild>
+                <Link href="/self-review">
+                  <Target className="h-4 w-4 mr-2" />
+                  Start Your First Assessment
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }
