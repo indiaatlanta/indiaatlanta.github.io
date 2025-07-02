@@ -17,10 +17,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json()
     const departmentData = departmentSchema.parse(body)
 
-    if (isNaN(departmentId)) {
-      return NextResponse.json({ error: "Invalid department ID" }, { status: 400 })
-    }
-
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - simulate success
       return NextResponse.json({
@@ -31,25 +27,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       })
     }
 
-    // Get old values for audit
-    const oldDepartment = await sql`
-      SELECT * FROM departments WHERE id = ${departmentId}
-    `
-
-    if (oldDepartment.length === 0) {
-      return NextResponse.json({ error: "Department not found" }, { status: 404 })
-    }
-
     const result = await sql`
       UPDATE departments 
-      SET 
-        name = ${departmentData.name},
-        slug = ${departmentData.slug},
-        description = ${departmentData.description || ""},
-        updated_at = CURRENT_TIMESTAMP
+      SET name = ${departmentData.name}, 
+          slug = ${departmentData.slug}, 
+          description = ${departmentData.description || ""},
+          updated_at = NOW()
       WHERE id = ${departmentId}
       RETURNING *
     `
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Department not found" }, { status: 404 })
+    }
 
     const updatedDepartment = result[0]
 
@@ -59,7 +49,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       tableName: "departments",
       recordId: departmentId,
       action: "UPDATE",
-      oldValues: oldDepartment[0],
       newValues: departmentData,
     })
 
@@ -80,10 +69,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const user = await requireAdmin()
     const departmentId = Number.parseInt(params.id)
 
-    if (isNaN(departmentId)) {
-      return NextResponse.json({ error: "Invalid department ID" }, { status: 400 })
-    }
-
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - simulate success
       return NextResponse.json({
@@ -98,7 +83,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     `
 
     if (jobRoles[0].count > 0) {
-      return NextResponse.json({ error: "Cannot delete department with existing job roles" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Cannot delete department with existing job roles. Delete job roles first." },
+        { status: 400 },
+      )
     }
 
     const result = await sql`

@@ -21,10 +21,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json()
     const roleData = jobRoleSchema.parse(body)
 
-    if (isNaN(roleId)) {
-      return NextResponse.json({ error: "Invalid job role ID" }, { status: 400 })
-    }
-
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - simulate success
       return NextResponse.json({
@@ -35,29 +31,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       })
     }
 
-    // Get old values for audit
-    const oldRole = await sql`
-      SELECT * FROM job_roles WHERE id = ${roleId}
-    `
-
-    if (oldRole.length === 0) {
-      return NextResponse.json({ error: "Job role not found" }, { status: 404 })
-    }
-
     const result = await sql`
       UPDATE job_roles 
-      SET 
-        name = ${roleData.name},
-        code = ${roleData.code},
-        department_id = ${roleData.departmentId},
-        level = ${roleData.level || 1},
-        salary_min = ${roleData.salaryMin || null},
-        salary_max = ${roleData.salaryMax || null},
-        location_type = ${roleData.locationType || null},
-        updated_at = CURRENT_TIMESTAMP
+      SET name = ${roleData.name}, 
+          code = ${roleData.code}, 
+          department_id = ${roleData.departmentId}, 
+          level = ${roleData.level || 1}, 
+          salary_min = ${roleData.salaryMin || null}, 
+          salary_max = ${roleData.salaryMax || null}, 
+          location_type = ${roleData.locationType || null},
+          updated_at = NOW()
       WHERE id = ${roleId}
       RETURNING *
     `
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Job role not found" }, { status: 404 })
+    }
 
     const updatedRole = result[0]
 
@@ -67,7 +57,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       tableName: "job_roles",
       recordId: roleId,
       action: "UPDATE",
-      oldValues: oldRole[0],
       newValues: roleData,
     })
 
@@ -88,10 +77,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const user = await requireAdmin()
     const roleId = Number.parseInt(params.id)
 
-    if (isNaN(roleId)) {
-      return NextResponse.json({ error: "Invalid job role ID" }, { status: 400 })
-    }
-
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - simulate success
       return NextResponse.json({
@@ -100,10 +85,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       })
     }
 
-    // Delete associated skill demonstrations first
-    await sql`
-      DELETE FROM skill_demonstrations WHERE job_role_id = ${roleId}
+    // Check if role has skill demonstrations
+    const demonstrations = await sql`
+      SELECT COUNT(*) as count FROM skill_demonstrations WHERE job_role_id = ${roleId}
     `
+
+    if (demonstrations[0].count > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete job role with existing skill demonstrations. Delete demonstrations first." },
+        { status: 400 },
+      )
+    }
 
     const result = await sql`
       DELETE FROM job_roles WHERE id = ${roleId}
