@@ -1,16 +1,21 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { destroySession } from "@/lib/auth"
+import { cookies } from "next/headers"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    await destroySession()
+    const cookieStore = await cookies()
+    const sessionToken = cookieStore.get("session")?.value
 
-    return NextResponse.json({
-      success: true,
-      message: "Logged out successfully",
-    })
+    if (sessionToken) {
+      await destroySession(sessionToken)
+    }
+
+    cookieStore.delete("session")
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Logout error:", error)
-    return NextResponse.json({ success: false, error: "An error occurred during logout" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

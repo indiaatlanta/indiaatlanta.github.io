@@ -1,24 +1,17 @@
 import { NextResponse } from "next/server"
-import { getSession } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function GET() {
   try {
-    const session = await getSession()
+    const user = await getCurrentUser()
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ user: null }, { status: 401 })
     }
 
-    return NextResponse.json({
-      user: {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name,
-        role: session.user.role,
-      },
-    })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error("Session check error:", error)
-    return NextResponse.json({ user: null }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

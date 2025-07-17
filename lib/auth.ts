@@ -1,131 +1,185 @@
 import { cookies } from "next/headers"
+import { sql } from "@/lib/db"
+import bcrypt from "bcryptjs"
 
 export interface User {
-  id: string
+  id: number
   name: string
   email: string
-  role: "user" | "admin" | "manager"
+  role: string
 }
 
-export interface Session {
-  user: User
-}
-
-// Demo users for authentication
-const DEMO_USERS: User[] = [
+// Demo users for development
+const DEMO_USERS = [
   {
-    id: "1",
+    id: 1,
     name: "Admin User",
     email: "admin@henryscheinone.com",
+    password: "admin123",
     role: "admin",
   },
   {
-    id: "2",
+    id: 2,
     name: "Regular User",
     email: "user@henryscheinone.com",
+    password: "user123",
     role: "user",
   },
   {
-    id: "3",
+    id: 3,
     name: "Manager User",
     email: "manager@henryscheinone.com",
+    password: "manager123",
     role: "manager",
   },
   {
-    id: "4",
+    id: 4,
     name: "John Smith",
     email: "john.smith@henryscheinone.com",
+    password: "password123",
     role: "user",
   },
   {
-    id: "5",
+    id: 5,
     name: "Jane Doe",
     email: "jane.doe@henryscheinone.com",
+    password: "password123",
     role: "user",
   },
 ]
 
-// Demo passwords (in real app, these would be hashed)
-const DEMO_PASSWORDS: Record<string, string> = {
-  "admin@henryscheinone.com": "admin123",
-  "user@henryscheinone.com": "user123",
-  "manager@henryscheinone.com": "manager123",
-  "john.smith@henryscheinone.com": "password123",
-  "jane.doe@henryscheinone.com": "password123",
+export async function getCurrentUser(): Promise<User | null> {
+  try {
+    const cookieStore = await cookies()
+    const sessionToken = cookieStore.get("session")?.value
+
+    if (!sessionToken) {
+      return null
+    }
+
+    // Try database first
+    if (sql) {
+      try {
+        const result = await sql`
+          SELECT u.id, u.name, u.email, u.role 
+          FROM users u
+          JOIN user_sessions us ON u.id = us.user_id
+          WHERE us.session_token = ${sessionToken}
+          AND us.expires_at > NOW()
+        `
+
+        if (result.length > 0) {
+          return result[0] as User
+        }
+      } catch (error) {
+        console.error("Database session check failed:", error)
+      }
+    }
+
+    // Fallback to demo session validation
+    try {
+      const sessionData = JSON.parse(Buffer.from(sessionToken, "base64").toString())
+      const user = DEMO_USERS.find((u) => u.id === sessionData.userId)
+
+      if (user && sessionData.expires > Date.now()) {
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        }
+      }
+    } catch (error) {
+      console.error("Demo session validation failed:", error)
+    }
+
+    return null
+  } catch (error) {
+    console.error("getCurrentUser failed:", error)
+    return null
+  }
 }
 
 export async function authenticateUser(email: string, password: string): Promise<User | null> {
-  try {
-    console.log("Authenticating user:", email)
+  // Try database authentication first
+  if (sql) {
+    try {
+      const result = await sql`
+        SELECT id, name, email, role, password_hash 
+        FROM users 
+        WHERE email = ${email}
+      `
 
-    // Check if user exists in demo users
-    const user = DEMO_USERS.find((u) => u.email === email)
-    if (!user) {
-      console.log("User not found:", email)
-      return null
+      if (result.length > 0) {
+        const user = result[0]
+        const isValid = await bcrypt.compare(password, user.password_hash)
+
+        if (isValid) {
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Database authentication failed:", error)
     }
-
-    // Check password
-    const expectedPassword = DEMO_PASSWORDS[email]
-    if (password !== expectedPassword) {
-      console.log("Invalid password for user:", email)
-      return null
-    }
-
-    console.log("Authentication successful for:", email)
-    return user
-  } catch (error) {
-    console.error("Authentication error:", error)
-    return null
   }
-}
 
-export async function getSession(): Promise<Session | null> {
-  try {
-    const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get("session")
+  // Fallback to demo users
+  const user = DEMO_USERS.find((u) => u.email === email && u.password === password)
 
-    if (!sessionCookie?.value) {
-      return null
-    }
-
-    // In a real app, you would validate the session token
-    // For demo purposes, we'll parse the stored user data
-    const userData = JSON.parse(sessionCookie.value)
-
+  if (user) {
     return {
-      user: userData,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     }
-  } catch (error) {
-    console.error("Error getting session:", error)
-    return null
   }
+
+  return null
 }
 
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const session = await getSession()
-    return session?.user || null
-  } catch (error) {
-    console.error("Error getting current user:", error)
-    return null
+export async function createSession(user: User): Promise<string> {
+  const sessionToken = Buffer.from(
+    JSON.stringify({
+      userId: user.id,
+      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    }),
+  ).toString("base64")
+
+  // Try to store in database
+  if (sql) {
+    try {
+      await sql`
+        INSERT INTO user_sessions (user_id, session_token, expires_at)
+        VALUES (${user.id}, ${sessionToken}, ${new Date(Date.now() + 24 * 60 * 60 * 1000)})
+        ON CONFLICT (user_id) 
+        DO UPDATE SET 
+          session_token = EXCLUDED.session_token,
+          expires_at = EXCLUDED.expires_at
+      `
+    } catch (error) {
+      console.error("Failed to store session in database:", error)
+    }
   }
+
+  return sessionToken
 }
 
-export async function createSession(user: User): Promise<void> {
-  const cookieStore = await cookies()
-
-  // In a real app, you would create a secure session token
-  // For demo purposes, we'll store the user data directly
-  cookieStore.set("session", JSON.stringify(user), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 1 week
-  })
-}
-
-export async function destroySession(): Promise<void> {
-  const cookieStore = await cookies()
-  cookieStore.delete("session")
+export async function destroySession(sessionToken: string): Promise<void> {
+  // Remove from database
+  if (sql) {
+    try {
+      await sql`
+        DELETE FROM user_sessions 
+        WHERE session_token = ${sessionToken}
+      `
+    } catch (error) {
+      console.error("Failed to remove session from database:", error)
+    }
+  }
 }

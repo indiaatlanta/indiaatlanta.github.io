@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
 import { sql, isDatabaseConfigured } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -18,64 +18,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Invalid assessment ID" }, { status: 400 })
     }
 
-    const assessments = await sql`
-      SELECT * FROM saved_assessments 
-      WHERE id = ${id} AND user_id = ${user.id}
-    `
-
-    if (assessments.length === 0) {
-      return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
-    }
-
-    return NextResponse.json({ assessment: assessments[0] })
-  } catch (error) {
-    console.error("Failed to fetch assessment:", error)
-    return NextResponse.json({ error: "Failed to fetch assessment" }, { status: 500 })
-  }
-}
-
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
-    const id = Number.parseInt(params.id)
-    if (isNaN(id)) {
-      return NextResponse.json({ error: "Invalid assessment ID" }, { status: 400 })
-    }
-
-    const body = await request.json()
-    const {
-      assessmentName,
-      jobRoleName,
-      departmentName,
-      skillsData,
-      overallScore,
-      completionPercentage,
-      totalSkills,
-      completedSkills,
-    } = body
-
     const result = await sql`
-      UPDATE saved_assessments 
-      SET 
-        assessment_name = ${assessmentName},
-        job_role_name = ${jobRoleName},
-        department_name = ${departmentName},
-        skills_data = ${JSON.stringify(skillsData)},
-        overall_score = ${overallScore},
-        completion_percentage = ${completionPercentage},
-        total_skills = ${totalSkills},
-        completed_skills = ${completedSkills},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id} AND user_id = ${user.id}
-      RETURNING *
+      SELECT 
+        id,
+        COALESCE(assessment_name, 'Unnamed Assessment') as assessment_name,
+        COALESCE(job_role_name, 'Unknown Role') as job_role_name,
+        COALESCE(department_name, 'Unknown Department') as department_name,
+        COALESCE(overall_score, 0) as overall_score,
+        COALESCE(completion_percentage, 0) as completion_percentage,
+        COALESCE(total_skills, 0) as total_skills,
+        COALESCE(completed_skills, 0) as completed_skills,
+        CASE 
+          WHEN skills_data IS NOT NULL AND skills_data != 'null'::jsonb 
+          THEN skills_data 
+          ELSE '{}'::jsonb 
+        END as skills_data,
+        created_at,
+        COALESCE(updated_at, created_at) as updated_at
+      FROM saved_assessments 
+      WHERE id = ${id} AND COALESCE(user_id, 1) = ${user.id}
     `
 
     if (result.length === 0) {
@@ -84,8 +45,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     return NextResponse.json({ assessment: result[0] })
   } catch (error) {
-    console.error("Failed to update assessment:", error)
-    return NextResponse.json({ error: "Failed to update assessment" }, { status: 500 })
+    console.error("Failed to fetch assessment:", error)
+    return NextResponse.json({ error: "Failed to fetch assessment" }, { status: 500 })
   }
 }
 
@@ -107,7 +68,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const result = await sql`
       DELETE FROM saved_assessments 
-      WHERE id = ${id} AND user_id = ${user.id}
+      WHERE id = ${id} AND COALESCE(user_id, 1) = ${user.id}
       RETURNING id
     `
 
@@ -115,7 +76,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, message: "Assessment deleted successfully" })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Failed to delete assessment:", error)
     return NextResponse.json({ error: "Failed to delete assessment" }, { status: 500 })
