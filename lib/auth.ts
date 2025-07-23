@@ -51,9 +51,9 @@ const DEMO_USERS = [
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const cookieStore = await cookies()
-    const sessionToken = cookieStore.get("session")?.value
+    const sessionId = cookieStore.get("session")?.value
 
-    if (!sessionToken) {
+    if (!sessionId) {
       return null
     }
 
@@ -64,7 +64,7 @@ export async function getCurrentUser(): Promise<User | null> {
           SELECT u.id, u.name, u.email, u.role 
           FROM users u
           JOIN user_sessions us ON u.id = us.user_id
-          WHERE us.session_token = ${sessionToken}
+          WHERE us.id = ${sessionId}
           AND us.expires_at > NOW()
         `
 
@@ -78,7 +78,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
     // Fallback to demo session validation
     try {
-      const sessionData = JSON.parse(Buffer.from(sessionToken, "base64").toString())
+      const sessionData = JSON.parse(Buffer.from(sessionId, "base64").toString())
       const user = DEMO_USERS.find((u) => u.id === sessionData.userId)
 
       if (user && sessionData.expires > Date.now()) {
@@ -144,39 +144,43 @@ export async function authenticateUser(email: string, password: string): Promise
 }
 
 export async function createSession(user: User): Promise<string> {
-  const sessionToken = Buffer.from(
+  // Generate a unique session ID
+  const sessionId = `session_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+  // Try to store in database
+  if (sql) {
+    try {
+      await sql`
+        INSERT INTO user_sessions (id, user_id, expires_at)
+        VALUES (${sessionId}, ${user.id}, ${new Date(Date.now() + 24 * 60 * 60 * 1000)})
+        ON CONFLICT (id) 
+        DO UPDATE SET 
+          expires_at = EXCLUDED.expires_at
+      `
+      return sessionId
+    } catch (error) {
+      console.error("Failed to store session in database:", error)
+    }
+  }
+
+  // Fallback to encoded session for demo
+  const fallbackSession = Buffer.from(
     JSON.stringify({
       userId: user.id,
       expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     }),
   ).toString("base64")
 
-  // Try to store in database
-  if (sql) {
-    try {
-      await sql`
-        INSERT INTO user_sessions (user_id, session_token, expires_at)
-        VALUES (${user.id}, ${sessionToken}, ${new Date(Date.now() + 24 * 60 * 60 * 1000)})
-        ON CONFLICT (user_id) 
-        DO UPDATE SET 
-          session_token = EXCLUDED.session_token,
-          expires_at = EXCLUDED.expires_at
-      `
-    } catch (error) {
-      console.error("Failed to store session in database:", error)
-    }
-  }
-
-  return sessionToken
+  return fallbackSession
 }
 
-export async function destroySession(sessionToken: string): Promise<void> {
+export async function destroySession(sessionId: string): Promise<void> {
   // Remove from database
   if (sql) {
     try {
       await sql`
         DELETE FROM user_sessions 
-        WHERE session_token = ${sessionToken}
+        WHERE id = ${sessionId}
       `
     } catch (error) {
       console.error("Failed to remove session from database:", error)

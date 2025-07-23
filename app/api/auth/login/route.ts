@@ -16,18 +16,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    const sessionToken = await createSession(user)
-    const cookieStore = await cookies()
+    // Create session
+    const sessionId = await createSession(user)
 
-    cookieStore.set("session", sessionToken, {
+    // Set session cookie
+    const cookieStore = await cookies()
+    cookieStore.set("session", sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60, // 24 hours
+      maxAge: 60 * 60 * 24, // 24 hours
       path: "/",
     })
 
     return NextResponse.json({
+      success: true,
       user: {
         id: user.id,
         name: user.name,
