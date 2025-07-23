@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       await destroySession(sessionId)
     }
 
-    // Clear session cookie
+    // Clear the session cookie
     cookieStore.delete("session")
 
     return NextResponse.json({ success: true })

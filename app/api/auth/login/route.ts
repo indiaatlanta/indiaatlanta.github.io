@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Create session
     const sessionId = await createSession(user)
 
     // Set session cookie
