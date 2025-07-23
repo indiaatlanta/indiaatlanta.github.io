@@ -3,6 +3,7 @@ import { ArrowLeft, Rocket, Settings } from "lucide-react"
 import { getSession } from "@/lib/auth"
 import SelfReviewClient from "./self-review-client"
 import Image from "next/image"
+import { Suspense } from "react"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -56,7 +57,9 @@ export default async function SelfReviewPage() {
       </div>
 
       {/* Pass data to client component */}
-      <SelfReviewClient />
+      <Suspense fallback={<div>Loading...</div>}>
+        <SelfReviewClient />
+      </Suspense>
     </div>
   )
 }

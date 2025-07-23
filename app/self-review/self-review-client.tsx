@@ -227,10 +227,10 @@ export default function SelfReviewClient() {
   }
 
   const handleSaveAssessment = async () => {
-    if (!selectedRole || !user) {
+    if (!selectedRole) {
       toast({
         title: "Error",
-        description: "Please select a role and ensure you're logged in.",
+        description: "Please select a role first.",
         variant: "destructive",
       })
       return
@@ -270,6 +270,7 @@ export default function SelfReviewClient() {
         completionPercentage: progress.completionPercentage,
         totalSkills: progress.totalSkills,
         completedSkills: progress.ratedSkills,
+        roleId: selectedRole.id,
       }
 
       console.log("Saving assessment data:", assessmentData)

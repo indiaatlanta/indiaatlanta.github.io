@@ -1,8 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@vercel/postgres"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     // Ensure the table has all required columns
     await sql`
       ALTER TABLE saved_assessments 
@@ -43,6 +49,7 @@ export async function GET() {
       FROM saved_assessments sa
       LEFT JOIN job_roles jr ON sa.role_id = jr.id
       LEFT JOIN departments d ON jr.department_id = d.id
+      WHERE sa.user_id = ${user.id}
       ORDER BY sa.created_at DESC
     `
 
@@ -55,6 +62,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const {
       assessmentName,
@@ -65,9 +77,28 @@ export async function POST(request: NextRequest) {
       completionPercentage,
       totalSkills,
       completedSkills,
-      userId = 1, // Default user ID for demo
       roleId = 1, // Default role ID for demo
     } = body
+
+    // Ensure the user exists in the users table
+    const userExists = await sql`
+      SELECT id FROM users WHERE id = ${user.id}
+    `
+
+    let actualUserId = user.id
+    if (userExists.length === 0) {
+      // Create the user if they don't exist
+      try {
+        await sql`
+          INSERT INTO users (id, name, email, role, password_hash)
+          VALUES (${user.id}, ${user.name}, ${user.email}, ${user.role}, 'demo_hash')
+          ON CONFLICT (id) DO NOTHING
+        `
+      } catch (userError) {
+        console.log("Could not create user, using default user ID 1")
+        actualUserId = 1
+      }
+    }
 
     // Ensure the table has all required columns
     await sql`
@@ -95,7 +126,7 @@ export async function POST(request: NextRequest) {
         total_skills,
         completed_skills
       ) VALUES (
-        ${userId},
+        ${actualUserId},
         ${roleId},
         ${assessmentName || "Unnamed Assessment"},
         ${jobRoleName || "Unknown Role"},

@@ -59,6 +59,7 @@ export async function getCurrentUser(): Promise<User | null> {
       const users = await sql`
         SELECT id, email, name, role
         FROM users
+        WHERE id = 1
         LIMIT 1
       `
 
@@ -101,6 +102,20 @@ export async function createSession(userId: number): Promise<string> {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
       try {
+        // Ensure the user exists before creating a session
+        const userExists = await sql`
+          SELECT id FROM users WHERE id = ${userId}
+        `
+
+        if (userExists.length === 0) {
+          // Create a basic user record if it doesn't exist
+          await sql`
+            INSERT INTO users (id, name, email, role, password_hash)
+            VALUES (${userId}, 'Demo User', 'demo@henryscheinone.com', 'user', 'demo_hash')
+            ON CONFLICT (id) DO NOTHING
+          `
+        }
+
         await sql`
           INSERT INTO user_sessions (id, user_id, expires_at)
           VALUES (${sessionId}, ${userId}, ${expiresAt})
