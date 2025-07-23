@@ -9,10 +9,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
+import { generateAssessmentPDF } from "@/lib/pdf-generator"
+import { useUser } from "@/lib/auth-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Save, Download, ChevronLeft, ChevronRight, Target, TrendingUp, Users, BookOpen } from "lucide-react"
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
 
 interface Skill {
   id: number
@@ -59,6 +59,7 @@ const RATING_OPTIONS = [
 ]
 
 export default function SelfReviewClient() {
+  const { user } = useUser()
   const { toast } = useToast()
   const [jobRoles, setJobRoles] = useState<JobRole[]>([])
   const [selectedRole, setSelectedRole] = useState<JobRole | null>(null)
@@ -226,10 +227,10 @@ export default function SelfReviewClient() {
   }
 
   const handleSaveAssessment = async () => {
-    if (!selectedRole) {
+    if (!selectedRole || !user) {
       toast({
         title: "Error",
-        description: "Please select a role first.",
+        description: "Please select a role and ensure you're logged in.",
         variant: "destructive",
       })
       return
@@ -327,44 +328,34 @@ export default function SelfReviewClient() {
     setIsExporting(true)
 
     try {
-      const doc = new jsPDF()
-
-      // Add logo and header
-      doc.setFontSize(20)
-      doc.text("Henry Schein One", 20, 20)
-      doc.setFontSize(16)
-      doc.text("Self Assessment Report", 20, 35)
-
-      // Role information
-      doc.setFontSize(12)
-      doc.text(`Role: ${selectedRole.name}`, 20, 50)
-      doc.text(`Department: ${selectedRole.department}`, 20, 60)
-      doc.text(`Code: ${selectedRole.code}`, 20, 70)
-      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 80)
-
-      // Summary
-      doc.text(`Overall Score: ${calculateOverallScore().toFixed(1)}%`, 20, 95)
-      doc.text(`Completion: ${progress.completionPercentage}%`, 20, 105)
-      doc.text(`Skills Rated: ${progress.ratedSkills} of ${progress.totalSkills}`, 20, 115)
-
-      // Skills table
-      const tableData = selectedRole.skills
-        .filter((skill) => ratings[skill.id])
+      const skillsData = selectedRole.skills
         .map((skill) => {
           const rating = ratings[skill.id]
           const ratingOption = RATING_OPTIONS.find((opt) => opt.value === rating?.rating)
-          return [skill.name, skill.category, skill.level, ratingOption?.label || "Not Rated"]
+          return {
+            skillId: skill.id,
+            skillName: skill.name,
+            category: skill.category,
+            level: skill.level,
+            rating: ratingOption?.label || "Not Rated",
+            ratingValue: rating?.ratingValue || 0,
+          }
         })
+        .filter((skill) => skill.ratingValue > 0)
 
-      autoTable(doc, {
-        head: [["Skill", "Category", "Level", "Rating"]],
-        body: tableData,
-        startY: 130,
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [41, 128, 185] },
-      })
+      const assessmentData = {
+        assessmentName: `${selectedRole.name} Self-Assessment`,
+        jobRoleName: selectedRole.name,
+        departmentName: selectedRole.department,
+        skillsData,
+        overallScore: calculateOverallScore(),
+        completionPercentage: progress.completionPercentage,
+        totalSkills: progress.totalSkills,
+        completedSkills: progress.ratedSkills,
+        createdAt: new Date().toISOString(),
+      }
 
-      doc.save(`${selectedRole.name}-self-assessment.pdf`)
+      generateAssessmentPDF(assessmentData)
 
       toast({
         title: "Success",

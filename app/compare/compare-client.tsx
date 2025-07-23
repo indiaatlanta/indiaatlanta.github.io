@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, FileText } from "lucide-react"
 import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
+import { autoTable } from "jspdf-autotable"
 
 interface Role {
   id: number
@@ -119,7 +119,7 @@ export function CompareClient() {
     try {
       const doc = new jsPDF("p", "mm", "a4")
 
-      // Add header
+      // Add header without logo to avoid PNG issues
       doc.setFontSize(20)
       doc.setFont("helvetica", "bold")
       doc.text("Henry Schein One", 20, 25)

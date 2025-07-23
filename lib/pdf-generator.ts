@@ -14,86 +14,158 @@ interface AssessmentData {
   assessmentName: string
   jobRoleName: string
   departmentName: string
-  skillsData: Array<{
-    skillId: number
-    skillName: string
-    category: string
-    level: string
-    rating: string
-    ratingValue: number
-  }>
+  skillsData: SkillRating[]
   overallScore: number
   completionPercentage: number
   totalSkills: number
   completedSkills: number
-  createdAt?: string
+  createdAt: string
 }
 
 export function generateAssessmentPDF(data: AssessmentData): void {
   const doc = new jsPDF()
 
-  // Add logo and header
+  // Set up colors
+  const primaryColor = [41, 128, 185] // Blue
+  const secondaryColor = [52, 73, 94] // Dark gray
+  const lightGray = [236, 240, 241]
+
+  // Header
+  doc.setFillColor(...primaryColor)
+  doc.rect(0, 0, 210, 30, "F")
+
+  doc.setTextColor(255, 255, 255)
   doc.setFontSize(20)
-  doc.text("Henry Schein One", 20, 20)
-  doc.setFontSize(16)
-  doc.text("Skills Assessment Report", 20, 35)
+  doc.setFont("helvetica", "bold")
+  doc.text("Skills Assessment Report", 20, 20)
 
-  // Assessment information
+  // Assessment Info
+  doc.setTextColor(...secondaryColor)
   doc.setFontSize(12)
-  doc.text(`Assessment: ${data.assessmentName}`, 20, 50)
-  doc.text(`Role: ${data.jobRoleName}`, 20, 60)
-  doc.text(`Department: ${data.departmentName}`, 20, 70)
-  doc.text(
-    `Date: ${data.createdAt ? new Date(data.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}`,
-    20,
-    80,
-  )
+  doc.setFont("helvetica", "normal")
 
-  // Summary section
+  let yPos = 45
+  doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
+  yPos += 8
+  doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
+  yPos += 8
+  doc.text(`Department: ${data.departmentName}`, 20, yPos)
+  yPos += 8
+  doc.text(`Date: ${new Date(data.createdAt).toLocaleDateString()}`, 20, yPos)
+
+  // Summary Box
+  yPos += 15
+  doc.setFillColor(...lightGray)
+  doc.rect(20, yPos, 170, 25, "F")
+
+  doc.setTextColor(...secondaryColor)
   doc.setFontSize(14)
-  doc.text("Assessment Summary", 20, 100)
-  doc.setFontSize(12)
-  doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 20, 115)
-  doc.text(`Completion: ${data.completionPercentage}%`, 20, 125)
-  doc.text(`Skills Assessed: ${data.completedSkills} of ${data.totalSkills}`, 20, 135)
+  doc.setFont("helvetica", "bold")
+  doc.text("Assessment Summary", 25, yPos + 8)
+
+  doc.setFontSize(10)
+  doc.setFont("helvetica", "normal")
+  doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 25, yPos + 16)
+  doc.text(`Completion: ${data.completionPercentage}%`, 90, yPos + 16)
+  doc.text(`Skills Rated: ${data.completedSkills}/${data.totalSkills}`, 140, yPos + 16)
+
+  yPos += 35
 
   // Group skills by category
-  const skillsByCategory: Record<string, typeof data.skillsData> = {}
-  data.skillsData.forEach((skill) => {
-    if (!skillsByCategory[skill.category]) {
-      skillsByCategory[skill.category] = []
-    }
-    skillsByCategory[skill.category].push(skill)
-  })
+  const skillsByCategory = data.skillsData.reduce(
+    (acc, skill) => {
+      if (!acc[skill.category]) {
+        acc[skill.category] = []
+      }
+      acc[skill.category].push(skill)
+      return acc
+    },
+    {} as Record<string, SkillRating[]>,
+  )
 
-  let yPosition = 150
-
-  // Generate table for each category
+  // Skills by Category
   Object.entries(skillsByCategory).forEach(([category, skills]) => {
-    if (yPosition > 250) {
+    // Check if we need a new page
+    if (yPos > 250) {
       doc.addPage()
-      yPosition = 20
+      yPos = 20
     }
 
     doc.setFontSize(14)
-    doc.text(category, 20, yPosition)
-    yPosition += 10
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...primaryColor)
+    doc.text(category, 20, yPos)
+    yPos += 10
 
-    const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating])
+    // Create table data
+    const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating, `${skill.ratingValue}/4`])
 
     autoTable(doc, {
-      head: [["Skill", "Level", "Rating"]],
+      startY: yPos,
+      head: [["Skill", "Level", "Rating", "Score"]],
       body: tableData,
-      startY: yPosition,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [41, 128, 185] },
+      theme: "grid",
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontSize: 10,
+        fontStyle: "bold",
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: secondaryColor,
+      },
+      alternateRowStyles: {
+        fillColor: [249, 249, 249],
+      },
       margin: { left: 20, right: 20 },
+      tableWidth: 170,
     })
 
-    yPosition = (doc as any).lastAutoTable.finalY + 15
+    yPos = (doc as any).lastAutoTable.finalY + 15
   })
 
+  // Rating Scale Legend
+  if (yPos > 230) {
+    doc.addPage()
+    yPos = 20
+  }
+
+  doc.setFontSize(12)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(...secondaryColor)
+  doc.text("Rating Scale", 20, yPos)
+  yPos += 10
+
+  const ratingScale = [
+    ["1 - Needs Development", "Limited knowledge or experience"],
+    ["2 - Developing", "Some knowledge, requires guidance"],
+    ["3 - Proficient/Fully Displayed", "Competent, works independently"],
+    ["4 - Strength/Role Model", "Expert level, mentors others"],
+    ["N/A - Not Applicable", "Not relevant to current role"],
+  ]
+
+  autoTable(doc, {
+    startY: yPos,
+    body: ratingScale,
+    theme: "plain",
+    bodyStyles: {
+      fontSize: 9,
+      textColor: secondaryColor,
+    },
+    margin: { left: 20, right: 20 },
+    tableWidth: 170,
+  })
+
+  // Footer
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setTextColor(128, 128, 128)
+    doc.text(`Generated by HS1 Careers Matrix - Page ${i} of ${pageCount}`, 20, 285)
+  }
+
   // Save the PDF
-  const fileName = `${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`
-  doc.save(fileName)
+  doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
 }

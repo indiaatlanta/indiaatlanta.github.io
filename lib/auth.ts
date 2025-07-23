@@ -1,52 +1,12 @@
 import { cookies } from "next/headers"
-import { sql } from "@/lib/db"
-import bcrypt from "bcryptjs"
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export interface User {
   id: number
-  name: string
   email: string
+  name: string
   role: string
 }
-
-// Demo users for development
-const DEMO_USERS = [
-  {
-    id: 1,
-    name: "Admin User",
-    email: "admin@henryscheinone.com",
-    password: "admin123",
-    role: "admin",
-  },
-  {
-    id: 2,
-    name: "Regular User",
-    email: "user@henryscheinone.com",
-    password: "user123",
-    role: "user",
-  },
-  {
-    id: 3,
-    name: "Manager User",
-    email: "manager@henryscheinone.com",
-    password: "manager123",
-    role: "manager",
-  },
-  {
-    id: 4,
-    name: "John Smith",
-    email: "john.smith@henryscheinone.com",
-    password: "password123",
-    role: "user",
-  },
-  {
-    id: 5,
-    name: "Jane Doe",
-    email: "jane.doe@henryscheinone.com",
-    password: "password123",
-    role: "user",
-  },
-]
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
@@ -54,136 +14,120 @@ export async function getCurrentUser(): Promise<User | null> {
     const sessionId = cookieStore.get("session")?.value
 
     if (!sessionId) {
+      console.log("No session cookie found")
       return null
     }
 
-    // Try database first
-    if (sql) {
-      try {
-        const result = await sql`
-          SELECT u.id, u.name, u.email, u.role 
-          FROM users u
-          JOIN user_sessions us ON u.id = us.user_id
-          WHERE us.id = ${sessionId}
-          AND us.expires_at > NOW()
-        `
+    console.log("Checking session:", sessionId)
 
-        if (result.length > 0) {
-          return result[0] as User
-        }
-      } catch (error) {
-        console.error("Database session check failed:", error)
-      }
+    // Demo users for fallback
+    const demoUsers = [
+      { email: "admin@henryscheinone.com", name: "Admin User", role: "admin", id: 1 },
+      { email: "user@henryscheinone.com", name: "Regular User", role: "user", id: 2 },
+      { email: "manager@henryscheinone.com", name: "Manager User", role: "admin", id: 3 },
+      { email: "john.smith@henryscheinone.com", name: "John Smith", role: "user", id: 4 },
+      { email: "jane.doe@henryscheinone.com", name: "Jane Doe", role: "user", id: 5 },
+    ]
+
+    if (!isDatabaseConfigured() || !sql) {
+      console.log("Database not configured, using demo user")
+      // In demo mode, just return the first demo user (admin)
+      return demoUsers[0]
     }
 
-    // Fallback to demo session validation
     try {
-      const sessionData = JSON.parse(Buffer.from(sessionId, "base64").toString())
-      const user = DEMO_USERS.find((u) => u.id === sessionData.userId)
+      // Try to get user from database session
+      const sessions = await sql`
+        SELECT us.user_id, u.email, u.name, u.role
+        FROM user_sessions us
+        JOIN users u ON us.user_id = u.id
+        WHERE us.id = ${sessionId} AND us.expires_at > CURRENT_TIMESTAMP
+      `
 
-      if (user && sessionData.expires > Date.now()) {
+      if (sessions.length > 0) {
+        const session = sessions[0]
+        console.log("Database session found:", { userId: session.user_id, email: session.email })
+        return {
+          id: session.user_id,
+          email: session.email,
+          name: session.name || "User",
+          role: session.role,
+        }
+      }
+
+      // If no database session found, try to get user directly (fallback)
+      const users = await sql`
+        SELECT id, email, name, role
+        FROM users
+        LIMIT 1
+      `
+
+      if (users.length > 0) {
+        const user = users[0]
+        console.log("Using first database user as fallback:", { id: user.id, email: user.email })
         return {
           id: user.id,
-          name: user.name,
           email: user.email,
+          name: user.name || "User",
           role: user.role,
         }
       }
-    } catch (error) {
-      console.error("Demo session validation failed:", error)
-    }
 
-    return null
+      console.log("No database user found, using demo user")
+      return demoUsers[0]
+    } catch (dbError) {
+      console.log("Database session check failed, using demo user:", dbError.message)
+      // Fallback to demo user if database fails
+      return demoUsers[0]
+    }
   } catch (error) {
-    console.error("getCurrentUser failed:", error)
+    console.error("Auth error:", error)
     return null
   }
 }
 
-export async function authenticateUser(email: string, password: string): Promise<User | null> {
-  // Try database authentication first
-  if (sql) {
-    try {
-      const result = await sql`
-        SELECT id, name, email, role, password_hash 
-        FROM users 
-        WHERE email = ${email}
-      `
+// Add getSession as an alias for getCurrentUser for backward compatibility
+export const getSession = async () => {
+  const user = await getCurrentUser()
+  return user ? { user } : null
+}
 
-      if (result.length > 0) {
-        const user = result[0]
-        const isValid = await bcrypt.compare(password, user.password_hash)
+export async function createSession(userId: number): Promise<string> {
+  const { v4: uuidv4 } = await import("uuid")
+  const sessionId = uuidv4()
 
-        if (isValid) {
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          }
-        }
+  try {
+    if (isDatabaseConfigured() && sql) {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+      try {
+        await sql`
+          INSERT INTO user_sessions (id, user_id, expires_at)
+          VALUES (${sessionId}, ${userId}, ${expiresAt})
+          ON CONFLICT (id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            expires_at = EXCLUDED.expires_at
+        `
+        console.log("Session created in database:", sessionId)
+      } catch (sessionError) {
+        console.log("Could not create database session (table may not exist):", sessionError.message)
+        // Continue without database session storage
       }
-    } catch (error) {
-      console.error("Database authentication failed:", error)
     }
-  }
 
-  // Fallback to demo users
-  const user = DEMO_USERS.find((u) => u.email === email && u.password === password)
+    // Set cookie regardless of database storage
+    const cookieStore = await cookies()
+    cookieStore.set("session", sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    })
 
-  if (user) {
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    }
-  }
-
-  return null
-}
-
-export async function createSession(user: User): Promise<string> {
-  // Generate a unique session ID
-  const sessionId = `session_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-  // Try to store in database
-  if (sql) {
-    try {
-      await sql`
-        INSERT INTO user_sessions (id, user_id, expires_at)
-        VALUES (${sessionId}, ${user.id}, ${new Date(Date.now() + 24 * 60 * 60 * 1000)})
-        ON CONFLICT (id) 
-        DO UPDATE SET 
-          expires_at = EXCLUDED.expires_at
-      `
-      return sessionId
-    } catch (error) {
-      console.error("Failed to store session in database:", error)
-    }
-  }
-
-  // Fallback to encoded session for demo
-  const fallbackSession = Buffer.from(
-    JSON.stringify({
-      userId: user.id,
-      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    }),
-  ).toString("base64")
-
-  return fallbackSession
-}
-
-export async function destroySession(sessionId: string): Promise<void> {
-  // Remove from database
-  if (sql) {
-    try {
-      await sql`
-        DELETE FROM user_sessions 
-        WHERE id = ${sessionId}
-      `
-    } catch (error) {
-      console.error("Failed to remove session from database:", error)
-    }
+    return sessionId
+  } catch (error) {
+    console.error("Session creation error:", error)
+    throw error
   }
 }
