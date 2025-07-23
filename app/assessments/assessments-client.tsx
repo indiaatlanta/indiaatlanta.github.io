@@ -71,8 +71,18 @@ export default function AssessmentsClient() {
       }
       const data = await response.json()
       const assessmentList = Array.isArray(data.assessments) ? data.assessments : []
-      setAssessments(assessmentList)
-      calculateStats(assessmentList)
+
+      // Ensure all numeric fields are properly converted
+      const normalizedAssessments = assessmentList.map((assessment: any) => ({
+        ...assessment,
+        overall_score: Number(assessment.overall_score) || 0,
+        completion_percentage: Number(assessment.completion_percentage) || 0,
+        total_skills: Number(assessment.total_skills) || 0,
+        completed_skills: Number(assessment.completed_skills) || 0,
+      }))
+
+      setAssessments(normalizedAssessments)
+      calculateStats(normalizedAssessments)
     } catch (error) {
       console.error("Failed to load assessments:", error)
       toast.error("Failed to load assessments")
@@ -84,9 +94,12 @@ export default function AssessmentsClient() {
 
   const calculateStats = (assessmentList: Assessment[]) => {
     const total = assessmentList.length
-    const completed = assessmentList.filter((a) => a.completion_percentage >= 100).length
-    const inProgress = assessmentList.filter((a) => a.completion_percentage > 0 && a.completion_percentage < 100).length
-    const avgScore = total > 0 ? assessmentList.reduce((sum, a) => sum + a.overall_score, 0) / total : 0
+    const completed = assessmentList.filter((a) => Number(a.completion_percentage) >= 100).length
+    const inProgress = assessmentList.filter((a) => {
+      const percentage = Number(a.completion_percentage)
+      return percentage > 0 && percentage < 100
+    }).length
+    const avgScore = total > 0 ? assessmentList.reduce((sum, a) => sum + Number(a.overall_score), 0) / total : 0
 
     setStats({
       totalAssessments: total,
@@ -112,10 +125,10 @@ export default function AssessmentsClient() {
     // Filter by status
     if (filterStatus !== "all") {
       filtered = filtered.filter((assessment) => {
-        if (filterStatus === "completed") return assessment.completion_percentage >= 100
-        if (filterStatus === "in-progress")
-          return assessment.completion_percentage > 0 && assessment.completion_percentage < 100
-        if (filterStatus === "not-started") return assessment.completion_percentage === 0
+        const percentage = Number(assessment.completion_percentage)
+        if (filterStatus === "completed") return percentage >= 100
+        if (filterStatus === "in-progress") return percentage > 0 && percentage < 100
+        if (filterStatus === "not-started") return percentage === 0
         return true
       })
     }
@@ -155,13 +168,24 @@ export default function AssessmentsClient() {
   }
 
   const getStatusBadge = (completionPercentage: number) => {
-    if (completionPercentage >= 100) {
+    const percentage = Number(completionPercentage)
+    if (percentage >= 100) {
       return <Badge className="bg-green-100 text-green-800 border-green-200">Completed</Badge>
-    } else if (completionPercentage > 0) {
+    } else if (percentage > 0) {
       return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">In Progress</Badge>
     } else {
       return <Badge variant="outline">Not Started</Badge>
     }
+  }
+
+  const formatScore = (score: any) => {
+    const numScore = Number(score) || 0
+    return numScore.toFixed(1)
+  }
+
+  const formatPercentage = (percentage: any) => {
+    const numPercentage = Number(percentage) || 0
+    return Math.round(numPercentage)
   }
 
   if (loading) {
@@ -232,7 +256,7 @@ export default function AssessmentsClient() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Average Score</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.averageScore.toFixed(1)}%</p>
+                <p className="text-2xl font-bold text-gray-900">{formatScore(stats.averageScore)}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-purple-600" />
             </div>
@@ -307,16 +331,18 @@ export default function AssessmentsClient() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">{assessment.completion_percentage}%</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {formatPercentage(assessment.completion_percentage)}%
+                    </p>
                     <p className="text-xs text-gray-500">Completion</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{assessment.overall_score.toFixed(1)}%</p>
+                    <p className="text-2xl font-bold text-green-600">{formatScore(assessment.overall_score)}%</p>
                     <p className="text-xs text-gray-500">Overall Score</p>
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-purple-600">
-                      {assessment.completed_skills}/{assessment.total_skills}
+                      {Number(assessment.completed_skills) || 0}/{Number(assessment.total_skills) || 0}
                     </p>
                     <p className="text-xs text-gray-500">Skills Rated</p>
                   </div>

@@ -39,10 +39,10 @@ export async function GET() {
         COALESCE(sa.assessment_name, 'Unnamed Assessment') as assessment_name,
         COALESCE(sa.job_role_name, jr.name, 'Unknown Role') as job_role_name,
         COALESCE(sa.department_name, d.name, 'Unknown Department') as department_name,
-        COALESCE(sa.overall_score, 0) as overall_score,
-        COALESCE(sa.completion_percentage, 0) as completion_percentage,
-        COALESCE(sa.total_skills, 0) as total_skills,
-        COALESCE(sa.completed_skills, 0) as completed_skills,
+        COALESCE(sa.overall_score, 0)::numeric as overall_score,
+        COALESCE(sa.completion_percentage, 0)::integer as completion_percentage,
+        COALESCE(sa.total_skills, 0)::integer as total_skills,
+        COALESCE(sa.completed_skills, 0)::integer as completed_skills,
         COALESCE(sa.skills_data, sa.assessment_data, '{}') as skills_data,
         sa.created_at,
         sa.updated_at
@@ -133,10 +133,10 @@ export async function POST(request: NextRequest) {
         ${departmentName || "Unknown Department"},
         ${JSON.stringify(skillsData || {})},
         ${JSON.stringify(skillsData || {})},
-        ${overallScore || 0},
-        ${completionPercentage || 0},
-        ${totalSkills || 0},
-        ${completedSkills || 0}
+        ${Number(overallScore) || 0},
+        ${Number(completionPercentage) || 0},
+        ${Number(totalSkills) || 0},
+        ${Number(completedSkills) || 0}
       )
       RETURNING *
     `
