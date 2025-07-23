@@ -1,389 +1,286 @@
-import { Suspense } from "react"
+import { getCurrentUser } from "@/lib/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Users, Target, TrendingUp, Plus, Settings, FileText, Clock } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { LoginButton } from "@/components/login-button"
+import {
+  Users,
+  BarChart3,
+  FileText,
+  Calendar,
+  MessageSquare,
+  CheckSquare,
+  TrendingUp,
+  Award,
+  Target,
+  Clock,
+} from "lucide-react"
 import { AdminButton } from "@/components/admin-button"
-import { sql } from "@vercel/postgres"
 
-interface RecentAssessment {
-  id: number
-  assessment_name: string
-  job_role_name: string
-  department_name: string
-  overall_score: number
-  completion_percentage: number
-  created_at: string
-}
+export default async function HomePage() {
+  const user = await getCurrentUser()
 
-async function getRecentAssessments(): Promise<RecentAssessment[]> {
-  try {
-    // Run the schema update first
-    await sql`
-      ALTER TABLE saved_assessments 
-      ADD COLUMN IF NOT EXISTS job_role_name VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS department_name VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS skills_data JSONB DEFAULT '{}',
-      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS total_skills INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS completed_skills INTEGER DEFAULT 0
-    `
-
-    // Update existing records to populate the new columns from related tables
-    await sql`
-      UPDATE saved_assessments 
-      SET 
-          job_role_name = COALESCE(jr.name, 'Unknown Role'),
-          department_name = COALESCE(d.name, 'Unknown Department')
-      FROM job_roles jr
-      JOIN departments d ON jr.department_id = d.id
-      WHERE saved_assessments.role_id = jr.id
-      AND (saved_assessments.job_role_name IS NULL OR saved_assessments.job_role_name = '')
-    `
-
-    // Fetch recent assessments with fallback for missing data
-    const { rows } = await sql`
-      SELECT 
-        sa.id,
-        COALESCE(sa.assessment_name, 'Unnamed Assessment') as assessment_name,
-        COALESCE(sa.job_role_name, jr.name, 'Unknown Role') as job_role_name,
-        COALESCE(sa.department_name, d.name, 'Unknown Department') as department_name,
-        COALESCE(sa.overall_score, 0) as overall_score,
-        COALESCE(sa.completion_percentage, 0) as completion_percentage,
-        sa.created_at
-      FROM saved_assessments sa
-      LEFT JOIN job_roles jr ON sa.role_id = jr.id
-      LEFT JOIN departments d ON jr.department_id = d.id
-      ORDER BY sa.created_at DESC 
-      LIMIT 5
-    `
-
-    return Array.isArray(rows) ? rows : []
-  } catch (error) {
-    console.error("Failed to fetch recent assessments:", error)
-    return []
-  }
-}
-
-async function getAssessmentStats() {
-  try {
-    // Ensure columns exist first
-    await sql`
-      ALTER TABLE saved_assessments 
-      ADD COLUMN IF NOT EXISTS completion_percentage INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS overall_score DECIMAL(5,2) DEFAULT 0
-    `
-
-    const { rows } = await sql`
-      SELECT 
-        COUNT(*) as total_assessments,
-        COUNT(CASE WHEN COALESCE(completion_percentage, 0) >= 100 THEN 1 END) as completed_assessments,
-        COUNT(CASE WHEN COALESCE(completion_percentage, 0) > 0 AND COALESCE(completion_percentage, 0) < 100 THEN 1 END) as in_progress_assessments,
-        COALESCE(AVG(NULLIF(overall_score, 0)), 0) as average_score
-      FROM saved_assessments
-    `
-
-    const stats =
-      Array.isArray(rows) && rows.length > 0
-        ? rows[0]
-        : {
-            total_assessments: 0,
-            completed_assessments: 0,
-            in_progress_assessments: 0,
-            average_score: 0,
-          }
-
-    return {
-      totalAssessments: Number.parseInt(stats.total_assessments) || 0,
-      completedAssessments: Number.parseInt(stats.completed_assessments) || 0,
-      inProgressAssessments: Number.parseInt(stats.in_progress_assessments) || 0,
-      averageScore: Number.parseFloat(stats.average_score) || 0,
-    }
-  } catch (error) {
-    console.error("Failed to fetch assessment stats:", error)
-    return {
-      totalAssessments: 0,
-      completedAssessments: 0,
-      inProgressAssessments: 0,
-      averageScore: 0,
-    }
-  }
-}
-
-function RecentAssessmentsList() {
-  return (
-    <Suspense fallback={<div className="text-sm text-gray-500">Loading recent assessments...</div>}>
-      <RecentAssessmentsContent />
-    </Suspense>
-  )
-}
-
-async function RecentAssessmentsContent() {
-  const recentAssessments = await getRecentAssessments()
-
-  if (recentAssessments.length === 0) {
+  if (!user) {
     return (
-      <div className="text-center py-4">
-        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-        <p className="text-sm text-gray-500">No assessments yet</p>
-        <p className="text-xs text-gray-400">Complete your first assessment to see it here</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Welcome to HS1 Careers Matrix</h2>
+            <p className="mt-2 text-sm text-gray-600">Please sign in to continue</p>
+          </div>
+          <div className="mt-8 space-y-6">
+            <Link href="/login">
+              <Button className="w-full">Sign In</Button>
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      {recentAssessments.map((assessment) => (
-        <div key={assessment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-          <div className="flex-1">
-            <h4 className="font-medium text-sm text-gray-900">{assessment.assessment_name}</h4>
-            <p className="text-xs text-gray-600">
-              {assessment.job_role_name} • {assessment.department_name}
-            </p>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-xs">
-                {assessment.completion_percentage}% Complete
-              </Badge>
-              {assessment.overall_score > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Score: {assessment.overall_score.toFixed(1)}%
-                </Badge>
-              )}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center text-xs text-gray-500">
-              <Clock className="h-3 w-3 mr-1" />
-              {new Date(assessment.created_at).toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      ))}
-      <div className="pt-2">
-        <Link href="/assessments">
-          <Button variant="outline" size="sm" className="w-full bg-transparent">
-            View All Assessments
-          </Button>
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-function StatisticsCards() {
-  return (
-    <Suspense
-      fallback={
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      }
-    >
-      <StatisticsContent />
-    </Suspense>
-  )
-}
-
-async function StatisticsContent() {
-  const stats = await getAssessmentStats()
-
-  const statisticsData = [
-    {
-      title: "Total Assessments",
-      value: stats.totalAssessments.toString(),
-      description: "All assessments created",
-      icon: FileText,
-      color: "text-blue-600",
-    },
-    {
-      title: "Completed",
-      value: stats.completedAssessments.toString(),
-      description: "Fully completed assessments",
-      icon: Target,
-      color: "text-green-600",
-    },
-    {
-      title: "In Progress",
-      value: stats.inProgressAssessments.toString(),
-      description: "Partially completed assessments",
-      icon: Clock,
-      color: "text-yellow-600",
-    },
-    {
-      title: "Average Score",
-      value: `${stats.averageScore.toFixed(1)}%`,
-      description: "Overall performance average",
-      icon: TrendingUp,
-      color: "text-purple-600",
-    },
-  ]
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      {statisticsData.map((stat, index) => (
-        <Card key={index}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{stat.description}</p>
-              </div>
-              <stat.icon className={`h-8 w-8 ${stat.color}`} />
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-export default function HomePage() {
-  return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">HS1 Careers Matrix</h1>
+              <div className="flex-shrink-0">
+                <img className="h-8 w-auto" src="/images/hs1-logo.png" alt="Henry Schein One" />
+              </div>
+              <div className="ml-4">
+                <h1 className="text-2xl font-bold text-gray-900">HS1 Careers Matrix</h1>
+                <p className="text-sm text-gray-500">Skills Development & Career Planning</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">{user.email}</p>
+              </div>
+              <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
               <AdminButton />
-              <LoginButton />
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Skills Assessment & Career Development</h2>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Evaluate your skills, track your progress, and plan your career development with our comprehensive
-            assessment tools.
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.name}!</h2>
+          <p className="text-gray-600">
+            Track your skills development, complete assessments, and plan your career growth.
           </p>
         </div>
 
-        {/* Statistics */}
-        <div className="mb-12">
-          <h3 className="text-xl font-semibold text-gray-900 mb-6">Assessment Overview</h3>
-          <StatisticsCards />
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Link href="/self-review">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Self Assessment</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Start</div>
+                <p className="text-xs text-muted-foreground">Evaluate your skills</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/compare">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Compare Roles</CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Analyze</div>
+                <p className="text-xs text-muted-foreground">Compare job requirements</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/assessments">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">My Assessments</CardTitle>
+                <Award className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">View</div>
+                <p className="text-xs text-muted-foreground">Track your progress</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/one-on-ones">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">One-on-Ones</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Manage</div>
+                <p className="text-xs text-muted-foreground">Track meetings & goals</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        {/* Main Features Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Skills Development */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Self Assessment
+                <TrendingUp className="h-5 w-5" />
+                Skills Development
               </CardTitle>
-              <CardDescription>Evaluate your skills against role requirements</CardDescription>
+              <CardDescription>Assess and improve your professional skills</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">
-                Complete a comprehensive self-assessment to identify your strengths and areas for development.
-              </p>
-              <Link href="/self-review">
-                <Button className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Start Self Assessment
-                </Button>
-              </Link>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Link href="/self-review">
+                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Complete Self-Assessment
+                  </Button>
+                </Link>
+                <Link href="/compare">
+                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Compare Job Roles
+                  </Button>
+                </Link>
+                <Link href="/assessments">
+                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                    <Award className="h-4 w-4 mr-2" />
+                    View Assessment History
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
 
+          {/* One-on-One Meetings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                One-on-One Meetings
+              </CardTitle>
+              <CardDescription>Track meetings, action items, and career discussions</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Link href="/one-on-ones">
+                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    View All Meetings
+                  </Button>
+                </Link>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <CheckSquare className="h-4 w-4" />
+                    Action Items
+                  </span>
+                  <Badge variant="secondary">Track Progress</Badge>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Discussion Notes
+                  </span>
+                  <Badge variant="secondary">Timestamped</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Department Skills Matrix */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Compare Skills
+                Department Skills Matrix
               </CardTitle>
-              <CardDescription>Compare your skills with role requirements</CardDescription>
+              <CardDescription>Explore skills requirements by department</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">
-                See how your current skills align with different roles and identify development opportunities.
-              </p>
-              <Link href="/compare">
-                <Button variant="outline" className="w-full bg-transparent">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Compare Skills
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent Assessments */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Recent Assessments
-              </CardTitle>
-              <CardDescription>Your latest assessment activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RecentAssessmentsList />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Quick Links
-              </CardTitle>
-              <CardDescription>Access key features and tools</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Link href="/departments" className="block">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Users className="h-4 w-4 mr-2" />
-                    Browse Departments & Roles
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Link href="/department/engineering">
+                  <Button variant="outline" size="sm" className="w-full bg-transparent">
+                    Engineering
                   </Button>
                 </Link>
-                <Link href="/assessments" className="block">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Saved Assessments
+                <Link href="/department/product">
+                  <Button variant="outline" size="sm" className="w-full bg-transparent">
+                    Product
                   </Button>
                 </Link>
-                <Link href="/self-review" className="block">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Target className="h-4 w-4 mr-2" />
-                    New Self Assessment
+                <Link href="/department/design">
+                  <Button variant="outline" size="sm" className="w-full bg-transparent">
+                    Design
                   </Button>
                 </Link>
-                <Link href="/compare" className="block">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Skills Comparison
+                <Link href="/department/marketing">
+                  <Button variant="outline" size="sm" className="w-full bg-transparent">
+                    Marketing
                   </Button>
                 </Link>
               </div>
             </CardContent>
           </Card>
+
+          {/* Career Planning */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Career Planning
+              </CardTitle>
+              <CardDescription>Plan your career path and skill development</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Skill Gap Analysis</span>
+                  <Badge variant="outline">Coming Soon</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Learning Recommendations</span>
+                  <Badge variant="outline">Coming Soon</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Career Path Mapping</span>
+                  <Badge variant="outline">Coming Soon</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </main>
+
+        {/* Recent Activity */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Activity
+            </CardTitle>
+            <CardDescription>Your latest assessments and activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No recent activity to display</p>
+              <p className="text-sm">Complete an assessment to see your activity here</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
