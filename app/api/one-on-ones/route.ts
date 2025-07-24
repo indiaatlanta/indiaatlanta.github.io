@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
 import { getCurrentUser } from "@/lib/auth"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export async function GET() {
   try {
@@ -11,142 +9,77 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Create tables if they don't exist
-    await sql`
-      CREATE TABLE IF NOT EXISTS one_on_ones (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        manager_id INTEGER NOT NULL,
-        meeting_date DATE NOT NULL,
-        notes TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS action_items (
-        id SERIAL PRIMARY KEY,
-        one_on_one_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT DEFAULT '',
-        status VARCHAR(20) DEFAULT 'not-started' CHECK (status IN ('not-started', 'in-progress', 'completed', 'cancelled')),
-        due_date DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS discussions (
-        id SERIAL PRIMARY KEY,
-        one_on_one_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-
-    // Ensure demo managers exist
-    await sql`
-      INSERT INTO users (id, name, email, password_hash, role, created_at, updated_at)
-      VALUES 
-        (10, 'Sarah Johnson', 'sarah.johnson@henryscheinone.com', '$2b$10$dummy', 'manager', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        (11, 'Mike Chen', 'mike.chen@henryscheinone.com', '$2b$10$dummy', 'manager', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        (12, 'Lisa Rodriguez', 'lisa.rodriguez@henryscheinone.com', '$2b$10$dummy', 'manager', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (id) DO NOTHING
-    `
+    if (!isDatabaseConfigured() || !sql) {
+      // Return demo data
+      return NextResponse.json([
+        {
+          id: 1,
+          meeting_date: "2024-01-15",
+          notes: "Discussed Q1 goals and performance review process.",
+          manager_name: "Sarah Johnson",
+          action_items: [
+            {
+              id: 1,
+              description: "Complete project documentation",
+              status: "in-progress",
+              due_date: "2024-01-30",
+              created_at: "2024-01-15T10:00:00Z",
+            },
+          ],
+          discussions: [
+            {
+              id: 1,
+              message: "Great progress on the new feature implementation!",
+              user_name: "Sarah Johnson",
+              created_at: "2024-01-15T10:30:00Z",
+            },
+          ],
+        },
+      ])
+    }
 
     // Get one-on-ones with related data
     const oneOnOnes = await sql`
       SELECT 
-        o.*,
-        u.name as user_name,
-        m.name as manager_name,
+        o.id,
+        o.meeting_date,
+        o.notes,
+        o.manager_name,
         COALESCE(
           json_agg(
-            CASE WHEN a.id IS NOT NULL THEN
-              json_build_object(
-                'id', a.id,
-                'one_on_one_id', a.one_on_one_id,
-                'title', a.title,
-                'description', a.description,
-                'status', a.status,
-                'due_date', a.due_date,
-                'created_at', a.created_at,
-                'updated_at', a.updated_at
-              )
-            END
-          ) FILTER (WHERE a.id IS NOT NULL), '[]'::json
+            DISTINCT jsonb_build_object(
+              'id', ai.id,
+              'description', ai.description,
+              'status', ai.status,
+              'due_date', ai.due_date,
+              'created_at', ai.created_at
+            )
+          ) FILTER (WHERE ai.id IS NOT NULL),
+          '[]'::json
         ) as action_items,
         COALESCE(
           json_agg(
-            CASE WHEN d.id IS NOT NULL THEN
-              json_build_object(
-                'id', d.id,
-                'one_on_one_id', d.one_on_one_id,
-                'user_id', d.user_id,
-                'content', d.content,
-                'created_at', d.created_at,
-                'user_name', du.name
-              )
-            END
-          ) FILTER (WHERE d.id IS NOT NULL), '[]'::json
+            DISTINCT jsonb_build_object(
+              'id', d.id,
+              'message', d.message,
+              'user_name', d.user_name,
+              'created_at', d.created_at
+            )
+          ) FILTER (WHERE d.id IS NOT NULL),
+          '[]'::json
         ) as discussions
       FROM one_on_ones o
-      LEFT JOIN users u ON o.user_id = u.id
-      LEFT JOIN users m ON o.manager_id = m.id
-      LEFT JOIN action_items a ON o.id = a.one_on_one_id
+      LEFT JOIN action_items ai ON o.id = ai.one_on_one_id
       LEFT JOIN discussions d ON o.id = d.one_on_one_id
-      LEFT JOIN users du ON d.user_id = du.id
-      WHERE o.user_id = ${user.id} OR o.manager_id = ${user.id}
-      GROUP BY o.id, u.name, m.name
+      WHERE o.user_id = ${user.id}
+      GROUP BY o.id, o.meeting_date, o.notes, o.manager_name
       ORDER BY o.meeting_date DESC
     `
 
-    return NextResponse.json({ oneOnOnes })
+    return NextResponse.json(oneOnOnes)
   } catch (error) {
-    console.error("Database query failed:", error)
-
-    // Return demo data on error
-    const demoOneOnOnes = [
-      {
-        id: 1,
-        user_id: 1,
-        manager_id: 10,
-        meeting_date: "2024-01-15",
-        notes: "Discussed Q1 goals and career development opportunities.",
-        created_at: "2024-01-15T10:00:00Z",
-        updated_at: "2024-01-15T10:00:00Z",
-        user_name: "Demo User",
-        manager_name: "Sarah Johnson",
-        action_items: [
-          {
-            id: 1,
-            one_on_one_id: 1,
-            title: "Complete React training",
-            description: "Finish the advanced React course by end of month",
-            status: "in-progress",
-            due_date: "2024-01-31",
-            created_at: "2024-01-15T10:00:00Z",
-            updated_at: "2024-01-15T10:00:00Z",
-          },
-        ],
-        discussions: [
-          {
-            id: 1,
-            one_on_one_id: 1,
-            user_id: 1,
-            content: "Looking forward to taking on more challenging projects this quarter.",
-            created_at: "2024-01-15T10:00:00Z",
-            user_name: "Demo User",
-          },
-        ],
-      },
-    ]
-
-    return NextResponse.json({ oneOnOnes: demoOneOnOnes })
+    console.error("Failed to fetch one-on-ones:", error)
+    return NextResponse.json({ error: "Failed to fetch one-on-ones" }, { status: 500 })
   }
 }
 
@@ -157,45 +90,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { managerId, meetingDate, notes } = await request.json()
+    const { meeting_date, manager_name, notes } = await request.json()
 
-    if (!managerId || !meetingDate) {
-      return NextResponse.json({ error: "Manager ID and meeting date are required" }, { status: 400 })
+    if (!meeting_date || !manager_name) {
+      return NextResponse.json({ error: "Meeting date and manager name are required" }, { status: 400 })
     }
 
-    // Ensure the manager exists
-    await sql`
-      INSERT INTO users (id, name, email, password_hash, role, created_at, updated_at)
-      VALUES (${managerId}, 'Manager ${managerId}', 'manager${managerId}@henryscheinone.com', '$2b$10$dummy', 'manager', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (id) DO NOTHING
+    if (!isDatabaseConfigured() || !sql) {
+      // Return demo response
+      return NextResponse.json({
+        id: Date.now(),
+        meeting_date,
+        manager_name,
+        notes: notes || "",
+        action_items: [],
+        discussions: [],
+      })
+    }
+
+    // Ensure demo managers exist
+    const demoManagers = [
+      { name: "Sarah Johnson", email: "sarah.johnson@henryscheinone.com" },
+      { name: "Mike Chen", email: "mike.chen@henryscheinone.com" },
+      { name: "Emily Davis", email: "emily.davis@henryscheinone.com" },
+      { name: "David Wilson", email: "david.wilson@henryscheinone.com" },
+    ]
+
+    for (const manager of demoManagers) {
+      await sql`
+        INSERT INTO users (name, email, role, password_hash)
+        VALUES (${manager.name}, ${manager.email}, 'admin', 'demo_hash')
+        ON CONFLICT (email) DO NOTHING
+      `
+    }
+
+    // Get manager ID
+    const managerResult = await sql`
+      SELECT id FROM users WHERE name = ${manager_name} LIMIT 1
     `
 
-    // Create the one-on-one
-    const [oneOnOne] = await sql`
-      INSERT INTO one_on_ones (user_id, manager_id, meeting_date, notes)
-      VALUES (${user.id}, ${managerId}, ${meetingDate}, ${notes || ""})
+    let managerId = managerResult.length > 0 ? managerResult[0].id : null
+
+    if (!managerId) {
+      // Create manager if not found
+      const newManager = await sql`
+        INSERT INTO users (name, email, role, password_hash)
+        VALUES (${manager_name}, ${manager_name.toLowerCase().replace(" ", ".")}@henryscheinone.com, 'admin', 'demo_hash')
+        RETURNING id
+      `
+      managerId = newManager[0].id
+    }
+
+    // Create one-on-one
+    const result = await sql`
+      INSERT INTO one_on_ones (user_id, manager_id, manager_name, meeting_date, notes)
+      VALUES (${user.id}, ${managerId}, ${manager_name}, ${meeting_date}, ${notes || ""})
       RETURNING *
     `
 
-    // Get the full record with names
-    const [fullOneOnOne] = await sql`
-      SELECT 
-        o.*,
-        u.name as user_name,
-        m.name as manager_name
-      FROM one_on_ones o
-      LEFT JOIN users u ON o.user_id = u.id
-      LEFT JOIN users m ON o.manager_id = m.id
-      WHERE o.id = ${oneOnOne.id}
-    `
+    const oneOnOne = {
+      ...result[0],
+      action_items: [],
+      discussions: [],
+    }
 
-    return NextResponse.json({
-      oneOnOne: {
-        ...fullOneOnOne,
-        action_items: [],
-        discussions: [],
-      },
-    })
+    return NextResponse.json(oneOnOne)
   } catch (error) {
     console.error("Failed to create one-on-one:", error)
     return NextResponse.json({ error: "Failed to create one-on-one" }, { status: 500 })

@@ -43,7 +43,7 @@ const DEMO_USERS = [
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const sessionId = cookieStore.get("session")?.value
 
     if (!sessionId) {
@@ -84,7 +84,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
 export async function getSession(): Promise<Session | null> {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const sessionId = cookieStore.get("session")?.value
 
     if (!sessionId) {

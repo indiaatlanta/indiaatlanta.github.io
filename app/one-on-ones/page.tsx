@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ArrowLeft, Users, Settings } from "lucide-react"
-import { getCurrentUser, redirect } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import OneOnOnesClient from "./one-on-ones-client"
 import Image from "next/image"
 import { Suspense } from "react"

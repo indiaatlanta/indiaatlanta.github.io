@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
 import { getCurrentUser } from "@/lib/auth"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql, isDatabaseConfigured } from "@/lib/db"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -12,30 +10,39 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const oneOnOneId = Number.parseInt(params.id)
-    const { title, description, dueDate } = await request.json()
+    const { description, due_date } = await request.json()
 
-    if (!title) {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 })
+    if (!description) {
+      return NextResponse.json({ error: "Description is required" }, { status: 400 })
     }
 
-    // Verify the one-on-one exists and user has access
-    const [oneOnOne] = await sql`
-      SELECT * FROM one_on_ones 
-      WHERE id = ${oneOnOneId} AND (user_id = ${user.id} OR manager_id = ${user.id})
+    if (!isDatabaseConfigured() || !sql) {
+      // Return demo response
+      return NextResponse.json({
+        id: Date.now(),
+        description,
+        status: "not-started",
+        due_date,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    // Verify the one-on-one belongs to the user
+    const oneOnOneCheck = await sql`
+      SELECT id FROM one_on_ones WHERE id = ${oneOnOneId} AND user_id = ${user.id}
     `
 
-    if (!oneOnOne) {
+    if (oneOnOneCheck.length === 0) {
       return NextResponse.json({ error: "One-on-one not found" }, { status: 404 })
     }
 
-    // Create the action item
-    const [actionItem] = await sql`
-      INSERT INTO action_items (one_on_one_id, title, description, due_date)
-      VALUES (${oneOnOneId}, ${title}, ${description || ""}, ${dueDate || null})
+    const result = await sql`
+      INSERT INTO action_items (one_on_one_id, description, status, due_date)
+      VALUES (${oneOnOneId}, ${description}, 'not-started', ${due_date || null})
       RETURNING *
     `
 
-    return NextResponse.json({ actionItem })
+    return NextResponse.json(result[0])
   } catch (error) {
     console.error("Failed to create action item:", error)
     return NextResponse.json({ error: "Failed to create action item" }, { status: 500 })
