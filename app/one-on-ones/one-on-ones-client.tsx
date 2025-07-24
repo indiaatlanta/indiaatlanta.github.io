@@ -1,51 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Calendar, Plus, MessageSquare, CheckSquare, Edit, Trash2, Send, ArrowLeft, List } from "lucide-react"
-import { toast } from "sonner"
+import { Plus, Calendar, MessageSquare, CheckSquare, ArrowLeft, Edit2, Trash2, Save, X } from "lucide-react"
+import Users from "lucide-react/dist/Users" // Import Users component
 
-interface OneOnOneUser {
+interface User {
   id: number
   name: string
   email: string
   role: string
-}
-
-interface ActionItem {
-  id: number
-  one_on_one_id: number
-  title: string
-  description: string
-  status: "not-started" | "in-progress" | "completed" | "cancelled"
-  due_date: string | null
-  created_at: string
-  updated_at: string
-}
-
-interface Discussion {
-  id: number
-  one_on_one_id: number
-  user_id: number
-  content: string
-  created_at: string
-  updated_at: string
-  user_name: string
 }
 
 interface OneOnOne {
@@ -56,65 +27,100 @@ interface OneOnOne {
   notes: string
   created_at: string
   updated_at: string
-  user_name: string
-  manager_name: string
-  action_items: ActionItem[]
-  discussions: Discussion[]
+  user_name?: string
+  manager_name?: string
+  action_items?: ActionItem[]
+  discussions?: Discussion[]
 }
 
-interface OneOnOnesClientProps {
-  user: OneOnOneUser
+interface ActionItem {
+  id: number
+  one_on_one_id: number
+  description: string
+  status: "not-started" | "in-progress" | "completed" | "cancelled"
+  due_date?: string
+  created_at: string
+  updated_at: string
 }
 
-const STATUS_OPTIONS = [
-  { value: "not-started", label: "Not Started", color: "bg-gray-100 text-gray-800" },
-  { value: "in-progress", label: "In Progress", color: "bg-blue-100 text-blue-800" },
-  { value: "completed", label: "Completed", color: "bg-green-100 text-green-800" },
-  { value: "cancelled", label: "Cancelled", color: "bg-red-100 text-red-800" },
-]
+interface Discussion {
+  id: number
+  one_on_one_id: number
+  user_id: number
+  message: string
+  created_at: string
+  user_name?: string
+}
 
-// Demo managers for the dropdown
-const DEMO_MANAGERS = [
-  { id: 10, name: "Sarah Manager" },
-  { id: 11, name: "Mike Director" },
-  { id: 12, name: "Lisa VP" },
-]
+const statusColors = {
+  "not-started": "bg-gray-100 text-gray-800",
+  "in-progress": "bg-blue-100 text-blue-800",
+  completed: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800",
+}
 
-export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
+const statusLabels = {
+  "not-started": "Not Started",
+  "in-progress": "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+}
+
+export default function OneOnOnesClient() {
   const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedOneOnOne, setSelectedOneOnOne] = useState<OneOnOne | null>(null)
-  const [viewMode, setViewMode] = useState<"list" | "detail">("list")
-  const [newOneOnOne, setNewOneOnOne] = useState({
-    managerId: "",
-    meetingDate: "",
+  const [currentView, setCurrentView] = useState<"list" | "detail">("list")
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [managers, setManagers] = useState<User[]>([])
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [editingActionItem, setEditingActionItem] = useState<number | null>(null)
+  const [editingNotes, setEditingNotes] = useState(false)
+
+  // Form states
+  const [newMeeting, setNewMeeting] = useState({
+    manager_id: "",
+    meeting_date: "",
     notes: "",
   })
   const [newActionItem, setNewActionItem] = useState({
-    title: "",
     description: "",
-    dueDate: "",
+    due_date: "",
+    status: "not-started" as const,
   })
   const [newDiscussion, setNewDiscussion] = useState("")
-  const [editingActionItem, setEditingActionItem] = useState<ActionItem | null>(null)
+  const [editedNotes, setEditedNotes] = useState("")
 
   useEffect(() => {
-    loadOneOnOnes()
+    loadData()
   }, [])
 
-  const loadOneOnOnes = async () => {
+  const loadData = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/one-on-ones")
-      if (!response.ok) {
-        throw new Error("Failed to fetch one-on-ones")
+
+      // Load user session
+      const sessionResponse = await fetch("/api/auth/session")
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json()
+        setUser(sessionData.user)
       }
-      const data = await response.json()
-      setOneOnOnes(data.oneOnOnes || [])
+
+      // Load one-on-ones
+      const oneOnOnesResponse = await fetch("/api/one-on-ones")
+      if (oneOnOnesResponse.ok) {
+        const data = await oneOnOnesResponse.json()
+        setOneOnOnes(data)
+      }
+
+      // Load managers (demo data)
+      setManagers([
+        { id: 1, name: "Sarah Johnson", email: "sarah.johnson@henryscheinone.com", role: "manager" },
+        { id: 2, name: "Mike Chen", email: "mike.chen@henryscheinone.com", role: "manager" },
+        { id: 3, name: "Lisa Rodriguez", email: "lisa.rodriguez@henryscheinone.com", role: "manager" },
+      ])
     } catch (error) {
-      console.error("Failed to load one-on-ones:", error)
-      toast.error("Failed to load one-on-ones")
+      console.error("Failed to load data:", error)
     } finally {
       setLoading(false)
     }
@@ -122,342 +128,307 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
 
   const createOneOnOne = async () => {
     try {
-      if (!newOneOnOne.managerId || !newOneOnOne.meetingDate) {
-        toast.error("Please fill in all required fields")
-        return
-      }
-
       const response = await fetch("/api/one-on-ones", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          managerId: Number.parseInt(newOneOnOne.managerId),
-          meetingDate: newOneOnOne.meetingDate,
-          notes: newOneOnOne.notes,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newMeeting),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create one-on-one")
+        const error = await response.text()
+        throw new Error(error)
       }
 
-      toast.success("One-on-one created successfully")
+      const createdMeeting = await response.json()
+      setOneOnOnes([createdMeeting, ...oneOnOnes])
+      setNewMeeting({ manager_id: "", meeting_date: "", notes: "" })
       setIsCreateDialogOpen(false)
-      setNewOneOnOne({ managerId: "", meetingDate: "", notes: "" })
-      loadOneOnOnes()
     } catch (error) {
       console.error("Failed to create one-on-one:", error)
-      toast.error("Failed to create one-on-one")
+      alert("Failed to create one-on-one meeting")
     }
   }
 
-  const updateOneOnOneNotes = async (id: number, notes: string) => {
+  const viewOneOnOneDetails = async (oneOnOne: OneOnOne) => {
     try {
-      const response = await fetch(`/api/one-on-ones/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ notes }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update notes")
+      // Load full details including action items and discussions
+      const response = await fetch(`/api/one-on-ones/${oneOnOne.id}`)
+      if (response.ok) {
+        const fullDetails = await response.json()
+        setSelectedOneOnOne(fullDetails)
+        setEditedNotes(fullDetails.notes || "")
+        setCurrentView("detail")
       }
-
-      toast.success("Notes updated successfully")
-      loadOneOnOnes()
     } catch (error) {
-      console.error("Failed to update notes:", error)
-      toast.error("Failed to update notes")
+      console.error("Failed to load one-on-one details:", error)
     }
   }
 
-  const createActionItem = async (oneOnOneId: number) => {
-    try {
-      if (!newActionItem.title) {
-        toast.error("Please enter a title for the action item")
-        return
-      }
-
-      const response = await fetch(`/api/one-on-ones/${oneOnOneId}/action-items`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: newActionItem.title,
-          description: newActionItem.description,
-          dueDate: newActionItem.dueDate || null,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create action item")
-      }
-
-      toast.success("Action item created successfully")
-      setNewActionItem({ title: "", description: "", dueDate: "" })
-      loadOneOnOnes()
-    } catch (error) {
-      console.error("Failed to create action item:", error)
-      toast.error("Failed to create action item")
-    }
-  }
-
-  const updateActionItem = async (actionItem: ActionItem) => {
-    try {
-      const response = await fetch(`/api/one-on-ones/action-items/${actionItem.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: actionItem.title,
-          description: actionItem.description,
-          status: actionItem.status,
-          dueDate: actionItem.due_date,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update action item")
-      }
-
-      toast.success("Action item updated successfully")
-      setEditingActionItem(null)
-      loadOneOnOnes()
-    } catch (error) {
-      console.error("Failed to update action item:", error)
-      toast.error("Failed to update action item")
-    }
-  }
-
-  const deleteActionItem = async (id: number) => {
-    try {
-      const response = await fetch(`/api/one-on-ones/action-items/${id}`, {
-        method: "DELETE",
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to delete action item")
-      }
-
-      toast.success("Action item deleted successfully")
-      loadOneOnOnes()
-    } catch (error) {
-      console.error("Failed to delete action item:", error)
-      toast.error("Failed to delete action item")
-    }
-  }
-
-  const createDiscussion = async (oneOnOneId: number) => {
-    try {
-      if (!newDiscussion.trim()) {
-        toast.error("Please enter discussion content")
-        return
-      }
-
-      const response = await fetch(`/api/one-on-ones/${oneOnOneId}/discussions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: newDiscussion,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create discussion")
-      }
-
-      toast.success("Discussion added successfully")
-      setNewDiscussion("")
-      loadOneOnOnes()
-    } catch (error) {
-      console.error("Failed to create discussion:", error)
-      toast.error("Failed to create discussion")
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    const statusOption = STATUS_OPTIONS.find((option) => option.value === status)
-    return <Badge className={statusOption?.color || "bg-gray-100 text-gray-800"}>{statusOption?.label || status}</Badge>
-  }
-
-  const handleViewOneOnOne = (oneOnOne: OneOnOne) => {
-    setSelectedOneOnOne(oneOnOne)
-    setViewMode("detail")
-  }
-
-  const handleBackToList = () => {
+  const backToList = () => {
+    setCurrentView("list")
     setSelectedOneOnOne(null)
-    setViewMode("list")
-    setNewActionItem({ title: "", description: "", dueDate: "" })
-    setNewDiscussion("")
+    setEditingNotes(false)
     setEditingActionItem(null)
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-500 mt-2">Loading one-on-ones...</p>
-        </div>
-      </div>
-    )
+  const updateNotes = async () => {
+    if (!selectedOneOnOne) return
+
+    try {
+      const response = await fetch(`/api/one-on-ones/${selectedOneOnOne.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: editedNotes }),
+      })
+
+      if (response.ok) {
+        const updated = await response.json()
+        setSelectedOneOnOne(updated)
+        setEditingNotes(false)
+        // Update the list as well
+        setOneOnOnes(oneOnOnes.map((o) => (o.id === updated.id ? updated : o)))
+      }
+    } catch (error) {
+      console.error("Failed to update notes:", error)
+    }
   }
 
-  // Detail view for a specific one-on-one
-  if (viewMode === "detail" && selectedOneOnOne) {
+  const addActionItem = async () => {
+    if (!selectedOneOnOne || !newActionItem.description.trim()) return
+
+    try {
+      const response = await fetch(`/api/one-on-ones/${selectedOneOnOne.id}/action-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newActionItem),
+      })
+
+      if (response.ok) {
+        const actionItem = await response.json()
+        setSelectedOneOnOne({
+          ...selectedOneOnOne,
+          action_items: [...(selectedOneOnOne.action_items || []), actionItem],
+        })
+        setNewActionItem({ description: "", due_date: "", status: "not-started" })
+      }
+    } catch (error) {
+      console.error("Failed to add action item:", error)
+    }
+  }
+
+  const updateActionItem = async (actionItemId: number, updates: Partial<ActionItem>) => {
+    try {
+      const response = await fetch(`/api/one-on-ones/action-items/${actionItemId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      })
+
+      if (response.ok) {
+        const updated = await response.json()
+        if (selectedOneOnOne) {
+          setSelectedOneOnOne({
+            ...selectedOneOnOne,
+            action_items:
+              selectedOneOnOne.action_items?.map((item) => (item.id === actionItemId ? updated : item)) || [],
+          })
+        }
+        setEditingActionItem(null)
+      }
+    } catch (error) {
+      console.error("Failed to update action item:", error)
+    }
+  }
+
+  const deleteActionItem = async (actionItemId: number) => {
+    try {
+      const response = await fetch(`/api/one-on-ones/action-items/${actionItemId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok && selectedOneOnOne) {
+        setSelectedOneOnOne({
+          ...selectedOneOnOne,
+          action_items: selectedOneOnOne.action_items?.filter((item) => item.id !== actionItemId) || [],
+        })
+      }
+    } catch (error) {
+      console.error("Failed to delete action item:", error)
+    }
+  }
+
+  const addDiscussion = async () => {
+    if (!selectedOneOnOne || !newDiscussion.trim()) return
+
+    try {
+      const response = await fetch(`/api/one-on-ones/${selectedOneOnOne.id}/discussions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: newDiscussion }),
+      })
+
+      if (response.ok) {
+        const discussion = await response.json()
+        setSelectedOneOnOne({
+          ...selectedOneOnOne,
+          discussions: [...(selectedOneOnOne.discussions || []), discussion],
+        })
+        setNewDiscussion("")
+      }
+    } catch (error) {
+      console.error("Failed to add discussion:", error)
+    }
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
+
+  if (currentView === "detail" && selectedOneOnOne) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto p-6">
         {/* Header with Back Button */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={handleBackToList} className="flex items-center gap-2 bg-transparent">
-              <ArrowLeft className="h-4 w-4" />
-              Back to All One-on-Ones
-            </Button>
+        <div className="mb-6">
+          <Button onClick={backToList} variant="outline" className="mb-4 bg-transparent">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to All One-on-Ones
+          </Button>
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                One-on-One: {new Date(selectedOneOnOne.meeting_date).toLocaleDateString()}
-              </h1>
-              <p className="text-gray-600 mt-2">
-                {selectedOneOnOne.user_name} • {selectedOneOnOne.manager_name}
+              <h1 className="text-2xl font-bold">One-on-One Meeting</h1>
+              <p className="text-gray-600">
+                {new Date(selectedOneOnOne.meeting_date).toLocaleDateString()} with {selectedOneOnOne.manager_name}
               </p>
             </div>
           </div>
-          <Badge variant="outline">{selectedOneOnOne.action_items.length} action items</Badge>
         </div>
 
-        {/* One-on-One Detail */}
-        <Card>
-          <CardContent className="space-y-6 pt-6">
-            {/* Notes Section */}
-            <div>
-              <h4 className="font-medium mb-2">Notes</h4>
-              <Textarea
-                placeholder="Meeting notes..."
-                value={selectedOneOnOne.notes}
-                onChange={(e) => {
-                  setSelectedOneOnOne({ ...selectedOneOnOne, notes: e.target.value })
-                  const updatedOneOnOnes = oneOnOnes.map((o) =>
-                    o.id === selectedOneOnOne.id ? { ...o, notes: e.target.value } : o,
-                  )
-                  setOneOnOnes(updatedOneOnOnes)
-                }}
-                onBlur={(e) => updateOneOnOneNotes(selectedOneOnOne.id, e.target.value)}
-              />
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Notes Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Meeting Notes
+              </CardTitle>
+              {!editingNotes ? (
+                <Button variant="outline" size="sm" onClick={() => setEditingNotes(true)}>
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={updateNotes}>
+                    <Save className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditingNotes(false)
+                      setEditedNotes(selectedOneOnOne.notes || "")
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {editingNotes ? (
+                <Textarea
+                  value={editedNotes}
+                  onChange={(e) => setEditedNotes(e.target.value)}
+                  placeholder="Add meeting notes..."
+                  className="min-h-[200px]"
+                />
+              ) : (
+                <div className="min-h-[200px] p-3 bg-gray-50 rounded-md">
+                  {selectedOneOnOne.notes || "No notes added yet."}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Action Items Section */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4" />
-                  Action Items
-                </h4>
-              </div>
-
+          {/* Action Items Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5" />
+                Action Items
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               {/* Add New Action Item */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <div className="space-y-3">
+              <div className="space-y-3 p-3 bg-gray-50 rounded-md">
+                <Input
+                  placeholder="Add new action item..."
+                  value={newActionItem.description}
+                  onChange={(e) => setNewActionItem({ ...newActionItem, description: e.target.value })}
+                />
+                <div className="flex gap-2">
                   <Input
-                    placeholder="Action item title..."
-                    value={newActionItem.title}
-                    onChange={(e) => setNewActionItem({ ...newActionItem, title: e.target.value })}
+                    type="date"
+                    value={newActionItem.due_date}
+                    onChange={(e) => setNewActionItem({ ...newActionItem, due_date: e.target.value })}
                   />
-                  <Textarea
-                    placeholder="Description (optional)..."
-                    value={newActionItem.description}
-                    onChange={(e) => setNewActionItem({ ...newActionItem, description: e.target.value })}
-                  />
-                  <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      placeholder="Due date (optional)"
-                      value={newActionItem.dueDate}
-                      onChange={(e) => setNewActionItem({ ...newActionItem, dueDate: e.target.value })}
-                    />
-                    <Button onClick={() => createActionItem(selectedOneOnOne.id)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add
-                    </Button>
-                  </div>
+                  <Button onClick={addActionItem} size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add
+                  </Button>
                 </div>
               </div>
 
               {/* Action Items List */}
-              <div className="space-y-3">
-                {selectedOneOnOne.action_items.map((actionItem) => (
-                  <div key={actionItem.id} className="border rounded-lg p-4">
-                    {editingActionItem?.id === actionItem.id ? (
-                      <div className="space-y-3">
+              <div className="space-y-2">
+                {selectedOneOnOne.action_items?.map((item) => (
+                  <div key={item.id} className="p-3 border rounded-md">
+                    {editingActionItem === item.id ? (
+                      <div className="space-y-2">
                         <Input
-                          value={editingActionItem.title}
-                          onChange={(e) => setEditingActionItem({ ...editingActionItem, title: e.target.value })}
-                        />
-                        <Textarea
-                          value={editingActionItem.description}
-                          onChange={(e) => setEditingActionItem({ ...editingActionItem, description: e.target.value })}
+                          defaultValue={item.description}
+                          onBlur={(e) => updateActionItem(item.id, { description: e.target.value })}
                         />
                         <div className="flex gap-2">
                           <Select
-                            value={editingActionItem.status}
-                            onValueChange={(value) =>
-                              setEditingActionItem({ ...editingActionItem, status: value as any })
-                            }
+                            defaultValue={item.status}
+                            onValueChange={(value) => updateActionItem(item.id, { status: value as any })}
                           >
-                            <SelectTrigger className="w-40">
+                            <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {STATUS_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
+                              <SelectItem value="not-started">Not Started</SelectItem>
+                              <SelectItem value="in-progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                           </Select>
                           <Input
                             type="date"
-                            value={editingActionItem.due_date || ""}
-                            onChange={(e) => setEditingActionItem({ ...editingActionItem, due_date: e.target.value })}
+                            defaultValue={item.due_date}
+                            onBlur={(e) => updateActionItem(item.id, { due_date: e.target.value })}
                           />
-                          <Button onClick={() => updateActionItem(editingActionItem)}>Save</Button>
-                          <Button variant="outline" onClick={() => setEditingActionItem(null)}>
-                            Cancel
-                          </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h5 className="font-medium">{actionItem.title}</h5>
-                            {getStatusBadge(actionItem.status)}
-                          </div>
-                          {actionItem.description && (
-                            <p className="text-sm text-gray-600 mb-2">{actionItem.description}</p>
-                          )}
-                          <div className="flex items-center gap-4 text-xs text-gray-500">
-                            <span>Created: {new Date(actionItem.created_at).toLocaleDateString()}</span>
-                            {actionItem.due_date && (
-                              <span>Due: {new Date(actionItem.due_date).toLocaleDateString()}</span>
+                          <p className="font-medium">{item.description}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge className={statusColors[item.status]}>{statusLabels[item.status]}</Badge>
+                            {item.due_date && (
+                              <span className="text-sm text-gray-500">
+                                Due: {new Date(item.due_date).toLocaleDateString()}
+                              </span>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setEditingActionItem(actionItem)}>
-                            <Edit className="h-4 w-4" />
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" onClick={() => setEditingActionItem(item.id)}>
+                            <Edit2 className="w-3 h-3" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => deleteActionItem(actionItem.id)}>
-                            <Trash2 className="h-4 w-4" />
+                          <Button variant="outline" size="sm" onClick={() => deleteActionItem(item.id)}>
+                            <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
                       </div>
@@ -465,42 +436,44 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Discussion Section */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Discussion
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add New Discussion */}
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Add to discussion..."
+                value={newDiscussion}
+                onChange={(e) => setNewDiscussion(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={addDiscussion}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
             </div>
 
-            {/* Discussions Section */}
-            <div>
-              <h4 className="font-medium flex items-center gap-2 mb-4">
-                <MessageSquare className="h-4 w-4" />
-                Discussion
-              </h4>
-
-              {/* Add New Discussion */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Add to discussion..."
-                    value={newDiscussion}
-                    onChange={(e) => setNewDiscussion(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button onClick={() => createDiscussion(selectedOneOnOne.id)}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Discussions List */}
-              <div className="space-y-3">
-                {selectedOneOnOne.discussions.map((discussion) => (
-                  <div key={discussion.id} className="border-l-4 border-blue-200 pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{discussion.user_name}</span>
-                      <span className="text-xs text-gray-500">{new Date(discussion.created_at).toLocaleString()}</span>
-                    </div>
-                    <p className="text-sm text-gray-700">{discussion.content}</p>
+            {/* Discussion History */}
+            <div className="space-y-3">
+              {selectedOneOnOne.discussions?.map((discussion) => (
+                <div key={discussion.id} className="p-3 bg-gray-50 rounded-md">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">{discussion.user_name || user?.name}</span>
+                    <span className="text-sm text-gray-500">{new Date(discussion.created_at).toLocaleString()}</span>
                   </div>
-                ))}
-              </div>
+                  <p>{discussion.message}</p>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -508,39 +481,34 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
     )
   }
 
-  // List view (default)
+  // List View
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">One-on-One Meetings</h1>
-          <p className="text-gray-600 mt-2">Track your one-on-one meetings, action items, and discussions</p>
-        </div>
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">One-on-One Meetings</h1>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New One-on-One
+              <Plus className="w-4 h-4 mr-2" />
+              New Meeting
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New One-on-One</DialogTitle>
-              <DialogDescription>Schedule a new one-on-one meeting</DialogDescription>
+              <DialogTitle>Schedule One-on-One Meeting</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="managerId">Manager</Label>
+                <Label htmlFor="manager">Manager</Label>
                 <Select
-                  value={newOneOnOne.managerId}
-                  onValueChange={(value) => setNewOneOnOne({ ...newOneOnOne, managerId: value })}
+                  value={newMeeting.manager_id}
+                  onValueChange={(value) => setNewMeeting({ ...newMeeting, manager_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a manager" />
+                    <SelectValue placeholder="Select manager" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DEMO_MANAGERS.map((manager) => (
+                    {managers.map((manager) => (
                       <SelectItem key={manager.id} value={manager.id.toString()}>
                         {manager.name}
                       </SelectItem>
@@ -549,108 +517,74 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="meetingDate">Meeting Date</Label>
+                <Label htmlFor="date">Meeting Date</Label>
                 <Input
-                  id="meetingDate"
+                  id="date"
                   type="date"
-                  value={newOneOnOne.meetingDate}
-                  onChange={(e) => setNewOneOnOne({ ...newOneOnOne, meetingDate: e.target.value })}
+                  value={newMeeting.meeting_date}
+                  onChange={(e) => setNewMeeting({ ...newMeeting, meeting_date: e.target.value })}
                 />
               </div>
               <div>
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="notes">Initial Notes</Label>
                 <Textarea
                   id="notes"
-                  placeholder="Meeting notes..."
-                  value={newOneOnOne.notes}
-                  onChange={(e) => setNewOneOnOne({ ...newOneOnOne, notes: e.target.value })}
+                  placeholder="Add any initial notes..."
+                  value={newMeeting.notes}
+                  onChange={(e) => setNewMeeting({ ...newMeeting, notes: e.target.value })}
                 />
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
+              <Button onClick={createOneOnOne} className="w-full">
+                Create Meeting
               </Button>
-              <Button onClick={createOneOnOne}>Create</Button>
-            </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* One-on-Ones List */}
       {oneOnOnes.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
-            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No one-on-ones yet</h3>
-            <p className="text-gray-500 mb-4">Create your first one-on-one meeting to get started</p>
+            <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium mb-2">No one-on-one meetings yet</h3>
+            <p className="text-gray-600 mb-4">Schedule your first meeting to get started.</p>
             <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create One-on-One
+              <Plus className="w-4 h-4 mr-2" />
+              Schedule Meeting
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {oneOnOnes.map((oneOnOne) => (
-            <Card key={oneOnOne.id} className="cursor-pointer hover:shadow-md transition-shadow">
+            <Card key={oneOnOne.id} className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calendar className="h-5 w-5" />
-                      {new Date(oneOnOne.meeting_date).toLocaleDateString()}
-                    </CardTitle>
-                    <CardDescription>
-                      {oneOnOne.user_name} • {oneOnOne.manager_name}
-                    </CardDescription>
-                  </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{oneOnOne.action_items.length} action items</Badge>
-                    <Button variant="outline" size="sm" onClick={() => handleViewOneOnOne(oneOnOne)}>
-                      <List className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
+                    <Calendar className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">
+                      {new Date(oneOnOne.meeting_date).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
+                <CardTitle className="text-lg">Meeting with {oneOnOne.manager_name}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {/* Notes Preview */}
+                <div className="space-y-3">
                   {oneOnOne.notes && (
                     <div>
-                      <h4 className="font-medium text-sm text-gray-700 mb-1">Notes</h4>
-                      <p className="text-sm text-gray-600 line-clamp-2">{oneOnOne.notes}</p>
+                      <p className="text-sm text-gray-600 line-clamp-3">{oneOnOne.notes}</p>
                     </div>
                   )}
 
-                  {/* Action Items Summary */}
-                  {oneOnOne.action_items.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-sm text-gray-700 mb-2">Recent Action Items</h4>
-                      <div className="space-y-1">
-                        {oneOnOne.action_items.slice(0, 2).map((actionItem) => (
-                          <div key={actionItem.id} className="flex items-center gap-2 text-sm">
-                            {getStatusBadge(actionItem.status)}
-                            <span className="text-gray-600">{actionItem.title}</span>
-                          </div>
-                        ))}
-                        {oneOnOne.action_items.length > 2 && (
-                          <p className="text-xs text-gray-500">+{oneOnOne.action_items.length - 2} more action items</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <span>{oneOnOne.action_items?.length || 0} action items</span>
+                    <span>{oneOnOne.discussions?.length || 0} discussions</span>
+                  </div>
 
-                  {/* Discussions Summary */}
-                  {oneOnOne.discussions.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-sm text-gray-700 mb-1">Latest Discussion</h4>
-                      <p className="text-sm text-gray-600 line-clamp-1">
-                        {oneOnOne.discussions[oneOnOne.discussions.length - 1].content}
-                      </p>
-                    </div>
-                  )}
+                  <Button onClick={() => viewOneOnOneDetails(oneOnOne)} className="w-full" variant="outline">
+                    View Details
+                  </Button>
                 </div>
               </CardContent>
             </Card>

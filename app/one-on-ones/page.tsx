@@ -1,20 +1,24 @@
-import { getCurrentUser } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import OneOnOnesClient from "./one-on-ones-client"
 import Link from "next/link"
 import { ArrowLeft, Users, Settings } from "lucide-react"
+import { getSession } from "@/lib/auth"
+import OneOnOnesClient from "./one-on-ones-client"
 import Image from "next/image"
+import { Suspense } from "react"
 
+// Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
 
 export default async function OneOnOnesPage() {
-  const user = await getCurrentUser()
+  let session = null
+  let isAdmin = false
 
-  if (!user) {
-    redirect("/login")
+  try {
+    session = await getSession()
+    isAdmin = session?.user?.role === "admin"
+  } catch (error) {
+    console.error("Error getting session:", error)
+    // Continue without session
   }
-
-  const isAdmin = user.role === "admin"
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -52,7 +56,10 @@ export default async function OneOnOnesPage() {
         </div>
       </div>
 
-      <OneOnOnesClient user={user} />
+      {/* Pass data to client component */}
+      <Suspense fallback={<div>Loading...</div>}>
+        <OneOnOnesClient />
+      </Suspense>
     </div>
   )
 }
