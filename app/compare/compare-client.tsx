@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, FileText } from "lucide-react"
 import jsPDF from "jspdf"
-import { autoTable } from "jspdf-autotable"
+import autoTable from "jspdf-autotable"
 
 interface Role {
   id: number
@@ -119,71 +119,147 @@ export function CompareClient() {
     try {
       const doc = new jsPDF("p", "mm", "a4")
 
-      // Add header without logo to avoid PNG issues
-      doc.setFontSize(20)
-      doc.setFont("helvetica", "bold")
-      doc.text("Henry Schein One", 20, 25)
+      // Add logo
+      const logoImg = new Image()
+      logoImg.crossOrigin = "anonymous"
+      logoImg.onload = () => {
+        // Add logo (smaller size)
+        doc.addImage(logoImg, "PNG", 20, 10, 20, 3)
 
-      doc.setFontSize(16)
-      doc.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 20, 35)
+        // Add header
+        doc.setFontSize(20)
+        doc.setFont("helvetica", "bold")
+        doc.text("Henry Schein One", 50, 18)
 
-      // Add role information
-      doc.setFontSize(12)
-      doc.setFont("helvetica", "normal")
-      doc.text(`Role 1: ${selectedRole1.name} (${selectedRole1.code}) - ${selectedRole1.department_name}`, 20, 50)
-      doc.text(`Role 2: ${selectedRole2.name} (${selectedRole2.code}) - ${selectedRole2.department_name}`, 20, 60)
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70)
+        doc.setFontSize(16)
+        doc.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 20, 35)
 
-      // Get all unique skills
-      const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
+        // Add role information
+        doc.setFontSize(12)
+        doc.setFont("helvetica", "normal")
+        doc.text(`Role 1: ${selectedRole1.name} (${selectedRole1.code}) - ${selectedRole1.department_name}`, 20, 50)
+        doc.text(`Role 2: ${selectedRole2.name} (${selectedRole2.code}) - ${selectedRole2.department_name}`, 20, 60)
+        doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70)
 
-      role1Skills.forEach((skill) => {
-        allSkills.set(skill.skill_name, {
-          skill,
-          inRole1: true,
-          inRole2: false,
-        })
-      })
+        // Get all unique skills
+        const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
 
-      role2Skills.forEach((skill) => {
-        const existing = allSkills.get(skill.skill_name)
-        if (existing) {
-          existing.inRole2 = true
-        } else {
+        role1Skills.forEach((skill) => {
           allSkills.set(skill.skill_name, {
             skill,
-            inRole1: false,
-            inRole2: true,
+            inRole1: true,
+            inRole2: false,
           })
-        }
-      })
+        })
 
-      // Create table data
-      const tableData = Array.from(allSkills.values()).map(({ skill, inRole1, inRole2 }) => [
-        skill.skill_name,
-        skill.category_name,
-        inRole1 ? "✓" : "✗",
-        inRole2 ? "✓" : "✗",
-      ])
+        role2Skills.forEach((skill) => {
+          const existing = allSkills.get(skill.skill_name)
+          if (existing) {
+            existing.inRole2 = true
+          } else {
+            allSkills.set(skill.skill_name, {
+              skill,
+              inRole1: false,
+              inRole2: true,
+            })
+          }
+        })
 
-      // Add table using autoTable
-      autoTable(doc, {
-        startY: 85,
-        head: [["Skill", "Category", selectedRole1.code, selectedRole2.code]],
-        body: tableData,
-        theme: "grid",
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [41, 128, 185] },
-        columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 25, halign: "center" },
-          3: { cellWidth: 25, halign: "center" },
-        },
-      })
+        // Create table data
+        const tableData = Array.from(allSkills.values()).map(({ skill, inRole1, inRole2 }) => [
+          skill.skill_name,
+          skill.category_name,
+          inRole1 ? "✓" : "✗",
+          inRole2 ? "✓" : "✗",
+        ])
 
-      doc.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
-      setIsGeneratingPDF(false)
+        // Add table using autoTable
+        autoTable(doc, {
+          startY: 85,
+          head: [["Skill", "Category", selectedRole1.code, selectedRole2.code]],
+          body: tableData,
+          theme: "grid",
+          styles: { fontSize: 10 },
+          headStyles: { fillColor: [41, 128, 185] },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 25, halign: "center" },
+            3: { cellWidth: 25, halign: "center" },
+          },
+        })
+
+        doc.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
+        setIsGeneratingPDF(false)
+      }
+      logoImg.onerror = () => {
+        // Fallback without logo
+        doc.setFontSize(20)
+        doc.setFont("helvetica", "bold")
+        doc.text("Henry Schein One", 20, 25)
+
+        doc.setFontSize(16)
+        doc.text(`Role Comparison: ${selectedRole1.name} vs ${selectedRole2.name}`, 20, 35)
+
+        // Add role information
+        doc.setFontSize(12)
+        doc.setFont("helvetica", "normal")
+        doc.text(`Role 1: ${selectedRole1.name} (${selectedRole1.code}) - ${selectedRole1.department_name}`, 20, 50)
+        doc.text(`Role 2: ${selectedRole2.name} (${selectedRole2.code}) - ${selectedRole2.department_name}`, 20, 60)
+        doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70)
+
+        // Get all unique skills
+        const allSkills = new Map<string, { skill: Skill; inRole1: boolean; inRole2: boolean }>()
+
+        role1Skills.forEach((skill) => {
+          allSkills.set(skill.skill_name, {
+            skill,
+            inRole1: true,
+            inRole2: false,
+          })
+        })
+
+        role2Skills.forEach((skill) => {
+          const existing = allSkills.get(skill.skill_name)
+          if (existing) {
+            existing.inRole2 = true
+          } else {
+            allSkills.set(skill.skill_name, {
+              skill,
+              inRole1: false,
+              inRole2: true,
+            })
+          }
+        })
+
+        // Create table data
+        const tableData = Array.from(allSkills.values()).map(({ skill, inRole1, inRole2 }) => [
+          skill.skill_name,
+          skill.category_name,
+          inRole1 ? "✓" : "✗",
+          inRole2 ? "✓" : "✗",
+        ])
+
+        // Add table using autoTable
+        autoTable(doc, {
+          startY: 85,
+          head: [["Skill", "Category", selectedRole1.code, selectedRole2.code]],
+          body: tableData,
+          theme: "grid",
+          styles: { fontSize: 10 },
+          headStyles: { fillColor: [41, 128, 185] },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 25, halign: "center" },
+            3: { cellWidth: 25, halign: "center" },
+          },
+        })
+
+        doc.save(`role-comparison-${selectedRole1.code}-vs-${selectedRole2.code}.pdf`)
+        setIsGeneratingPDF(false)
+      }
+      logoImg.src = "/images/hs1-logo.png"
     } catch (error) {
       console.error("Error generating PDF:", error)
       setIsGeneratingPDF(false)

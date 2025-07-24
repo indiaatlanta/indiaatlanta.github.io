@@ -1,5 +1,6 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import { Image } from "canvas"
 
 interface SkillRating {
   skillId: number
@@ -30,142 +31,291 @@ export function generateAssessmentPDF(data: AssessmentData): void {
   const secondaryColor = [52, 73, 94] // Dark gray
   const lightGray = [236, 240, 241]
 
-  // Header
-  doc.setFillColor(...primaryColor)
-  doc.rect(0, 0, 210, 30, "F")
+  // Add logo
+  const logoImg = new Image()
+  logoImg.crossOrigin = "anonymous"
+  logoImg.onload = () => {
+    // Add logo (smaller size)
+    doc.addImage(logoImg, "PNG", 20, 10, 20, 3)
 
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(20)
-  doc.setFont("helvetica", "bold")
-  doc.text("Skills Assessment Report", 20, 20)
+    // Header
+    doc.setFillColor(...primaryColor)
+    doc.rect(0, 0, 210, 30, "F")
 
-  // Assessment Info
-  doc.setTextColor(...secondaryColor)
-  doc.setFontSize(12)
-  doc.setFont("helvetica", "normal")
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.setFont("helvetica", "bold")
+    doc.text("Skills Assessment Report", 50, 20)
 
-  let yPos = 45
-  doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
-  yPos += 8
-  doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
-  yPos += 8
-  doc.text(`Department: ${data.departmentName}`, 20, yPos)
-  yPos += 8
-  doc.text(`Date: ${new Date(data.createdAt).toLocaleDateString()}`, 20, yPos)
+    // Assessment Info
+    doc.setTextColor(...secondaryColor)
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "normal")
 
-  // Summary Box
-  yPos += 15
-  doc.setFillColor(...lightGray)
-  doc.rect(20, yPos, 170, 25, "F")
+    let yPos = 45
+    doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Department: ${data.departmentName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Date: ${new Date(data.createdAt).toLocaleDateString()}`, 20, yPos)
 
-  doc.setTextColor(...secondaryColor)
-  doc.setFontSize(14)
-  doc.setFont("helvetica", "bold")
-  doc.text("Assessment Summary", 25, yPos + 8)
+    // Summary Box
+    yPos += 15
+    doc.setFillColor(...lightGray)
+    doc.rect(20, yPos, 170, 25, "F")
 
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "normal")
-  doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 25, yPos + 16)
-  doc.text(`Completion: ${data.completionPercentage}%`, 90, yPos + 16)
-  doc.text(`Skills Rated: ${data.completedSkills}/${data.totalSkills}`, 140, yPos + 16)
+    doc.setTextColor(...secondaryColor)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("Assessment Summary", 25, yPos + 8)
 
-  yPos += 35
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 25, yPos + 16)
+    doc.text(`Completion: ${data.completionPercentage}%`, 90, yPos + 16)
+    doc.text(`Skills Rated: ${data.completedSkills}/${data.totalSkills}`, 140, yPos + 16)
 
-  // Group skills by category
-  const skillsByCategory = data.skillsData.reduce(
-    (acc, skill) => {
-      if (!acc[skill.category]) {
-        acc[skill.category] = []
+    yPos += 35
+
+    // Group skills by category
+    const skillsByCategory = data.skillsData.reduce(
+      (acc, skill) => {
+        if (!acc[skill.category]) {
+          acc[skill.category] = []
+        }
+        acc[skill.category].push(skill)
+        return acc
+      },
+      {} as Record<string, SkillRating[]>,
+    )
+
+    // Skills by Category
+    Object.entries(skillsByCategory).forEach(([category, skills]) => {
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
       }
-      acc[skill.category].push(skill)
-      return acc
-    },
-    {} as Record<string, SkillRating[]>,
-  )
 
-  // Skills by Category
-  Object.entries(skillsByCategory).forEach(([category, skills]) => {
-    // Check if we need a new page
-    if (yPos > 250) {
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...primaryColor)
+      doc.text(category, 20, yPos)
+      yPos += 10
+
+      // Create table data
+      const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating, `${skill.ratingValue}/4`])
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Skill", "Level", "Rating", "Score"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: "bold",
+        },
+        bodyStyles: {
+          fontSize: 9,
+          textColor: secondaryColor,
+        },
+        alternateRowStyles: {
+          fillColor: [249, 249, 249],
+        },
+        margin: { left: 20, right: 20 },
+        tableWidth: 170,
+      })
+
+      yPos = (doc as any).lastAutoTable.finalY + 15
+    })
+
+    // Rating Scale Legend
+    if (yPos > 230) {
       doc.addPage()
       yPos = 20
     }
 
-    doc.setFontSize(14)
+    doc.setFontSize(12)
     doc.setFont("helvetica", "bold")
-    doc.setTextColor(...primaryColor)
-    doc.text(category, 20, yPos)
+    doc.setTextColor(...secondaryColor)
+    doc.text("Rating Scale", 20, yPos)
     yPos += 10
 
-    // Create table data
-    const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating, `${skill.ratingValue}/4`])
+    const ratingScale = [
+      ["1 - Needs Development", "Limited knowledge or experience"],
+      ["2 - Developing", "Some knowledge, requires guidance"],
+      ["3 - Proficient/Fully Displayed", "Competent, works independently"],
+      ["4 - Strength/Role Model", "Expert level, mentors others"],
+      ["N/A - Not Applicable", "Not relevant to current role"],
+    ]
 
     autoTable(doc, {
       startY: yPos,
-      head: [["Skill", "Level", "Rating", "Score"]],
-      body: tableData,
-      theme: "grid",
-      headStyles: {
-        fillColor: primaryColor,
-        textColor: [255, 255, 255],
-        fontSize: 10,
-        fontStyle: "bold",
-      },
+      body: ratingScale,
+      theme: "plain",
       bodyStyles: {
         fontSize: 9,
         textColor: secondaryColor,
-      },
-      alternateRowStyles: {
-        fillColor: [249, 249, 249],
       },
       margin: { left: 20, right: 20 },
       tableWidth: 170,
     })
 
-    yPos = (doc as any).lastAutoTable.finalY + 15
-  })
+    // Footer
+    const pageCount = doc.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(128, 128, 128)
+      doc.text(`Generated by HS1 Careers Matrix - Page ${i} of ${pageCount}`, 20, 285)
+    }
 
-  // Rating Scale Legend
-  if (yPos > 230) {
-    doc.addPage()
-    yPos = 20
+    // Save the PDF
+    doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
   }
+  logoImg.onerror = () => {
+    // Fallback without logo
+    doc.setFillColor(...primaryColor)
+    doc.rect(0, 0, 210, 30, "F")
 
-  doc.setFontSize(12)
-  doc.setFont("helvetica", "bold")
-  doc.setTextColor(...secondaryColor)
-  doc.text("Rating Scale", 20, yPos)
-  yPos += 10
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.setFont("helvetica", "bold")
+    doc.text("Skills Assessment Report", 20, 20)
 
-  const ratingScale = [
-    ["1 - Needs Development", "Limited knowledge or experience"],
-    ["2 - Developing", "Some knowledge, requires guidance"],
-    ["3 - Proficient/Fully Displayed", "Competent, works independently"],
-    ["4 - Strength/Role Model", "Expert level, mentors others"],
-    ["N/A - Not Applicable", "Not relevant to current role"],
-  ]
+    // Assessment Info
+    doc.setTextColor(...secondaryColor)
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "normal")
 
-  autoTable(doc, {
-    startY: yPos,
-    body: ratingScale,
-    theme: "plain",
-    bodyStyles: {
-      fontSize: 9,
-      textColor: secondaryColor,
-    },
-    margin: { left: 20, right: 20 },
-    tableWidth: 170,
-  })
+    let yPos = 45
+    doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Department: ${data.departmentName}`, 20, yPos)
+    yPos += 8
+    doc.text(`Date: ${new Date(data.createdAt).toLocaleDateString()}`, 20, yPos)
 
-  // Footer
-  const pageCount = doc.getNumberOfPages()
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i)
-    doc.setFontSize(8)
-    doc.setTextColor(128, 128, 128)
-    doc.text(`Generated by HS1 Careers Matrix - Page ${i} of ${pageCount}`, 20, 285)
+    // Summary Box
+    yPos += 15
+    doc.setFillColor(...lightGray)
+    doc.rect(20, yPos, 170, 25, "F")
+
+    doc.setTextColor(...secondaryColor)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("Assessment Summary", 25, yPos + 8)
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 25, yPos + 16)
+    doc.text(`Completion: ${data.completionPercentage}%`, 90, yPos + 16)
+    doc.text(`Skills Rated: ${data.completedSkills}/${data.totalSkills}`, 140, yPos + 16)
+
+    yPos += 35
+
+    // Group skills by category
+    const skillsByCategory = data.skillsData.reduce(
+      (acc, skill) => {
+        if (!acc[skill.category]) {
+          acc[skill.category] = []
+        }
+        acc[skill.category].push(skill)
+        return acc
+      },
+      {} as Record<string, SkillRating[]>,
+    )
+
+    // Skills by Category
+    Object.entries(skillsByCategory).forEach(([category, skills]) => {
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
+      }
+
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...primaryColor)
+      doc.text(category, 20, yPos)
+      yPos += 10
+
+      // Create table data
+      const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating, `${skill.ratingValue}/4`])
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Skill", "Level", "Rating", "Score"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: "bold",
+        },
+        bodyStyles: {
+          fontSize: 9,
+          textColor: secondaryColor,
+        },
+        alternateRowStyles: {
+          fillColor: [249, 249, 249],
+        },
+        margin: { left: 20, right: 20 },
+        tableWidth: 170,
+      })
+
+      yPos = (doc as any).lastAutoTable.finalY + 15
+    })
+
+    // Rating Scale Legend
+    if (yPos > 230) {
+      doc.addPage()
+      yPos = 20
+    }
+
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...secondaryColor)
+    doc.text("Rating Scale", 20, yPos)
+    yPos += 10
+
+    const ratingScale = [
+      ["1 - Needs Development", "Limited knowledge or experience"],
+      ["2 - Developing", "Some knowledge, requires guidance"],
+      ["3 - Proficient/Fully Displayed", "Competent, works independently"],
+      ["4 - Strength/Role Model", "Expert level, mentors others"],
+      ["N/A - Not Applicable", "Not relevant to current role"],
+    ]
+
+    autoTable(doc, {
+      startY: yPos,
+      body: ratingScale,
+      theme: "plain",
+      bodyStyles: {
+        fontSize: 9,
+        textColor: secondaryColor,
+      },
+      margin: { left: 20, right: 20 },
+      tableWidth: 170,
+    })
+
+    // Footer
+    const pageCount = doc.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(128, 128, 128)
+      doc.text(`Generated by HS1 Careers Matrix - Page ${i} of ${pageCount}`, 20, 285)
+    }
+
+    // Save the PDF
+    doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
   }
-
-  // Save the PDF
-  doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
+  logoImg.src = "/images/hs1-logo.png"
 }
