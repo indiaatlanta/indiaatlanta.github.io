@@ -9,8 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Plus, Calendar, MessageSquare, CheckSquare, ArrowLeft, Edit2, Trash2, Save, X } from "lucide-react"
-import Users from "lucide-react/dist/Users" // Import Users component
+import { Plus, Calendar, MessageSquare, CheckSquare, ArrowLeft, Edit2, Trash2, Save, X, Users } from "lucide-react"
 
 interface User {
   id: number
@@ -110,14 +109,14 @@ export default function OneOnOnesClient() {
       const oneOnOnesResponse = await fetch("/api/one-on-ones")
       if (oneOnOnesResponse.ok) {
         const data = await oneOnOnesResponse.json()
-        setOneOnOnes(data)
+        setOneOnOnes(data.oneOnOnes || [])
       }
 
       // Load managers (demo data)
       setManagers([
-        { id: 1, name: "Sarah Johnson", email: "sarah.johnson@henryscheinone.com", role: "manager" },
-        { id: 2, name: "Mike Chen", email: "mike.chen@henryscheinone.com", role: "manager" },
-        { id: 3, name: "Lisa Rodriguez", email: "lisa.rodriguez@henryscheinone.com", role: "manager" },
+        { id: 10, name: "Sarah Johnson", email: "sarah.johnson@henryscheinone.com", role: "manager" },
+        { id: 11, name: "Mike Chen", email: "mike.chen@henryscheinone.com", role: "manager" },
+        { id: 12, name: "Lisa Rodriguez", email: "lisa.rodriguez@henryscheinone.com", role: "manager" },
       ])
     } catch (error) {
       console.error("Failed to load data:", error)
@@ -131,7 +130,11 @@ export default function OneOnOnesClient() {
       const response = await fetch("/api/one-on-ones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newMeeting),
+        body: JSON.stringify({
+          managerId: Number.parseInt(newMeeting.manager_id),
+          meetingDate: newMeeting.meeting_date,
+          notes: newMeeting.notes,
+        }),
       })
 
       if (!response.ok) {
@@ -139,8 +142,8 @@ export default function OneOnOnesClient() {
         throw new Error(error)
       }
 
-      const createdMeeting = await response.json()
-      setOneOnOnes([createdMeeting, ...oneOnOnes])
+      const result = await response.json()
+      setOneOnOnes([result.oneOnOne, ...oneOnOnes])
       setNewMeeting({ manager_id: "", meeting_date: "", notes: "" })
       setIsCreateDialogOpen(false)
     } catch (error) {
@@ -155,8 +158,8 @@ export default function OneOnOnesClient() {
       const response = await fetch(`/api/one-on-ones/${oneOnOne.id}`)
       if (response.ok) {
         const fullDetails = await response.json()
-        setSelectedOneOnOne(fullDetails)
-        setEditedNotes(fullDetails.notes || "")
+        setSelectedOneOnOne(fullDetails.oneOnOne)
+        setEditedNotes(fullDetails.oneOnOne.notes || "")
         setCurrentView("detail")
       }
     } catch (error) {
@@ -182,11 +185,11 @@ export default function OneOnOnesClient() {
       })
 
       if (response.ok) {
-        const updated = await response.json()
-        setSelectedOneOnOne(updated)
+        const result = await response.json()
+        setSelectedOneOnOne(result.oneOnOne)
         setEditingNotes(false)
         // Update the list as well
-        setOneOnOnes(oneOnOnes.map((o) => (o.id === updated.id ? updated : o)))
+        setOneOnOnes(oneOnOnes.map((o) => (o.id === result.oneOnOne.id ? result.oneOnOne : o)))
       }
     } catch (error) {
       console.error("Failed to update notes:", error)
@@ -200,14 +203,18 @@ export default function OneOnOnesClient() {
       const response = await fetch(`/api/one-on-ones/${selectedOneOnOne.id}/action-items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newActionItem),
+        body: JSON.stringify({
+          title: newActionItem.description,
+          description: newActionItem.description,
+          dueDate: newActionItem.due_date || null,
+        }),
       })
 
       if (response.ok) {
-        const actionItem = await response.json()
+        const result = await response.json()
         setSelectedOneOnOne({
           ...selectedOneOnOne,
-          action_items: [...(selectedOneOnOne.action_items || []), actionItem],
+          action_items: [...(selectedOneOnOne.action_items || []), result.actionItem],
         })
         setNewActionItem({ description: "", due_date: "", status: "not-started" })
       }
@@ -221,16 +228,21 @@ export default function OneOnOnesClient() {
       const response = await fetch(`/api/one-on-ones/action-items/${actionItemId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          title: updates.description,
+          description: updates.description,
+          status: updates.status,
+          dueDate: updates.due_date,
+        }),
       })
 
       if (response.ok) {
-        const updated = await response.json()
+        const result = await response.json()
         if (selectedOneOnOne) {
           setSelectedOneOnOne({
             ...selectedOneOnOne,
             action_items:
-              selectedOneOnOne.action_items?.map((item) => (item.id === actionItemId ? updated : item)) || [],
+              selectedOneOnOne.action_items?.map((item) => (item.id === actionItemId ? result.actionItem : item)) || [],
           })
         }
         setEditingActionItem(null)
@@ -264,14 +276,14 @@ export default function OneOnOnesClient() {
       const response = await fetch(`/api/one-on-ones/${selectedOneOnOne.id}/discussions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: newDiscussion }),
+        body: JSON.stringify({ content: newDiscussion }),
       })
 
       if (response.ok) {
-        const discussion = await response.json()
+        const result = await response.json()
         setSelectedOneOnOne({
           ...selectedOneOnOne,
-          discussions: [...(selectedOneOnOne.discussions || []), discussion],
+          discussions: [...(selectedOneOnOne.discussions || []), result.discussion],
         })
         setNewDiscussion("")
       }
@@ -281,7 +293,12 @@ export default function OneOnOnesClient() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading...</span>
+      </div>
+    )
   }
 
   if (currentView === "detail" && selectedOneOnOne) {
@@ -555,38 +572,15 @@ export default function OneOnOnesClient() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
           {oneOnOnes.map((oneOnOne) => (
-            <Card key={oneOnOne.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card key={oneOnOne.id} onClick={() => viewOneOnOneDetails(oneOnOne)}>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">
-                      {new Date(oneOnOne.meeting_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <CardTitle className="text-lg">Meeting with {oneOnOne.manager_name}</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  {new Date(oneOnOne.meeting_date).toLocaleDateString()} with {oneOnOne.manager_name}
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {oneOnOne.notes && (
-                    <div>
-                      <p className="text-sm text-gray-600 line-clamp-3">{oneOnOne.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>{oneOnOne.action_items?.length || 0} action items</span>
-                    <span>{oneOnOne.discussions?.length || 0} discussions</span>
-                  </div>
-
-                  <Button onClick={() => viewOneOnOneDetails(oneOnOne)} className="w-full" variant="outline">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
             </Card>
           ))}
         </div>

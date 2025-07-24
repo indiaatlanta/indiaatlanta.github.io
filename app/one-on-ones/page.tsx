@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { ArrowLeft, Users, Settings } from "lucide-react"
-import { getSession } from "@/lib/auth"
+import { getCurrentUser, redirect } from "@/lib/auth"
 import OneOnOnesClient from "./one-on-ones-client"
 import Image from "next/image"
 import { Suspense } from "react"
@@ -9,16 +9,13 @@ import { Suspense } from "react"
 export const dynamic = "force-dynamic"
 
 export default async function OneOnOnesPage() {
-  let session = null
-  let isAdmin = false
+  const user = await getCurrentUser()
 
-  try {
-    session = await getSession()
-    isAdmin = session?.user?.role === "admin"
-  } catch (error) {
-    console.error("Error getting session:", error)
-    // Continue without session
+  if (!user) {
+    redirect("/login")
   }
+
+  const isAdmin = user?.role === "admin"
 
   return (
     <div className="min-h-screen bg-gray-50">

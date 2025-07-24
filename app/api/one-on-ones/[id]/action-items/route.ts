@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { neon } from "@neondatabase/serverless"
 import { getCurrentUser } from "@/lib/auth"
-import { sql, isDatabaseConfigured } from "@/lib/db"
+
+const sql = neon(process.env.DATABASE_URL!)
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -9,47 +11,31 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { title, description, dueDate } = body
     const oneOnOneId = Number.parseInt(params.id)
+    const { title, description, dueDate } = await request.json()
 
     if (!title) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
     }
 
-    if (!isDatabaseConfigured() || !sql) {
-      return NextResponse.json({
-        actionItem: {
-          id: Date.now(),
-          one_on_one_id: oneOnOneId,
-          title,
-          description: description || "",
-          status: "not-started",
-          due_date: dueDate || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      })
-    }
-
-    // Verify user has access to this one-on-one
-    const oneOnOne = await sql`
-      SELECT id FROM one_on_ones 
+    // Verify the one-on-one exists and user has access
+    const [oneOnOne] = await sql`
+      SELECT * FROM one_on_ones 
       WHERE id = ${oneOnOneId} AND (user_id = ${user.id} OR manager_id = ${user.id})
     `
 
-    if (oneOnOne.length === 0) {
-      return NextResponse.json({ error: "One-on-one not found or unauthorized" }, { status: 404 })
+    if (!oneOnOne) {
+      return NextResponse.json({ error: "One-on-one not found" }, { status: 404 })
     }
 
-    // Create action item
-    const result = await sql`
-      INSERT INTO one_on_one_action_items (one_on_one_id, title, description, due_date)
+    // Create the action item
+    const [actionItem] = await sql`
+      INSERT INTO action_items (one_on_one_id, title, description, due_date)
       VALUES (${oneOnOneId}, ${title}, ${description || ""}, ${dueDate || null})
       RETURNING *
     `
 
-    return NextResponse.json({ actionItem: result[0] })
+    return NextResponse.json({ actionItem })
   } catch (error) {
     console.error("Failed to create action item:", error)
     return NextResponse.json({ error: "Failed to create action item" }, { status: 500 })
