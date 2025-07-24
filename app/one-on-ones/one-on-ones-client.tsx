@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Calendar, Plus, MessageSquare, CheckSquare, Edit, Trash2, Send } from "lucide-react"
+import { Calendar, Plus, MessageSquare, CheckSquare, Edit, Trash2, Send, ArrowLeft, List } from "lucide-react"
 import { toast } from "sonner"
 
 interface OneOnOneUser {
@@ -85,6 +85,7 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
   const [loading, setLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedOneOnOne, setSelectedOneOnOne] = useState<OneOnOne | null>(null)
+  const [viewMode, setViewMode] = useState<"list" | "detail">("list")
   const [newOneOnOne, setNewOneOnOne] = useState({
     managerId: "",
     meetingDate: "",
@@ -287,6 +288,19 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
     return <Badge className={statusOption?.color || "bg-gray-100 text-gray-800"}>{statusOption?.label || status}</Badge>
   }
 
+  const handleViewOneOnOne = (oneOnOne: OneOnOne) => {
+    setSelectedOneOnOne(oneOnOne)
+    setViewMode("detail")
+  }
+
+  const handleBackToList = () => {
+    setSelectedOneOnOne(null)
+    setViewMode("list")
+    setNewActionItem({ title: "", description: "", dueDate: "" })
+    setNewDiscussion("")
+    setEditingActionItem(null)
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -298,6 +312,203 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
     )
   }
 
+  // Detail view for a specific one-on-one
+  if (viewMode === "detail" && selectedOneOnOne) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={handleBackToList} className="flex items-center gap-2 bg-transparent">
+              <ArrowLeft className="h-4 w-4" />
+              Back to All One-on-Ones
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                One-on-One: {new Date(selectedOneOnOne.meeting_date).toLocaleDateString()}
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {selectedOneOnOne.user_name} • {selectedOneOnOne.manager_name}
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline">{selectedOneOnOne.action_items.length} action items</Badge>
+        </div>
+
+        {/* One-on-One Detail */}
+        <Card>
+          <CardContent className="space-y-6 pt-6">
+            {/* Notes Section */}
+            <div>
+              <h4 className="font-medium mb-2">Notes</h4>
+              <Textarea
+                placeholder="Meeting notes..."
+                value={selectedOneOnOne.notes}
+                onChange={(e) => {
+                  setSelectedOneOnOne({ ...selectedOneOnOne, notes: e.target.value })
+                  const updatedOneOnOnes = oneOnOnes.map((o) =>
+                    o.id === selectedOneOnOne.id ? { ...o, notes: e.target.value } : o,
+                  )
+                  setOneOnOnes(updatedOneOnOnes)
+                }}
+                onBlur={(e) => updateOneOnOneNotes(selectedOneOnOne.id, e.target.value)}
+              />
+            </div>
+
+            {/* Action Items Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4" />
+                  Action Items
+                </h4>
+              </div>
+
+              {/* Add New Action Item */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Action item title..."
+                    value={newActionItem.title}
+                    onChange={(e) => setNewActionItem({ ...newActionItem, title: e.target.value })}
+                  />
+                  <Textarea
+                    placeholder="Description (optional)..."
+                    value={newActionItem.description}
+                    onChange={(e) => setNewActionItem({ ...newActionItem, description: e.target.value })}
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      placeholder="Due date (optional)"
+                      value={newActionItem.dueDate}
+                      onChange={(e) => setNewActionItem({ ...newActionItem, dueDate: e.target.value })}
+                    />
+                    <Button onClick={() => createActionItem(selectedOneOnOne.id)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Items List */}
+              <div className="space-y-3">
+                {selectedOneOnOne.action_items.map((actionItem) => (
+                  <div key={actionItem.id} className="border rounded-lg p-4">
+                    {editingActionItem?.id === actionItem.id ? (
+                      <div className="space-y-3">
+                        <Input
+                          value={editingActionItem.title}
+                          onChange={(e) => setEditingActionItem({ ...editingActionItem, title: e.target.value })}
+                        />
+                        <Textarea
+                          value={editingActionItem.description}
+                          onChange={(e) => setEditingActionItem({ ...editingActionItem, description: e.target.value })}
+                        />
+                        <div className="flex gap-2">
+                          <Select
+                            value={editingActionItem.status}
+                            onValueChange={(value) =>
+                              setEditingActionItem({ ...editingActionItem, status: value as any })
+                            }
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {STATUS_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="date"
+                            value={editingActionItem.due_date || ""}
+                            onChange={(e) => setEditingActionItem({ ...editingActionItem, due_date: e.target.value })}
+                          />
+                          <Button onClick={() => updateActionItem(editingActionItem)}>Save</Button>
+                          <Button variant="outline" onClick={() => setEditingActionItem(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h5 className="font-medium">{actionItem.title}</h5>
+                            {getStatusBadge(actionItem.status)}
+                          </div>
+                          {actionItem.description && (
+                            <p className="text-sm text-gray-600 mb-2">{actionItem.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>Created: {new Date(actionItem.created_at).toLocaleDateString()}</span>
+                            {actionItem.due_date && (
+                              <span>Due: {new Date(actionItem.due_date).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setEditingActionItem(actionItem)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => deleteActionItem(actionItem.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Discussions Section */}
+            <div>
+              <h4 className="font-medium flex items-center gap-2 mb-4">
+                <MessageSquare className="h-4 w-4" />
+                Discussion
+              </h4>
+
+              {/* Add New Discussion */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Add to discussion..."
+                    value={newDiscussion}
+                    onChange={(e) => setNewDiscussion(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button onClick={() => createDiscussion(selectedOneOnOne.id)}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Discussions List */}
+              <div className="space-y-3">
+                {selectedOneOnOne.discussions.map((discussion) => (
+                  <div key={discussion.id} className="border-l-4 border-blue-200 pl-4 py-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">{discussion.user_name}</span>
+                      <span className="text-xs text-gray-500">{new Date(discussion.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-gray-700">{discussion.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // List view (default)
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -382,7 +593,7 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
       ) : (
         <div className="space-y-6">
           {oneOnOnes.map((oneOnOne) => (
-            <Card key={oneOnOne.id}>
+            <Card key={oneOnOne.id} className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -394,178 +605,52 @@ export default function OneOnOnesClient({ user }: OneOnOnesClientProps) {
                       {oneOnOne.user_name} • {oneOnOne.manager_name}
                     </CardDescription>
                   </div>
-                  <Badge variant="outline">{oneOnOne.action_items.length} action items</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{oneOnOne.action_items.length} action items</Badge>
+                    <Button variant="outline" size="sm" onClick={() => handleViewOneOnOne(oneOnOne)}>
+                      <List className="h-4 w-4 mr-2" />
+                      View Details
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Notes Section */}
-                <div>
-                  <h4 className="font-medium mb-2">Notes</h4>
-                  <Textarea
-                    placeholder="Meeting notes..."
-                    value={oneOnOne.notes}
-                    onChange={(e) => {
-                      const updatedOneOnOnes = oneOnOnes.map((o) =>
-                        o.id === oneOnOne.id ? { ...o, notes: e.target.value } : o,
-                      )
-                      setOneOnOnes(updatedOneOnOnes)
-                    }}
-                    onBlur={(e) => updateOneOnOneNotes(oneOnOne.id, e.target.value)}
-                  />
-                </div>
-
-                {/* Action Items Section */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-medium flex items-center gap-2">
-                      <CheckSquare className="h-4 w-4" />
-                      Action Items
-                    </h4>
-                  </div>
-
-                  {/* Add New Action Item */}
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="Action item title..."
-                        value={newActionItem.title}
-                        onChange={(e) => setNewActionItem({ ...newActionItem, title: e.target.value })}
-                      />
-                      <Textarea
-                        placeholder="Description (optional)..."
-                        value={newActionItem.description}
-                        onChange={(e) => setNewActionItem({ ...newActionItem, description: e.target.value })}
-                      />
-                      <div className="flex gap-2">
-                        <Input
-                          type="date"
-                          placeholder="Due date (optional)"
-                          value={newActionItem.dueDate}
-                          onChange={(e) => setNewActionItem({ ...newActionItem, dueDate: e.target.value })}
-                        />
-                        <Button onClick={() => createActionItem(oneOnOne.id)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add
-                        </Button>
-                      </div>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Notes Preview */}
+                  {oneOnOne.notes && (
+                    <div>
+                      <h4 className="font-medium text-sm text-gray-700 mb-1">Notes</h4>
+                      <p className="text-sm text-gray-600 line-clamp-2">{oneOnOne.notes}</p>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Action Items List */}
-                  <div className="space-y-3">
-                    {oneOnOne.action_items.map((actionItem) => (
-                      <div key={actionItem.id} className="border rounded-lg p-4">
-                        {editingActionItem?.id === actionItem.id ? (
-                          <div className="space-y-3">
-                            <Input
-                              value={editingActionItem.title}
-                              onChange={(e) => setEditingActionItem({ ...editingActionItem, title: e.target.value })}
-                            />
-                            <Textarea
-                              value={editingActionItem.description}
-                              onChange={(e) =>
-                                setEditingActionItem({ ...editingActionItem, description: e.target.value })
-                              }
-                            />
-                            <div className="flex gap-2">
-                              <Select
-                                value={editingActionItem.status}
-                                onValueChange={(value) =>
-                                  setEditingActionItem({ ...editingActionItem, status: value as any })
-                                }
-                              >
-                                <SelectTrigger className="w-40">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {STATUS_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                type="date"
-                                value={editingActionItem.due_date || ""}
-                                onChange={(e) =>
-                                  setEditingActionItem({ ...editingActionItem, due_date: e.target.value })
-                                }
-                              />
-                              <Button onClick={() => updateActionItem(editingActionItem)}>Save</Button>
-                              <Button variant="outline" onClick={() => setEditingActionItem(null)}>
-                                Cancel
-                              </Button>
-                            </div>
+                  {/* Action Items Summary */}
+                  {oneOnOne.action_items.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm text-gray-700 mb-2">Recent Action Items</h4>
+                      <div className="space-y-1">
+                        {oneOnOne.action_items.slice(0, 2).map((actionItem) => (
+                          <div key={actionItem.id} className="flex items-center gap-2 text-sm">
+                            {getStatusBadge(actionItem.status)}
+                            <span className="text-gray-600">{actionItem.title}</span>
                           </div>
-                        ) : (
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h5 className="font-medium">{actionItem.title}</h5>
-                                {getStatusBadge(actionItem.status)}
-                              </div>
-                              {actionItem.description && (
-                                <p className="text-sm text-gray-600 mb-2">{actionItem.description}</p>
-                              )}
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <span>Created: {new Date(actionItem.created_at).toLocaleDateString()}</span>
-                                {actionItem.due_date && (
-                                  <span>Due: {new Date(actionItem.due_date).toLocaleDateString()}</span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => setEditingActionItem(actionItem)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => deleteActionItem(actionItem.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
+                        ))}
+                        {oneOnOne.action_items.length > 2 && (
+                          <p className="text-xs text-gray-500">+{oneOnOne.action_items.length - 2} more action items</p>
                         )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Discussions Section */}
-                <div>
-                  <h4 className="font-medium flex items-center gap-2 mb-4">
-                    <MessageSquare className="h-4 w-4" />
-                    Discussion
-                  </h4>
-
-                  {/* Add New Discussion */}
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="Add to discussion..."
-                        value={newDiscussion}
-                        onChange={(e) => setNewDiscussion(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button onClick={() => createDiscussion(oneOnOne.id)}>
-                        <Send className="h-4 w-4" />
-                      </Button>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Discussions List */}
-                  <div className="space-y-3">
-                    {oneOnOne.discussions.map((discussion) => (
-                      <div key={discussion.id} className="border-l-4 border-blue-200 pl-4 py-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{discussion.user_name}</span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(discussion.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700">{discussion.content}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {/* Discussions Summary */}
+                  {oneOnOne.discussions.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm text-gray-700 mb-1">Latest Discussion</h4>
+                      <p className="text-sm text-gray-600 line-clamp-1">
+                        {oneOnOne.discussions[oneOnOne.discussions.length - 1].content}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
