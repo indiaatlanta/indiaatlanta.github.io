@@ -4,7 +4,6 @@ import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import OneOnOnesClient from "./one-on-ones-client"
 import Image from "next/image"
-import { Suspense } from "react"
 
 // Force dynamic rendering since we use cookies and database
 export const dynamic = "force-dynamic"
@@ -55,9 +54,7 @@ export default async function OneOnOnesPage() {
       </div>
 
       {/* Pass data to client component */}
-      <Suspense fallback={<div>Loading...</div>}>
-        <OneOnOnesClient />
-      </Suspense>
+      <OneOnOnesClient />
     </div>
   )
 }

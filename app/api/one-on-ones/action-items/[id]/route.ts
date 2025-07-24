@@ -9,59 +9,48 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const actionItemId = Number.parseInt(params.id)
-    const { status, description, due_date } = await request.json()
+    const id = Number.parseInt(params.id)
+    const body = await request.json()
+    const { title, description, status, dueDate } = body
 
     if (!isDatabaseConfigured() || !sql) {
       // Return demo response
       return NextResponse.json({
-        id: actionItemId,
-        status,
-        description: description || "Demo action item",
-        due_date,
-        created_at: new Date().toISOString(),
+        actionItem: {
+          id,
+          title: title || "",
+          description: description || "",
+          status: status || "not-started",
+          due_date: dueDate || null,
+          updated_at: new Date().toISOString(),
+        },
       })
     }
 
-    // Verify the action item belongs to the user's one-on-one
-    const authCheck = await sql`
-      SELECT ai.id FROM action_items ai
+    // Verify user has access to this action item
+    const actionItem = await sql`
+      SELECT ai.* FROM one_on_one_action_items ai
       JOIN one_on_ones o ON ai.one_on_one_id = o.id
-      WHERE ai.id = ${actionItemId} AND o.user_id = ${user.id}
+      WHERE ai.id = ${id} AND (o.user_id = ${user.id} OR o.manager_id = ${user.id})
     `
 
-    if (authCheck.length === 0) {
+    if (actionItem.length === 0) {
       return NextResponse.json({ error: "Action item not found" }, { status: 404 })
     }
 
-    const updateFields = []
-    const updateValues = []
-
-    if (status !== undefined) {
-      updateFields.push("status = $" + (updateValues.length + 1))
-      updateValues.push(status)
-    }
-    if (description !== undefined) {
-      updateFields.push("description = $" + (updateValues.length + 1))
-      updateValues.push(description)
-    }
-    if (due_date !== undefined) {
-      updateFields.push("due_date = $" + (updateValues.length + 1))
-      updateValues.push(due_date)
-    }
-
-    if (updateFields.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 })
-    }
-
     const result = await sql`
-      UPDATE action_items
-      SET ${sql.unsafe(updateFields.join(", "))}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${actionItemId}
+      UPDATE one_on_one_action_items 
+      SET 
+        title = ${title || actionItem[0].title},
+        description = ${description !== undefined ? description : actionItem[0].description},
+        status = ${status || actionItem[0].status},
+        due_date = ${dueDate !== undefined ? dueDate : actionItem[0].due_date},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
       RETURNING *
     `
 
-    return NextResponse.json(result[0])
+    return NextResponse.json({ actionItem: result[0] })
   } catch (error) {
     console.error("Failed to update action item:", error)
     return NextResponse.json({ error: "Failed to update action item" }, { status: 500 })
@@ -75,25 +64,26 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const actionItemId = Number.parseInt(params.id)
+    const id = Number.parseInt(params.id)
 
     if (!isDatabaseConfigured() || !sql) {
+      // Return demo response
       return NextResponse.json({ success: true })
     }
 
-    // Verify the action item belongs to the user's one-on-one
-    const authCheck = await sql`
-      SELECT ai.id FROM action_items ai
+    // Verify user has access to this action item
+    const actionItem = await sql`
+      SELECT ai.* FROM one_on_one_action_items ai
       JOIN one_on_ones o ON ai.one_on_one_id = o.id
-      WHERE ai.id = ${actionItemId} AND o.user_id = ${user.id}
+      WHERE ai.id = ${id} AND (o.user_id = ${user.id} OR o.manager_id = ${user.id})
     `
 
-    if (authCheck.length === 0) {
+    if (actionItem.length === 0) {
       return NextResponse.json({ error: "Action item not found" }, { status: 404 })
     }
 
     await sql`
-      DELETE FROM action_items WHERE id = ${actionItemId}
+      DELETE FROM one_on_one_action_items WHERE id = ${id}
     `
 
     return NextResponse.json({ success: true })
