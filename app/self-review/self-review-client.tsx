@@ -265,12 +265,12 @@ export default function SelfReviewClient() {
         assessmentName: `${selectedRole.name} Self-Assessment - ${new Date().toLocaleDateString()}`,
         jobRoleName: selectedRole.name,
         departmentName: selectedRole.department,
+        roleId: selectedRole.id,
         skillsData,
         overallScore: calculateOverallScore(),
         completionPercentage: progress.completionPercentage,
         totalSkills: progress.totalSkills,
         completedSkills: progress.ratedSkills,
-        roleId: selectedRole.id,
       }
 
       console.log("Saving assessment data:", assessmentData)

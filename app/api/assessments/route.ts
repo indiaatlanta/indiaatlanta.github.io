@@ -29,15 +29,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ assessments: demoAssessments })
     }
 
-    // Ensure tables exist
+    // Ensure tables exist with proper schema
     await sql`
       CREATE TABLE IF NOT EXISTS saved_assessments (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
+        role_id INTEGER,
         assessment_name VARCHAR(255) NOT NULL,
         job_role_name VARCHAR(255),
         department_name VARCHAR(255),
-        role_id INTEGER,
+        assessment_data JSONB DEFAULT '{}' NOT NULL,
         skills_data JSONB DEFAULT '{}',
         overall_score DECIMAL(5,2) DEFAULT 0,
         completion_percentage INTEGER DEFAULT 0,
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
         COALESCE(total_skills::integer, 0) as total_skills,
         COALESCE(completed_skills::integer, 0) as completed_skills,
         COALESCE(skills_data, '{}') as skills_data,
+        COALESCE(assessment_data, '{}') as assessment_data,
         created_at,
         updated_at
       FROM saved_assessments
@@ -104,6 +106,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Assessment name is required" }, { status: 400 })
     }
 
+    // Ensure skillsData is valid JSON
+    const validSkillsData = skillsData || {}
+    const assessmentData = {
+      assessmentName,
+      jobRoleName,
+      departmentName,
+      roleId,
+      skillsData: validSkillsData,
+      overallScore: Number(overallScore) || 0,
+      completionPercentage: Number(completionPercentage) || 0,
+      totalSkills: Number(totalSkills) || 0,
+      completedSkills: Number(completedSkills) || 0,
+      createdAt: new Date().toISOString(),
+    }
+
     if (!isDatabaseConfigured() || !sql) {
       // Return demo response
       return NextResponse.json({
@@ -111,12 +128,14 @@ export async function POST(request: NextRequest) {
           id: Date.now(),
           user_id: user.id,
           assessment_name: assessmentName,
-          job_role_name: jobRoleName,
-          department_name: departmentName,
-          overall_score: overallScore || 0,
-          completion_percentage: completionPercentage || 0,
-          total_skills: totalSkills || 0,
-          completed_skills: completedSkills || 0,
+          job_role_name: jobRoleName || "Unknown Role",
+          department_name: departmentName || "Unknown Department",
+          assessment_data: assessmentData,
+          skills_data: validSkillsData,
+          overall_score: Number(overallScore) || 0,
+          completion_percentage: Number(completionPercentage) || 0,
+          total_skills: Number(totalSkills) || 0,
+          completed_skills: Number(completedSkills) || 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -133,10 +152,11 @@ export async function POST(request: NextRequest) {
     const result = await sql`
       INSERT INTO saved_assessments (
         user_id,
+        role_id,
         assessment_name,
         job_role_name,
         department_name,
-        role_id,
+        assessment_data,
         skills_data,
         overall_score,
         completion_percentage,
@@ -145,15 +165,16 @@ export async function POST(request: NextRequest) {
       )
       VALUES (
         ${user.id},
-        ${assessmentName},
-        ${jobRoleName || ""},
-        ${departmentName || ""},
         ${roleId || null},
-        ${JSON.stringify(skillsData || {})},
-        ${overallScore || 0},
-        ${completionPercentage || 0},
-        ${totalSkills || 0},
-        ${completedSkills || 0}
+        ${assessmentName},
+        ${jobRoleName || "Unknown Role"},
+        ${departmentName || "Unknown Department"},
+        ${JSON.stringify(assessmentData)},
+        ${JSON.stringify(validSkillsData)},
+        ${Number(overallScore) || 0},
+        ${Number(completionPercentage) || 0},
+        ${Number(totalSkills) || 0},
+        ${Number(completedSkills) || 0}
       )
       RETURNING *
     `
