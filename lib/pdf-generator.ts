@@ -1,6 +1,5 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { Image } from "canvas"
 
 interface SkillRating {
   skillId: number
@@ -36,7 +35,7 @@ export function generateAssessmentPDF(data: AssessmentData): void {
   logoImg.crossOrigin = "anonymous"
   logoImg.onload = () => {
     // Add logo (smaller size)
-    doc.addImage(logoImg, "PNG", 20, 10, 20, 3)
+    doc.addImage(logoImg, "PNG", 20, 10, 15, 2.5)
 
     // Header
     doc.setFillColor(...primaryColor)
@@ -45,7 +44,7 @@ export function generateAssessmentPDF(data: AssessmentData): void {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(20)
     doc.setFont("helvetica", "bold")
-    doc.text("Skills Assessment Report", 50, 20)
+    doc.text("Skills Assessment Report", 45, 20)
 
     // Assessment Info
     doc.setTextColor(...secondaryColor)
@@ -177,8 +176,15 @@ export function generateAssessmentPDF(data: AssessmentData): void {
     // Save the PDF
     doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
   }
+
   logoImg.onerror = () => {
-    // Fallback without logo
+    // Fallback without logo - generate PDF immediately
+    generatePDFContent()
+  }
+
+  // Function to generate PDF content without logo
+  function generatePDFContent() {
+    // Header
     doc.setFillColor(...primaryColor)
     doc.rect(0, 0, 210, 30, "F")
 
@@ -317,5 +323,14 @@ export function generateAssessmentPDF(data: AssessmentData): void {
     // Save the PDF
     doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
   }
+
+  // Try to load logo, fallback to no logo if it fails
   logoImg.src = "/images/hs1-logo.png"
+
+  // Set a timeout to generate PDF without logo if image takes too long
+  setTimeout(() => {
+    if (!logoImg.complete) {
+      generatePDFContent()
+    }
+  }, 2000)
 }
