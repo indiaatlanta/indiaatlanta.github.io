@@ -26,179 +26,62 @@ export function generateAssessmentPDF(data: AssessmentData): void {
   const doc = new jsPDF()
 
   // Set up colors
-  const primaryColor = [41, 128, 185] // Blue
-  const secondaryColor = [52, 73, 94] // Dark gray
-  const lightGray = [236, 240, 241]
+  const primaryColor = [41, 128, 185] as const // Blue
+  const secondaryColor = [52, 73, 94] as const // Dark gray
+  const lightGray = [236, 240, 241] as const
 
-  // Add logo
-  const logoImg = new Image()
-  logoImg.crossOrigin = "anonymous"
-  logoImg.onload = () => {
-    // Add logo (smaller size)
-    doc.addImage(logoImg, "PNG", 20, 10, 15, 2.5)
+  // Function to generate PDF content with logo
+  function generatePDFWithLogo(logoImg: HTMLImageElement) {
+    try {
+      // Add logo (adjusted size and position)
+      doc.addImage(logoImg, "PNG", 20, 8, 25, 4)
 
-    // Header
-    doc.setFillColor(...primaryColor)
-    doc.rect(0, 0, 210, 30, "F")
+      // Header with logo
+      doc.setFillColor(...primaryColor)
+      doc.rect(0, 0, 210, 30, "F")
 
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(20)
-    doc.setFont("helvetica", "bold")
-    doc.text("Skills Assessment Report", 45, 20)
-
-    // Assessment Info
-    doc.setTextColor(...secondaryColor)
-    doc.setFontSize(12)
-    doc.setFont("helvetica", "normal")
-
-    let yPos = 45
-    doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
-    yPos += 8
-    doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
-    yPos += 8
-    doc.text(`Department: ${data.departmentName}`, 20, yPos)
-    yPos += 8
-    doc.text(`Date: ${new Date(data.createdAt).toLocaleDateString()}`, 20, yPos)
-
-    // Summary Box
-    yPos += 15
-    doc.setFillColor(...lightGray)
-    doc.rect(20, yPos, 170, 25, "F")
-
-    doc.setTextColor(...secondaryColor)
-    doc.setFontSize(14)
-    doc.setFont("helvetica", "bold")
-    doc.text("Assessment Summary", 25, yPos + 8)
-
-    doc.setFontSize(10)
-    doc.setFont("helvetica", "normal")
-    doc.text(`Overall Score: ${data.overallScore.toFixed(1)}%`, 25, yPos + 16)
-    doc.text(`Completion: ${data.completionPercentage}%`, 90, yPos + 16)
-    doc.text(`Skills Rated: ${data.completedSkills}/${data.totalSkills}`, 140, yPos + 16)
-
-    yPos += 35
-
-    // Group skills by category
-    const skillsByCategory = data.skillsData.reduce(
-      (acc, skill) => {
-        if (!acc[skill.category]) {
-          acc[skill.category] = []
-        }
-        acc[skill.category].push(skill)
-        return acc
-      },
-      {} as Record<string, SkillRating[]>,
-    )
-
-    // Skills by Category
-    Object.entries(skillsByCategory).forEach(([category, skills]) => {
-      // Check if we need a new page
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
-      }
-
-      doc.setFontSize(14)
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(18)
       doc.setFont("helvetica", "bold")
-      doc.setTextColor(...primaryColor)
-      doc.text(category, 20, yPos)
-      yPos += 10
+      doc.text("Skills Assessment Report", 55, 15)
 
-      // Create table data
-      const tableData = skills.map((skill) => [skill.skillName, skill.level, skill.rating, `${skill.ratingValue}/4`])
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text("Henry Schein One", 55, 22)
 
-      autoTable(doc, {
-        startY: yPos,
-        head: [["Skill", "Level", "Rating", "Score"]],
-        body: tableData,
-        theme: "grid",
-        headStyles: {
-          fillColor: primaryColor,
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: "bold",
-        },
-        bodyStyles: {
-          fontSize: 9,
-          textColor: secondaryColor,
-        },
-        alternateRowStyles: {
-          fillColor: [249, 249, 249],
-        },
-        margin: { left: 20, right: 20 },
-        tableWidth: 170,
-      })
-
-      yPos = (doc as any).lastAutoTable.finalY + 15
-    })
-
-    // Rating Scale Legend
-    if (yPos > 230) {
-      doc.addPage()
-      yPos = 20
+      generatePDFContent(45)
+    } catch (error) {
+      console.warn("Error adding logo to PDF, falling back to text-only header:", error)
+      generatePDFWithoutLogo()
     }
-
-    doc.setFontSize(12)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...secondaryColor)
-    doc.text("Rating Scale", 20, yPos)
-    yPos += 10
-
-    const ratingScale = [
-      ["1 - Needs Development", "Limited knowledge or experience"],
-      ["2 - Developing", "Some knowledge, requires guidance"],
-      ["3 - Proficient/Fully Displayed", "Competent, works independently"],
-      ["4 - Strength/Role Model", "Expert level, mentors others"],
-      ["N/A - Not Applicable", "Not relevant to current role"],
-    ]
-
-    autoTable(doc, {
-      startY: yPos,
-      body: ratingScale,
-      theme: "plain",
-      bodyStyles: {
-        fontSize: 9,
-        textColor: secondaryColor,
-      },
-      margin: { left: 20, right: 20 },
-      tableWidth: 170,
-    })
-
-    // Footer
-    const pageCount = doc.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(8)
-      doc.setTextColor(128, 128, 128)
-      doc.text(`Generated by HS1 Careers Matrix - Page ${i} of ${pageCount}`, 20, 285)
-    }
-
-    // Save the PDF
-    doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
-  }
-
-  logoImg.onerror = () => {
-    // Fallback without logo - generate PDF immediately
-    generatePDFContent()
   }
 
   // Function to generate PDF content without logo
-  function generatePDFContent() {
-    // Header
+  function generatePDFWithoutLogo() {
+    // Header without logo
     doc.setFillColor(...primaryColor)
     doc.rect(0, 0, 210, 30, "F")
 
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(20)
     doc.setFont("helvetica", "bold")
-    doc.text("Skills Assessment Report", 20, 20)
+    doc.text("Henry Schein One", 20, 15)
 
+    doc.setFontSize(16)
+    doc.setFont("helvetica", "normal")
+    doc.text("Skills Assessment Report", 20, 23)
+
+    generatePDFContent(45)
+  }
+
+  // Function to generate the main PDF content
+  function generatePDFContent(startY: number) {
     // Assessment Info
     doc.setTextColor(...secondaryColor)
     doc.setFontSize(12)
     doc.setFont("helvetica", "normal")
 
-    let yPos = 45
+    let yPos = startY
     doc.text(`Assessment: ${data.assessmentName}`, 20, yPos)
     yPos += 8
     doc.text(`Role: ${data.jobRoleName}`, 20, yPos)
@@ -324,13 +207,33 @@ export function generateAssessmentPDF(data: AssessmentData): void {
     doc.save(`${data.assessmentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_assessment.pdf`)
   }
 
-  // Try to load logo, fallback to no logo if it fails
-  logoImg.src = "/images/hs1-logo.png"
+  // Try to load and use the logo
+  const logoImg = new Image()
+  logoImg.crossOrigin = "anonymous"
+
+  logoImg.onload = () => {
+    console.log("Logo loaded successfully, generating PDF with logo")
+    generatePDFWithLogo(logoImg)
+  }
+
+  logoImg.onerror = (error) => {
+    console.warn("Failed to load logo, generating PDF without logo:", error)
+    generatePDFWithoutLogo()
+  }
 
   // Set a timeout to generate PDF without logo if image takes too long
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     if (!logoImg.complete) {
-      generatePDFContent()
+      console.warn("Logo loading timeout, generating PDF without logo")
+      generatePDFWithoutLogo()
     }
-  }, 2000)
+  }, 3000)
+
+  // Clear timeout if logo loads successfully
+  logoImg.addEventListener("load", () => {
+    clearTimeout(timeoutId)
+  })
+
+  // Start loading the logo
+  logoImg.src = "/images/hs1-logo.png"
 }
