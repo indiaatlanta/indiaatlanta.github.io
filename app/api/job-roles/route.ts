@@ -14,6 +14,64 @@ const jobRoleSchema = z.object({
   locationType: z.string().max(50).optional(),
 })
 
+export async function GET(request: NextRequest) {
+  try {
+    await requireAdmin()
+
+    if (!isDatabaseConfigured() || !sql) {
+      // Return demo data
+      return NextResponse.json({
+        roles: [
+          {
+            id: 1,
+            name: "Senior Software Engineer",
+            code: "SSE",
+            level: 3,
+            department_id: 1,
+            department_name: "Engineering",
+            skill_count: 12,
+          },
+          {
+            id: 2,
+            name: "Product Manager",
+            code: "PM",
+            level: 2,
+            department_id: 2,
+            department_name: "Product",
+            skill_count: 8,
+          },
+        ],
+        isDemoMode: true,
+      })
+    }
+
+    const roles = await sql`
+      SELECT 
+        jr.*,
+        d.name as department_name,
+        COALESCE(skill_counts.skill_count, 0) as skill_count
+      FROM job_roles jr
+      JOIN departments d ON jr.department_id = d.id
+      LEFT JOIN (
+        SELECT 
+          job_role_id,
+          COUNT(*) as skill_count
+        FROM skill_demonstrations
+        GROUP BY job_role_id
+      ) skill_counts ON jr.id = skill_counts.job_role_id
+      ORDER BY d.name, jr.level, jr.name
+    `
+
+    return NextResponse.json({
+      roles,
+      isDemoMode: false,
+    })
+  } catch (error) {
+    console.error("Get job roles error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAdmin()
@@ -25,6 +83,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         id: Math.floor(Math.random() * 1000),
         ...roleData,
+        department_name: "Demo Department",
+        skill_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         message: "Job role created successfully (demo mode)",
         isDemoMode: true,
       })
@@ -46,6 +108,17 @@ export async function POST(request: NextRequest) {
 
     const newRole = result[0]
 
+    // Get department name for response
+    const department = await sql`
+      SELECT name FROM departments WHERE id = ${roleData.departmentId}
+    `
+
+    const roleWithDepartment = {
+      ...newRole,
+      department_name: department[0]?.name || "Unknown",
+      skill_count: 0,
+    }
+
     // Create audit log
     await createAuditLog({
       userId: user.id,
@@ -55,7 +128,7 @@ export async function POST(request: NextRequest) {
       newValues: roleData,
     })
 
-    return NextResponse.json(newRole, { status: 201 })
+    return NextResponse.json(roleWithDepartment, { status: 201 })
   } catch (error) {
     console.error("Create job role error:", error)
 

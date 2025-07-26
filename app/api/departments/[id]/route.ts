@@ -13,18 +13,28 @@ const departmentSchema = z.object({
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireAdmin()
-    const departmentId = Number.parseInt(params.id)
     const body = await request.json()
     const departmentData = departmentSchema.parse(body)
+    const departmentId = Number.parseInt(params.id)
 
     if (!isDatabaseConfigured() || !sql) {
       // Demo mode - simulate success
       return NextResponse.json({
         id: departmentId,
         ...departmentData,
+        updated_at: new Date().toISOString(),
         message: "Department updated successfully (demo mode)",
         isDemoMode: true,
       })
+    }
+
+    // Get current department for audit log
+    const currentDept = await sql`
+      SELECT * FROM departments WHERE id = ${departmentId}
+    `
+
+    if (currentDept.length === 0) {
+      return NextResponse.json({ error: "Department not found" }, { status: 404 })
     }
 
     const result = await sql`
@@ -37,10 +47,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       RETURNING *
     `
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Department not found" }, { status: 404 })
-    }
-
     const updatedDepartment = result[0]
 
     // Create audit log
@@ -49,6 +55,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       tableName: "departments",
       recordId: departmentId,
       action: "UPDATE",
+      oldValues: currentDept[0],
       newValues: departmentData,
     })
 
@@ -77,6 +84,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       })
     }
 
+    // Get current department for audit log
+    const currentDept = await sql`
+      SELECT * FROM departments WHERE id = ${departmentId}
+    `
+
+    if (currentDept.length === 0) {
+      return NextResponse.json({ error: "Department not found" }, { status: 404 })
+    }
+
     // Check if department has job roles
     const jobRoles = await sql`
       SELECT COUNT(*) as count FROM job_roles WHERE department_id = ${departmentId}
@@ -84,19 +100,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     if (jobRoles[0].count > 0) {
       return NextResponse.json(
-        { error: "Cannot delete department with existing job roles. Delete job roles first." },
+        {
+          error: "Cannot delete department with existing job roles. Please delete or reassign job roles first.",
+        },
         { status: 400 },
       )
     }
 
-    const result = await sql`
+    await sql`
       DELETE FROM departments WHERE id = ${departmentId}
-      RETURNING *
     `
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Department not found" }, { status: 404 })
-    }
 
     // Create audit log
     await createAuditLog({
@@ -104,7 +117,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       tableName: "departments",
       recordId: departmentId,
       action: "DELETE",
-      oldValues: result[0],
+      oldValues: currentDept[0],
     })
 
     return NextResponse.json({ message: "Department deleted successfully" })

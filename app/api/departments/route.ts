@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         id: Math.floor(Math.random() * 1000),
         ...departmentData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         message: "Department created successfully (demo mode)",
         isDemoMode: true,
       })
